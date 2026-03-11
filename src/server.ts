@@ -54,7 +54,7 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
     },
     async (input, extra) => {
       const api = requireApi(extra, options);
-      const teamId = input.team_id ?? requireTeamId(extra);
+      const teamId = input.team_id ?? requireTeamId(extra, options);
       const response = await api.get(`/teams/${teamId}/profiles`, {
         limit: input.limit,
         page: input.page,
@@ -312,11 +312,15 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
 
 function requireApi(extra: ToolExtraLike | undefined, options: ServerOptions) {
   const authInfo = resolveAuthInfo(extra, options);
-  const token = authInfo?.token ?? env.PRESSCART_API_TOKEN;
+  const tokenFromSession =
+    typeof authInfo?.extra?.presscart_api_token === 'string'
+      ? authInfo.extra.presscart_api_token
+      : authInfo?.token;
+  const token = tokenFromSession ?? env.PRESSCART_API_TOKEN;
 
   if (!token) {
     throw new Error(
-      'No Presscart API token available. Provide bearer auth to the MCP server or configure PRESSCART_API_TOKEN for local stdio use.'
+      'No Presscart API token available. Bind a session with X-Presscart-API-Token or configure PRESSCART_API_TOKEN for local stdio use.'
     );
   }
 
@@ -327,12 +331,14 @@ function resolveAuthInfo(extra: ToolExtraLike | undefined, options: ServerOption
   return extra?.authInfo ?? options.getSessionAuthInfo?.(extra?.sessionId);
 }
 
-function requireTeamId(extra: ToolExtraLike | undefined) {
-  const authInfo = extra?.authInfo;
+function requireTeamId(extra: ToolExtraLike | undefined, options: ServerOptions) {
+  const authInfo = resolveAuthInfo(extra, options);
   const teamId = authInfo?.extra?.team_id;
   if (typeof teamId === 'string' && teamId.length > 0) return teamId;
 
-  throw new Error('team_id is required. Pass team_id explicitly or authenticate the MCP request.');
+  throw new Error(
+    'team_id is required. Pass team_id explicitly or bind the Presscart credential to the MCP session.'
+  );
 }
 
 function resolveProfileId(profileId: string | undefined) {

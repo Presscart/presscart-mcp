@@ -1,78 +1,219 @@
 import { randomUUID } from 'node:crypto';
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 
+import express, { type Request, type Response } from 'express';
+import {
+  getOAuthProtectedResourceMetadataUrl,
+  mcpAuthRouter,
+} from '@modelcontextprotocol/sdk/server/auth/router.js';
+import { requireBearerAuth } from '@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js';
+import { createMcpExpressApp } from '@modelcontextprotocol/sdk/server/express.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 
-import { PresscartApiClient, type TokenSessionResponse } from './api.js';
+import { PresscartApiClient, PresscartApiError, type TokenSessionResponse } from './api.js';
 import { env } from './env.js';
+import { PresscartOAuthProvider } from './oauth.js';
 import { createPresscartMcpServer, formatServerError } from './server.js';
-
-type AuthInfo = {
-  token: string;
-  clientId: string;
-  scopes: string[];
-  expiresAt: number;
-  extra?: Record<string, unknown>;
-};
 
 type SessionState = {
   transport: StreamableHTTPServerTransport;
-  authInfo: AuthInfo;
+  authInfo?: AuthInfo;
 };
+
+class HttpError extends Error {
+  constructor(
+    readonly statusCode: number,
+    message: string
+  ) {
+    super(message);
+    this.name = 'HttpError';
+  }
+}
+
+const PRESSCART_TOKEN_HEADER = 'x-presscart-api-token';
 
 const sessions = new Map<string, SessionState>();
 const tokenCache = new Map<string, { authInfo: AuthInfo; verifiedAtMs: number }>();
 
-const httpServer = createServer(async (req, res) => {
+const mcpServerUrl = resolveMcpServerUrl();
+const issuerUrl = env.MCP_OAUTH_ENABLED ? resolveIssuerUrl(mcpServerUrl) : undefined;
+const allowedOrigins = resolveAllowedOrigins(mcpServerUrl);
+
+const app = createMcpExpressApp({
+  host: env.MCP_HOST,
+  allowedHosts: env.MCP_ALLOWED_HOSTS ? resolveAllowedHostnames(mcpServerUrl) : undefined,
+});
+
+app.disable('x-powered-by');
+app.use('/mcp', validateOriginHeader(allowedOrigins));
+
+app.get('/health', (_req, res) => {
+  res.json({ ok: true });
+});
+
+let oauthProvider: PresscartOAuthProvider | undefined;
+let bearerAuth:
+  | ReturnType<typeof requireBearerAuth>
+  | undefined;
+
+if (env.MCP_OAUTH_ENABLED) {
+  oauthProvider = new PresscartOAuthProvider({
+    issuerUrl: issuerUrl!,
+    mcpServerUrl,
+    presscartApiUrl: env.PRESSCART_API_URL,
+    supportedScopes: ['mcp:tools'],
+  });
+
+  app.get('/oauth/authorize', (req, res) => void oauthProvider!.renderAuthorizationPage(req, res));
+  app.post(
+    '/oauth/authorize',
+    express.urlencoded({ extended: false }),
+    (req, res) => void oauthProvider!.approveAuthorization(req, res)
+  );
+
+  app.use(
+    mcpAuthRouter({
+      provider: oauthProvider,
+      issuerUrl: issuerUrl!,
+      resourceServerUrl: mcpServerUrl,
+      scopesSupported: ['mcp:tools'],
+      resourceName: 'Presscart MCP',
+    })
+  );
+
+  bearerAuth = requireBearerAuth({
+    verifier: oauthProvider,
+    requiredScopes: [],
+    resourceMetadataUrl: getOAuthProtectedResourceMetadataUrl(mcpServerUrl),
+  });
+}
+
+app.post('/mcp', ...(bearerAuth ? [bearerAuth] : []), async (req, res) => {
   try {
-    const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
-
-    if (url.pathname === '/health') {
-      sendJson(res, 200, { ok: true });
-      return;
+    if (env.MCP_OAUTH_ENABLED) {
+      rejectLegacyPresscartHeader(req);
     }
 
-    if (url.pathname !== '/mcp') {
-      sendJson(res, 404, { error: 'Not found' });
-      return;
-    }
-
-    const sessionId = headerValue(req.headers['mcp-session-id']);
+    const sessionId = readHeader(req, 'mcp-session-id');
     const existingSession = sessionId ? sessions.get(sessionId) : undefined;
-    const authInfo = await authenticateRequest(req, existingSession);
-    (req as IncomingMessage & { auth?: AuthInfo }).auth = authInfo;
 
-    switch (req.method) {
-      case 'POST':
-        await handlePost(req as IncomingMessage & { auth?: AuthInfo }, res, existingSession);
-        return;
-      case 'GET':
-      case 'DELETE':
-        if (!existingSession) {
-          sendJson(res, 400, { error: 'Invalid or missing MCP session id' });
-          return;
-        }
-        await existingSession.transport.handleRequest(
-          req as IncomingMessage & { auth?: AuthInfo },
-          res
-        );
-        return;
-      default:
-        sendJson(res, 405, { error: 'Method not allowed' });
+    if (sessionId && !existingSession) {
+      sendJsonRpcError(res, 404, -32001, 'Session not found');
+      return;
     }
+
+    const authInfo = env.MCP_OAUTH_ENABLED
+      ? req.auth
+      : await resolveLegacyRequestAuthInfo(req, existingSession);
+
+    if (env.MCP_OAUTH_ENABLED && existingSession) {
+      existingSession.authInfo = validateOAuthSessionAuth(existingSession.authInfo, authInfo);
+    }
+
+    req.auth = authInfo;
+
+    if (existingSession) {
+      await existingSession.transport.handleRequest(req, res, req.body);
+      return;
+    }
+
+    if (sessionId) {
+      sendJsonRpcError(res, 404, -32001, 'Session not found');
+      return;
+    }
+
+    if (!isInitializeRequest(req.body)) {
+      sendJsonRpcError(res, 400, -32000, 'Bad Request: Mcp-Session-Id header is required');
+      return;
+    }
+
+    const transport = createTransport(req.auth);
+    const server = createPresscartMcpServer({
+      getSessionAuthInfo: sid => (sid ? sessions.get(sid)?.authInfo : undefined),
+    });
+
+    await server.connect(transport);
+    await transport.handleRequest(req, res, req.body);
   } catch (error) {
-    const status = isUnauthorizedError(error) ? 401 : 500;
-
-    if (status === 401) {
-      res.setHeader('WWW-Authenticate', 'Bearer realm="Presscart MCP"');
-    }
-
-    sendJson(res, status, { error: formatServerError(error) });
+    sendJsonRpcError(res, resolveErrorStatus(error), -32000, formatServerError(error));
   }
 });
 
-httpServer.listen(env.MCP_PORT, env.MCP_HOST, () => {
+app.get('/mcp', ...(bearerAuth ? [bearerAuth] : []), async (req, res) => {
+  try {
+    if (env.MCP_OAUTH_ENABLED) {
+      rejectLegacyPresscartHeader(req);
+    }
+
+    const sessionId = readHeader(req, 'mcp-session-id');
+    if (!sessionId) {
+      sendJsonRpcError(res, 400, -32000, 'Bad Request: Mcp-Session-Id header is required');
+      return;
+    }
+
+    const existingSession = sessions.get(sessionId);
+    if (!existingSession) {
+      sendJsonRpcError(res, 404, -32001, 'Session not found');
+      return;
+    }
+
+    req.auth = env.MCP_OAUTH_ENABLED
+      ? req.auth
+      : await resolveLegacyRequestAuthInfo(req, existingSession);
+
+    if (env.MCP_OAUTH_ENABLED) {
+      existingSession.authInfo = validateOAuthSessionAuth(existingSession.authInfo, req.auth);
+    }
+
+    await existingSession.transport.handleRequest(req, res);
+  } catch (error) {
+    sendJsonRpcError(res, resolveErrorStatus(error), -32000, formatServerError(error));
+  }
+});
+
+app.delete('/mcp', ...(bearerAuth ? [bearerAuth] : []), async (req, res) => {
+  try {
+    if (env.MCP_OAUTH_ENABLED) {
+      rejectLegacyPresscartHeader(req);
+    }
+
+    const sessionId = readHeader(req, 'mcp-session-id');
+    if (!sessionId) {
+      sendJsonRpcError(res, 400, -32000, 'Bad Request: Mcp-Session-Id header is required');
+      return;
+    }
+
+    const existingSession = sessions.get(sessionId);
+    if (!existingSession) {
+      sendJsonRpcError(res, 404, -32001, 'Session not found');
+      return;
+    }
+
+    req.auth = env.MCP_OAUTH_ENABLED
+      ? req.auth
+      : await resolveLegacyRequestAuthInfo(req, existingSession);
+
+    if (env.MCP_OAUTH_ENABLED) {
+      existingSession.authInfo = validateOAuthSessionAuth(existingSession.authInfo, req.auth);
+    }
+
+    await existingSession.transport.handleRequest(req, res);
+  } catch (error) {
+    sendJsonRpcError(res, resolveErrorStatus(error), -32000, formatServerError(error));
+  }
+});
+
+app.use((req, res) => {
+  if (req.path === '/mcp') {
+    sendJsonRpcError(res, 405, -32000, 'Method not allowed');
+    return;
+  }
+
+  res.status(404).json({ error: 'Not found' });
+});
+
+const server = app.listen(env.MCP_PORT, env.MCP_HOST, () => {
   console.error(`Presscart MCP server listening on http://${env.MCP_HOST}:${env.MCP_PORT}/mcp`);
 });
 
@@ -87,35 +228,19 @@ process.on('SIGINT', async () => {
     }
   }
 
-  httpServer.close(() => process.exit(0));
+  server.close(() => process.exit(0));
 });
 
-async function handlePost(
-  req: IncomingMessage & { auth?: AuthInfo },
-  res: ServerResponse,
-  existingSession: SessionState | undefined
-) {
-  const body = await parseJsonBody(req);
-  const sessionId = headerValue(req.headers['mcp-session-id']);
-
-  if (existingSession) {
-    await existingSession.transport.handleRequest(req, res, body);
-    return;
-  }
-
-  if (sessionId || !isInitializeRequest(body)) {
-    sendJson(res, 400, { error: 'Bad Request: No valid session ID provided' });
-    return;
-  }
-
+function createTransport(authInfo: AuthInfo | undefined) {
   let transport: StreamableHTTPServerTransport;
   transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: () => randomUUID(),
+    enableDnsRebindingProtection: true,
+    allowedOrigins,
     onsessioninitialized: initializedSessionId => {
-      if (!req.auth) return;
       sessions.set(initializedSessionId, {
         transport,
-        authInfo: req.auth,
+        authInfo,
       });
     },
   });
@@ -125,84 +250,192 @@ async function handlePost(
     if (sid) sessions.delete(sid);
   };
 
-  const server = createPresscartMcpServer({
-    getSessionAuthInfo: sid => (sid ? sessions.get(sid)?.authInfo : undefined),
-  });
-
-  await server.connect(transport);
-  await transport.handleRequest(req, res, body);
+  return transport;
 }
 
-async function authenticateRequest(
-  req: IncomingMessage,
+async function resolveLegacyRequestAuthInfo(
+  req: Request,
   existingSession: SessionState | undefined
-): Promise<AuthInfo> {
-  const bearerToken = readBearerToken(req);
-
-  if (!bearerToken) {
-    if (existingSession) return existingSession.authInfo;
-    throw new Error('Missing Authorization header');
+): Promise<AuthInfo | undefined> {
+  const authorization = readHeader(req, 'authorization');
+  if (authorization) {
+    throw new HttpError(
+      400,
+      'Authorization is reserved for MCP OAuth. Use X-Presscart-API-Token to provide the upstream Presscart credential.'
+    );
   }
 
-  if (existingSession && existingSession.authInfo.token !== bearerToken) {
-    throw new Error('Authorization token does not match the active MCP session');
+  const providedToken = readHeader(req, PRESSCART_TOKEN_HEADER);
+  if (!providedToken) {
+    return existingSession?.authInfo;
   }
 
-  const cached = tokenCache.get(bearerToken);
+  if (existingSession?.authInfo && existingSession.authInfo.token !== providedToken) {
+    throw new HttpError(
+      400,
+      'X-Presscart-API-Token does not match the credential bound to the active MCP session.'
+    );
+  }
+
+  const authInfo = await verifyPresscartToken(providedToken);
+
+  if (existingSession && !existingSession.authInfo) {
+    existingSession.authInfo = authInfo;
+  }
+
+  return existingSession?.authInfo ?? authInfo;
+}
+
+async function verifyPresscartToken(token: string): Promise<AuthInfo> {
+  const cached = tokenCache.get(token);
   if (cached && Date.now() - cached.verifiedAtMs < 60_000) {
     return cached.authInfo;
   }
 
-  const api = new PresscartApiClient(env.PRESSCART_API_URL, bearerToken);
+  const api = new PresscartApiClient(env.PRESSCART_API_URL, token);
   const session = await api.get<TokenSessionResponse>('/auth/token');
 
   const authInfo: AuthInfo = {
-    token: bearerToken,
+    token,
     clientId: session.team_id,
     scopes: session.scopes,
     expiresAt: Math.floor(Date.now() / 1000) + 300,
-    extra: session,
+    extra: {
+      ...session,
+      presscart_api_token: token,
+    },
   };
 
-  tokenCache.set(bearerToken, { authInfo, verifiedAtMs: Date.now() });
+  tokenCache.set(token, { authInfo, verifiedAtMs: Date.now() });
   return authInfo;
 }
 
-async function parseJsonBody(req: IncomingMessage) {
-  const chunks: Buffer[] = [];
-  for await (const chunk of req) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+function rejectLegacyPresscartHeader(req: Request) {
+  if (readHeader(req, PRESSCART_TOKEN_HEADER)) {
+    throw new HttpError(
+      400,
+      'X-Presscart-API-Token is not accepted on /mcp when MCP OAuth is enabled.'
+    );
   }
-
-  const raw = Buffer.concat(chunks).toString('utf8').trim();
-  if (!raw) return undefined;
-
-  return JSON.parse(raw);
 }
 
-function readBearerToken(req: IncomingMessage) {
-  const authHeader = headerValue(req.headers.authorization);
-  if (!authHeader) return undefined;
-
-  const [scheme, token] = authHeader.split(' ');
-  if (scheme?.toLowerCase() !== 'bearer' || !token) {
-    throw new Error("Invalid Authorization header format, expected 'Bearer TOKEN'");
+function validateOAuthSessionAuth(
+  sessionAuthInfo: AuthInfo | undefined,
+  requestAuthInfo: AuthInfo | undefined
+) {
+  if (!requestAuthInfo) {
+    throw new HttpError(401, 'Missing Authorization header');
   }
 
-  return token;
+  if (!sessionAuthInfo) {
+    return requestAuthInfo;
+  }
+
+  const sessionClientId = sessionAuthInfo.clientId;
+  const requestClientId = requestAuthInfo.clientId;
+  const sessionTeamId = readAuthExtraValue(sessionAuthInfo, 'team_id');
+  const requestTeamId = readAuthExtraValue(requestAuthInfo, 'team_id');
+  const sessionPresscartToken = readAuthExtraValue(sessionAuthInfo, 'presscart_api_token');
+  const requestPresscartToken = readAuthExtraValue(requestAuthInfo, 'presscart_api_token');
+
+  if (
+    sessionClientId !== requestClientId ||
+    sessionTeamId !== requestTeamId ||
+    sessionPresscartToken !== requestPresscartToken
+  ) {
+    throw new HttpError(
+      401,
+      'Authorization token does not match the credential bound to the active MCP session.'
+    );
+  }
+
+  return requestAuthInfo;
 }
 
-function headerValue(value: string | string[] | undefined) {
+function validateOriginHeader(allowed: string[]) {
+  return (req: Request, res: Response, next: () => void) => {
+    const origin = readHeader(req, 'origin');
+    if (!origin) {
+      next();
+      return;
+    }
+
+    if (allowed.length > 0 && !allowed.includes(origin)) {
+      sendJsonRpcError(res, 403, -32000, `Invalid Origin header: ${origin}`);
+      return;
+    }
+
+    next();
+  };
+}
+
+function resolveMcpServerUrl() {
+  if (env.MCP_SERVER_URL) return new URL(env.MCP_SERVER_URL);
+
+  const host =
+    env.MCP_HOST === '0.0.0.0' || env.MCP_HOST === '::' ? '127.0.0.1' : env.MCP_HOST;
+  const protocol = host === '127.0.0.1' || host === 'localhost' || host === '::1' ? 'http' : 'https';
+  return new URL(`${protocol}://${host}:${env.MCP_PORT}/mcp`);
+}
+
+function resolveIssuerUrl(serverUrl: URL) {
+  if (env.MCP_OAUTH_ISSUER_URL) return new URL(env.MCP_OAUTH_ISSUER_URL);
+  return new URL('/', serverUrl);
+}
+
+function resolveAllowedHostnames(serverUrl: URL) {
+  if (env.MCP_ALLOWED_HOSTS) return parseCsvList(env.MCP_ALLOWED_HOSTS);
+  return [serverUrl.hostname];
+}
+
+function resolveAllowedOrigins(serverUrl: URL) {
+  if (env.MCP_ALLOWED_ORIGINS) return parseCsvList(env.MCP_ALLOWED_ORIGINS);
+
+  if (serverUrl.hostname === '127.0.0.1' || serverUrl.hostname === 'localhost' || serverUrl.hostname === '::1') {
+    return [
+      `${serverUrl.protocol}//127.0.0.1:${serverUrl.port}`,
+      `${serverUrl.protocol}//localhost:${serverUrl.port}`,
+    ];
+  }
+
+  return [serverUrl.origin];
+}
+
+function parseCsvList(value: string) {
+  return value
+    .split(',')
+    .map(entry => entry.trim())
+    .filter(Boolean);
+}
+
+function readHeader(req: Request, key: string) {
+  const value = req.headers[key];
   if (Array.isArray(value)) return value[0];
   return value;
 }
 
-function sendJson(res: ServerResponse, statusCode: number, body: unknown) {
-  res.statusCode = statusCode;
-  res.setHeader('Content-Type', 'application/json');
-  res.end(JSON.stringify(body));
+function readAuthExtraValue(authInfo: AuthInfo, key: string) {
+  const value = authInfo.extra?.[key];
+  return typeof value === 'string' ? value : undefined;
 }
 
-function isUnauthorizedError(error: unknown) {
-  return error instanceof Error && /authorization|token/i.test(error.message);
+function sendJsonRpcError(
+  res: Response,
+  statusCode: number,
+  code: number,
+  message: string
+) {
+  res.status(statusCode).json({
+    jsonrpc: '2.0',
+    error: { code, message },
+    id: null,
+  });
+}
+
+function resolveErrorStatus(error: unknown) {
+  if (error instanceof HttpError) return error.statusCode;
+  if (error instanceof PresscartApiError && (error.status === 401 || error.status === 403)) {
+    return 401;
+  }
+  return 500;
 }
