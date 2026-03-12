@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 
 import type { Request, Response } from 'express';
 import {
@@ -30,6 +30,7 @@ type PresscartOAuthProviderOptions = {
   mcpServerUrl: URL;
   presscartApiUrl: string;
   supportedScopes: string[];
+  signingSecret?: string;
 };
 
 type PendingAuthorizationRequest = {
@@ -39,32 +40,38 @@ type PendingAuthorizationRequest = {
   createdAtMs: number;
 };
 
-type AuthorizationCodeRecord = {
+type TokenRecordBase = {
   clientId: string;
+  scopes: string[];
+  resource?: string;
+  presscartApiToken: string;
+  presscartProfileId?: string;
+  presscartSession: TokenSessionResponse;
+  expiresAtMs: number;
+};
+
+type AuthorizationCodeRecord = TokenRecordBase & {
   codeChallenge: string;
   redirectUri: string;
-  scopes: string[];
-  resource?: string;
-  presscartApiToken: string;
-  presscartProfileId?: string;
-  presscartSession: TokenSessionResponse;
-  expiresAtMs: number;
 };
 
-type RefreshTokenRecord = {
+type RefreshTokenRecord = TokenRecordBase & {
   token: string;
-  clientId: string;
-  scopes: string[];
-  resource?: string;
-  presscartApiToken: string;
-  presscartProfileId?: string;
-  presscartSession: TokenSessionResponse;
-  expiresAtMs: number;
 };
 
-type AccessTokenRecord = RefreshTokenRecord & {
+type AccessTokenRecord = TokenRecordBase & {
+  token: string;
   refreshToken?: string;
 };
+
+type SignedClientPayload = {
+  client: Omit<OAuthClientInformationFull, 'client_id'>;
+};
+
+type SignedAccessTokenPayload = Omit<AccessTokenRecord, 'token'>;
+type SignedRefreshTokenPayload = Omit<RefreshTokenRecord, 'token'>;
+
+type SignedTokenKind = 'client' | 'access' | 'refresh';
 
 const profileIdSchema = z.string().uuid();
 
@@ -72,6 +79,9 @@ const AUTHORIZATION_REQUEST_TTL_MS = 10 * 60 * 1000;
 const AUTHORIZATION_CODE_TTL_MS = 10 * 60 * 1000;
 const ACCESS_TOKEN_TTL_MS = 60 * 60 * 1000;
 const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+const SIGNED_TOKEN_PREFIX = 'pc';
+const SIGNED_TOKEN_VERSION = 1;
 
 class InMemoryClientsStore implements OAuthRegisteredClientsStore {
   private readonly clients = new Map<string, OAuthClientInformationFull>();
@@ -86,15 +96,95 @@ class InMemoryClientsStore implements OAuthRegisteredClientsStore {
   }
 }
 
+class TokenSigner {
+  constructor(private readonly secret: string) {}
+
+  sign<T>(kind: SignedTokenKind, payload: T) {
+    const encoded = Buffer.from(
+      JSON.stringify({
+        v: SIGNED_TOKEN_VERSION,
+        payload,
+      }),
+      'utf8'
+    ).toString('base64url');
+    const signature = createHmac('sha256', this.secret)
+      .update(`${kind}.${encoded}`)
+      .digest('base64url');
+
+    return `${SIGNED_TOKEN_PREFIX}.${kind}.${encoded}.${signature}`;
+  }
+
+  verify<T>(kind: SignedTokenKind, token: string): T | undefined {
+    const parts = token.split('.');
+    if (parts.length !== 4) return undefined;
+    if (parts[0] !== SIGNED_TOKEN_PREFIX || parts[1] !== kind) return undefined;
+
+    const encoded = parts[2];
+    const receivedSignature = parts[3];
+    const expectedSignature = createHmac('sha256', this.secret)
+      .update(`${kind}.${encoded}`)
+      .digest('base64url');
+
+    if (!safeCompare(expectedSignature, receivedSignature)) {
+      return undefined;
+    }
+
+    try {
+      const decoded = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8')) as {
+        v?: number;
+        payload?: T;
+      };
+      if (decoded.v !== SIGNED_TOKEN_VERSION || decoded.payload === undefined) {
+        return undefined;
+      }
+
+      return decoded.payload;
+    } catch {
+      return undefined;
+    }
+  }
+}
+
+class SignedClientsStore implements OAuthRegisteredClientsStore {
+  constructor(private readonly signer: TokenSigner) {}
+
+  async getClient(clientId: string) {
+    const payload = this.signer.verify<SignedClientPayload>('client', clientId);
+    if (!payload) return undefined;
+
+    return {
+      ...payload.client,
+      client_id: clientId,
+    };
+  }
+
+  async registerClient(client: OAuthClientInformationFull) {
+    const { client_id: _ignoredClientId, ...clientWithoutId } = client;
+    const signedClientId = this.signer.sign<SignedClientPayload>('client', {
+      client: clientWithoutId,
+    });
+
+    return {
+      ...clientWithoutId,
+      client_id: signedClientId,
+    };
+  }
+}
+
 export class PresscartOAuthProvider implements OAuthServerProvider {
-  readonly clientsStore = new InMemoryClientsStore();
+  readonly clientsStore: OAuthRegisteredClientsStore;
 
   private readonly pendingRequests = new Map<string, PendingAuthorizationRequest>();
   private readonly authorizationCodes = new Map<string, AuthorizationCodeRecord>();
   private readonly accessTokens = new Map<string, AccessTokenRecord>();
   private readonly refreshTokens = new Map<string, RefreshTokenRecord>();
+  private readonly revokedTokens = new Map<string, number>();
+  private readonly signer?: TokenSigner;
 
-  constructor(private readonly options: PresscartOAuthProviderOptions) {}
+  constructor(private readonly options: PresscartOAuthProviderOptions) {
+    this.signer = options.signingSecret ? new TokenSigner(options.signingSecret) : undefined;
+    this.clientsStore = this.signer ? new SignedClientsStore(this.signer) : new InMemoryClientsStore();
+  }
 
   async authorize(client: OAuthClientInformationFull, params: AuthorizationParams, res: Response) {
     this.gcExpiredState();
@@ -155,7 +245,15 @@ export class PresscartOAuthProvider implements OAuthServerProvider {
     this.assertRequestedResourceMatches(resource, record.resource);
     this.authorizationCodes.delete(authorizationCode);
 
-    const refreshToken = randomUUID();
+    const refreshToken = this.issueRefreshToken({
+      clientId: client.client_id,
+      scopes: record.scopes,
+      resource: record.resource,
+      presscartApiToken: record.presscartApiToken,
+      presscartProfileId: record.presscartProfileId,
+      presscartSession: record.presscartSession,
+    });
+
     const accessToken = this.issueAccessToken({
       clientId: client.client_id,
       scopes: record.scopes,
@@ -163,25 +261,14 @@ export class PresscartOAuthProvider implements OAuthServerProvider {
       presscartApiToken: record.presscartApiToken,
       presscartProfileId: record.presscartProfileId,
       presscartSession: record.presscartSession,
-      refreshToken,
-    });
-
-    this.refreshTokens.set(refreshToken, {
-      token: refreshToken,
-      clientId: client.client_id,
-      scopes: record.scopes,
-      resource: record.resource,
-      presscartApiToken: record.presscartApiToken,
-      presscartProfileId: record.presscartProfileId,
-      presscartSession: record.presscartSession,
-      expiresAtMs: Date.now() + REFRESH_TOKEN_TTL_MS,
+      refreshToken: refreshToken.token,
     });
 
     return {
       access_token: accessToken.token,
       token_type: 'bearer',
       expires_in: Math.floor(ACCESS_TOKEN_TTL_MS / 1000),
-      refresh_token: refreshToken,
+      refresh_token: refreshToken.token,
       scope: record.scopes.length > 0 ? record.scopes.join(' ') : undefined,
     };
   }
@@ -194,14 +281,20 @@ export class PresscartOAuthProvider implements OAuthServerProvider {
   ): Promise<OAuthTokens> {
     this.gcExpiredState();
 
-    const record = this.refreshTokens.get(refreshToken);
+    const record = this.readRefreshToken(refreshToken);
     if (!record || record.clientId !== client.client_id) {
       throw new InvalidRequestError('Invalid refresh token');
     }
 
     if (record.expiresAtMs <= Date.now()) {
-      this.refreshTokens.delete(refreshToken);
+      if (!this.signer) {
+        this.refreshTokens.delete(refreshToken);
+      }
       throw new InvalidRequestError('Refresh token expired');
+    }
+
+    if (this.isRevoked(record.token)) {
+      throw new InvalidRequestError('Refresh token has been revoked');
     }
 
     this.assertRequestedResourceMatches(resource, record.resource);
@@ -233,9 +326,15 @@ export class PresscartOAuthProvider implements OAuthServerProvider {
   async verifyAccessToken(token: string): Promise<AuthInfo> {
     this.gcExpiredState();
 
-    const record = this.accessTokens.get(token);
+    const record = this.readAccessToken(token);
     if (!record || record.expiresAtMs <= Date.now()) {
-      this.accessTokens.delete(token);
+      if (!this.signer) {
+        this.accessTokens.delete(token);
+      }
+      throw new InvalidTokenError('Invalid or expired token');
+    }
+
+    if (this.isRevoked(record.token)) {
       throw new InvalidTokenError('Invalid or expired token');
     }
 
@@ -255,14 +354,20 @@ export class PresscartOAuthProvider implements OAuthServerProvider {
   }
 
   async revokeToken(client: OAuthClientInformationFull, request: OAuthTokenRevocationRequest) {
-    const accessRecord = this.accessTokens.get(request.token);
+    const accessRecord = this.readAccessToken(request.token);
     if (accessRecord && accessRecord.clientId === client.client_id) {
-      this.accessTokens.delete(request.token);
+      this.revokedTokens.set(request.token, accessRecord.expiresAtMs);
+      if (!this.signer) {
+        this.accessTokens.delete(request.token);
+      }
     }
 
-    const refreshRecord = this.refreshTokens.get(request.token);
+    const refreshRecord = this.readRefreshToken(request.token);
     if (refreshRecord && refreshRecord.clientId === client.client_id) {
-      this.refreshTokens.delete(request.token);
+      this.revokedTokens.set(request.token, refreshRecord.expiresAtMs);
+      if (!this.signer) {
+        this.refreshTokens.delete(request.token);
+      }
     }
   }
 
@@ -281,7 +386,9 @@ export class PresscartOAuthProvider implements OAuthServerProvider {
       res
         .status(400)
         .type('html')
-        .send(renderErrorPage('Authorization request expired. Restart the OAuth flow from your MCP client.'));
+        .send(
+          renderErrorPage('Authorization request expired. Restart the OAuth flow from your MCP client.')
+        );
       return;
     }
 
@@ -301,7 +408,9 @@ export class PresscartOAuthProvider implements OAuthServerProvider {
       res
         .status(400)
         .type('html')
-        .send(renderErrorPage('Authorization request expired. Restart the OAuth flow from your MCP client.'));
+        .send(
+          renderErrorPage('Authorization request expired. Restart the OAuth flow from your MCP client.')
+        );
       return;
     }
 
@@ -369,14 +478,78 @@ export class PresscartOAuthProvider implements OAuthServerProvider {
   private issueAccessToken(
     token: Omit<AccessTokenRecord, 'token' | 'expiresAtMs'>
   ): AccessTokenRecord {
-    const issued = {
+    const issuedPayload: SignedAccessTokenPayload = {
       ...token,
-      token: randomUUID(),
       expiresAtMs: Date.now() + ACCESS_TOKEN_TTL_MS,
+    };
+
+    if (this.signer) {
+      return {
+        ...issuedPayload,
+        token: this.signer.sign<SignedAccessTokenPayload>('access', issuedPayload),
+      };
+    }
+
+    const issued = {
+      ...issuedPayload,
+      token: randomUUID(),
     };
 
     this.accessTokens.set(issued.token, issued);
     return issued;
+  }
+
+  private issueRefreshToken(
+    token: Omit<RefreshTokenRecord, 'token' | 'expiresAtMs'>
+  ): RefreshTokenRecord {
+    const issuedPayload: SignedRefreshTokenPayload = {
+      ...token,
+      expiresAtMs: Date.now() + REFRESH_TOKEN_TTL_MS,
+    };
+
+    if (this.signer) {
+      return {
+        ...issuedPayload,
+        token: this.signer.sign<SignedRefreshTokenPayload>('refresh', issuedPayload),
+      };
+    }
+
+    const issued = {
+      ...issuedPayload,
+      token: randomUUID(),
+    };
+
+    this.refreshTokens.set(issued.token, issued);
+    return issued;
+  }
+
+  private readAccessToken(token: string): AccessTokenRecord | undefined {
+    if (this.signer) {
+      const payload = this.signer.verify<SignedAccessTokenPayload>('access', token);
+      return payload ? { ...payload, token } : undefined;
+    }
+
+    return this.accessTokens.get(token);
+  }
+
+  private readRefreshToken(token: string): RefreshTokenRecord | undefined {
+    if (this.signer) {
+      const payload = this.signer.verify<SignedRefreshTokenPayload>('refresh', token);
+      return payload ? { ...payload, token } : undefined;
+    }
+
+    return this.refreshTokens.get(token);
+  }
+
+  private isRevoked(token: string) {
+    const expiresAtMs = this.revokedTokens.get(token);
+    if (!expiresAtMs) return false;
+    if (expiresAtMs <= Date.now()) {
+      this.revokedTokens.delete(token);
+      return false;
+    }
+
+    return true;
   }
 
   private async verifyPresscartCredential(token: string) {
@@ -426,15 +599,23 @@ export class PresscartOAuthProvider implements OAuthServerProvider {
       }
     }
 
-    for (const [token, record] of this.accessTokens.entries()) {
-      if (record.expiresAtMs <= now) {
-        this.accessTokens.delete(token);
+    if (!this.signer) {
+      for (const [token, record] of this.accessTokens.entries()) {
+        if (record.expiresAtMs <= now) {
+          this.accessTokens.delete(token);
+        }
+      }
+
+      for (const [token, record] of this.refreshTokens.entries()) {
+        if (record.expiresAtMs <= now) {
+          this.refreshTokens.delete(token);
+        }
       }
     }
 
-    for (const [token, record] of this.refreshTokens.entries()) {
-      if (record.expiresAtMs <= now) {
-        this.refreshTokens.delete(token);
+    for (const [token, expiresAtMs] of this.revokedTokens.entries()) {
+      if (expiresAtMs <= now) {
+        this.revokedTokens.delete(token);
       }
     }
   }
@@ -748,4 +929,15 @@ function escapeHtml(value: string) {
 
 function readBodyValue(value: unknown) {
   return typeof value === 'string' ? value : undefined;
+}
+
+function safeCompare(expected: string, received: string) {
+  const expectedBuffer = Buffer.from(expected);
+  const receivedBuffer = Buffer.from(received);
+
+  if (expectedBuffer.length !== receivedBuffer.length) {
+    return false;
+  }
+
+  return timingSafeEqual(expectedBuffer, receivedBuffer);
 }

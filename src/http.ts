@@ -45,6 +45,7 @@ const app = createMcpExpressApp({
   allowedHosts: env.MCP_ALLOWED_HOSTS ? resolveAllowedHostnames(mcpServerUrl) : undefined,
 });
 
+app.set('trust proxy', 1);
 app.disable('x-powered-by');
 app.use('/mcp', validateOriginHeader(allowedOrigins));
 
@@ -63,6 +64,7 @@ if (env.MCP_OAUTH_ENABLED) {
     mcpServerUrl,
     presscartApiUrl: env.PRESSCART_API_URL,
     supportedScopes: ['mcp:tools'],
+    signingSecret: env.MCP_OAUTH_SIGNING_SECRET,
   });
 
   app.get('/oauth/authorize', (req, res) => void oauthProvider!.renderAuthorizationPage(req, res));

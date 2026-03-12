@@ -46,13 +46,16 @@ Optional OAuth settings:
 export MCP_OAUTH_ENABLED="true"
 # Optional override; defaults to the origin of MCP_SERVER_URL
 export MCP_OAUTH_ISSUER_URL="https://mcp.presscart.com/"
+# Recommended for hosted deployments so issued OAuth credentials survive deploys/restarts.
+export MCP_OAUTH_SIGNING_SECRET="replace-with-a-random-32+-char-secret"
 ```
 
 Notes:
 - `PRESSCART_API_TOKEN` is optional now. It is only used as a local fallback in stdio mode.
 - `PRESSCART_PROFILE_ID` is optional globally, but tools that create orders/campaigns or read profile order items need a profile id from either env or tool input.
 - In MCP OAuth mode, the authorization UI asks the user for their Presscart API token and optional default profile ID, then stores that credential server-side against the issued OAuth token.
-- OAuth state, registered clients, authorization codes, and issued tokens are stored in memory. A restart clears them.
+- If `MCP_OAUTH_SIGNING_SECRET` is set, registered OAuth clients plus issued access/refresh tokens are signed and can survive deploys/restarts. Short-lived browser authorization requests and authorization codes are still in-memory.
+- If `MCP_OAUTH_SIGNING_SECRET` is not set, OAuth state, registered clients, authorization codes, and issued tokens are stored in memory. A restart clears them.
 - In legacy direct-token mode, send `X-Presscart-API-Token: <presscart_api_token>` on `initialize` and later requests that need to confirm the active session credential.
 
 ## Install
@@ -139,6 +142,7 @@ MCP_HOST=0.0.0.0
 MCP_PORT=8787
 MCP_SERVER_URL=https://mcp.presscart.com/mcp
 MCP_OAUTH_ENABLED=true
+MCP_OAUTH_SIGNING_SECRET=replace-with-a-random-32+-char-secret
 ```
 
 The server will expose:
@@ -215,6 +219,31 @@ claude mcp add --transport http presscart https://mcp.presscart.com/mcp
 ```
 
 Then run Claude Code and use `/mcp` if it prompts you to complete OAuth authentication.
+
+### Codex
+
+Add the remote server from the CLI:
+
+```bash
+codex mcp add presscart --url https://mcp.presscart.com/mcp
+codex mcp login presscart
+```
+
+Codex supports remote Streamable HTTP MCP servers with OAuth, but the configured MCP URL, the `WWW-Authenticate` `resource_metadata` URL, and both OAuth discovery documents should all point at the same public hostname. If the server is added as `https://mcp.presscart.com/mcp` but discovery still advertises a platform hostname such as `https://presscart-mcp-production.up.railway.app/...`, Codex authentication may fail even if another client succeeds.
+
+Quick verification:
+
+```bash
+curl -i https://mcp.presscart.com/mcp
+curl -s https://mcp.presscart.com/.well-known/oauth-authorization-server | jq
+curl -s https://mcp.presscart.com/.well-known/oauth-protected-resource/mcp | jq
+```
+
+If you need an immediate workaround while hosted OAuth is being fixed, use the local stdio server instead:
+
+```bash
+codex mcp add presscart --env PRESSCART_API_URL=https://api.presscart.com --env PRESSCART_API_TOKEN=pc_... --env PRESSCART_PROFILE_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx -- node /Users/edgarli/Documents/Presscart/presscart-mcp/dist/index.js
+```
 
 ### Cursor
 
