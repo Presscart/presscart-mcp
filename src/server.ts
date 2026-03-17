@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { PresscartApiClient, PresscartApiError, type TokenSessionResponse } from './api.js';
 import { env } from './env.js';
+import { appendQueryFilters, type QueryParams } from './utils/query-filters.js';
 
 type AuthInfoLike = {
   token: string;
@@ -75,14 +76,59 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
       inputSchema: {
         limit: z.number().int().positive().max(100).optional(),
         page: z.number().int().positive().optional(),
-        search: z.string().trim().min(1).optional(),
-        sort_by: z.string().trim().min(1).optional(),
+        sort_by: z
+          .enum(['name', 'created_at', 'domain_authority', 'domain_ranking'])
+          .optional()
+          .describe('Field to sort results by'),
         order_by: z.enum(['asc', 'desc']).optional(),
+        filters: z
+          .object({
+            search: z.string().trim().optional().describe('Search by product or outlet name'),
+            status: z
+              .enum([
+                'DRAFT',
+                'PENDING_REVIEW',
+                'PENDING_AGREEMENT',
+                'REJECTED',
+                'ACTIVE',
+                'INACTIVE',
+                'ARCHIVED',
+                'SUSPENDED',
+              ])
+              .optional()
+              .describe('Outlet publication status (defaults to ACTIVE)'),
+            channel_type: z
+              .enum([
+                'WEBSITE',
+                'NEWSLETTER',
+                'INSTAGRAM',
+                'LINKEDIN',
+                'YOUTUBE',
+                'TIKTOK',
+                'TWITTER_X',
+                'PODCAST',
+                'OTHER',
+              ])
+              .optional(),
+            placement_type: z
+              .enum(['FULL_FEATURE', 'PRESS_RELEASE', 'MENTION', 'QUOTE', 'LISTICLE'])
+              .optional(),
+            is_do_follow: z.boolean().optional(),
+            is_indexed: z.boolean().optional(),
+            disclaimer: z.string().optional(),
+            tags: z.array(z.string()).optional().describe('Filter by tag names'),
+            country: z.string().optional(),
+            state: z.string().optional(),
+            city: z.string().optional(),
+          })
+          .optional(),
       },
     },
     async (input, extra) => {
       const api = requireApi(extra, options);
-      const response = await api.get('/outlets', input);
+      const { filters, ...params } = input;
+      const query = appendQueryFilters(params as QueryParams, filters);
+      const response = await api.get('/outlets', query);
       return jsonResult(response);
     }
   );
