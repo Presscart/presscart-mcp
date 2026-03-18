@@ -117,6 +117,34 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
             is_indexed: z.boolean().optional(),
             disclaimer: z.string().optional(),
             tags: z.array(z.string()).optional().describe('Filter by tag names'),
+            turnaround_time: z
+              .object({
+                min: z.number().optional().describe('Minimum delivery days'),
+                max: z.number().optional().describe('Maximum delivery days'),
+              })
+              .optional()
+              .describe('Filter by turnaround/delivery time in days'),
+            pricing: z
+              .object({
+                min: z.number().optional().describe('Minimum price in USD dollars'),
+                max: z.number().optional().describe('Maximum price in USD dollars'),
+              })
+              .optional()
+              .describe('Filter by unit_amount price range (in USD dollars, not cents)'),
+            domain_authority: z
+              .object({
+                min: z.number().optional().describe('Minimum DA score'),
+                max: z.number().optional().describe('Maximum DA score'),
+              })
+              .optional()
+              .describe('Filter by domain authority score range'),
+            domain_ranking: z
+              .object({
+                min: z.number().optional().describe('Minimum DR score'),
+                max: z.number().optional().describe('Maximum DR score'),
+              })
+              .optional()
+              .describe('Filter by domain ranking score range'),
             country: z.string().optional(),
             state: z.string().optional(),
             city: z.string().optional(),
