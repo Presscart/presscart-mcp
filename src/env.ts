@@ -11,7 +11,7 @@ const envSchema = z.object({
   MCP_ALLOWED_ORIGINS: z.string().min(1).optional(),
   MCP_OAUTH_ENABLED: z.coerce.boolean().default(false),
   MCP_OAUTH_ISSUER_URL: z.string().url().optional(),
-  MCP_OAUTH_SIGNING_SECRET: z.string().min(32).optional(),
+  MCP_OAUTH_AUDIENCE: z.string().url().default('https://mcp.presscart.com'),
 });
 
 export const env = envSchema.parse({
@@ -26,5 +26,5 @@ export const env = envSchema.parse({
   MCP_ALLOWED_ORIGINS: process.env.MCP_ALLOWED_ORIGINS,
   MCP_OAUTH_ENABLED: process.env.MCP_OAUTH_ENABLED,
   MCP_OAUTH_ISSUER_URL: process.env.MCP_OAUTH_ISSUER_URL,
-  MCP_OAUTH_SIGNING_SECRET: process.env.MCP_OAUTH_SIGNING_SECRET,
+  MCP_OAUTH_AUDIENCE: process.env.MCP_OAUTH_AUDIENCE,
 });

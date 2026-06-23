@@ -1,12 +1,19 @@
 type QueryValue = string | number | boolean | undefined | null;
 
-export type TokenSessionResponse = {
-  source: 'api_token';
-  team_id: string;
-  token_type: string;
-  scopes: string[];
-  pro_pricing_enabled: boolean;
-};
+export type TokenSessionResponse =
+  | {
+      source: 'api_token';
+      team_id: string;
+      token_type: string;
+      scopes: string[];
+      pro_pricing_enabled: boolean;
+    }
+  | {
+      source: 'oauth';
+      oauth_client_id: string;
+      oauth_grant_id: string;
+      scopes: string[];
+    };
 
 export class PresscartApiError extends Error {
   readonly status: number;

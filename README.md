@@ -7,7 +7,7 @@ Supports:
 - hosted Streamable HTTP mode
 
 Hosted HTTP mode supports two auth models:
-- MCP OAuth mode: the server exposes OAuth authorization and discovery endpoints, and clients connect to `/mcp` with `Authorization: Bearer <oauth_access_token>`.
+- MCP OAuth mode: Supabase/Auth issues the OAuth token, and clients connect to `/mcp` with `Authorization: Bearer <oauth_access_token>`.
 - Legacy direct-token mode: the caller provides a Presscart API token via `X-Presscart-API-Token`, and the server uses that token as the upstream Presscart credential.
 
 ## Environment
@@ -44,18 +44,14 @@ Optional OAuth settings:
 
 ```bash
 export MCP_OAUTH_ENABLED="true"
-# Optional override; defaults to the origin of MCP_SERVER_URL
-export MCP_OAUTH_ISSUER_URL="https://mcp.presscart.com/"
-# Recommended for hosted deployments so issued OAuth credentials survive deploys/restarts.
-export MCP_OAUTH_SIGNING_SECRET="replace-with-a-random-32+-char-secret"
+export MCP_OAUTH_ISSUER_URL="https://<project-ref>.supabase.co/auth/v1"
+export MCP_OAUTH_AUDIENCE="https://mcp.presscart.com"
 ```
 
 Notes:
 - `PRESSCART_API_TOKEN` is optional now. It is only used as a local fallback in stdio mode.
 - `PRESSCART_PROFILE_ID` is optional globally, but tools that create orders/campaigns or read profile order items need a profile id from either env or tool input.
-- In MCP OAuth mode, the authorization UI asks the user for their Presscart API token and optional default profile ID, then stores that credential server-side against the issued OAuth token.
-- If `MCP_OAUTH_SIGNING_SECRET` is set, registered OAuth clients plus issued access/refresh tokens are signed and can survive deploys/restarts. Short-lived browser authorization requests and authorization codes are still in-memory.
-- If `MCP_OAUTH_SIGNING_SECRET` is not set, OAuth state, registered clients, authorization codes, and issued tokens are stored in memory. A restart clears them.
+- In MCP OAuth mode, the app's Supabase OAuth Server handles authorization and consent. This MCP runtime validates the issued access token against Supabase JWKS and delegated permissions.
 - In legacy direct-token mode, send `X-Presscart-API-Token: <presscart_api_token>` on `initialize` and later requests that need to confirm the active session credential.
 
 ## Install
@@ -142,19 +138,14 @@ MCP_HOST=0.0.0.0
 MCP_PORT=8787
 MCP_SERVER_URL=https://mcp.presscart.com/mcp
 MCP_OAUTH_ENABLED=true
-MCP_OAUTH_SIGNING_SECRET=replace-with-a-random-32+-char-secret
+MCP_OAUTH_ISSUER_URL=https://<project-ref>.supabase.co/auth/v1
+MCP_OAUTH_AUDIENCE=https://mcp.presscart.com
 ```
 
 The server will expose:
 - `/.well-known/oauth-protected-resource/mcp`
-- `/.well-known/oauth-authorization-server`
-- `/authorize`
-- `/token`
-- `/register`
-- `/revoke`
-- `/oauth/authorize` (Presscart credential approval page)
 
-Hosted MCP clients should connect to `https://mcp.presscart.com/mcp` and use normal MCP OAuth discovery. After the browser flow completes, they should send `Authorization: Bearer <oauth_access_token>` to `/mcp`.
+The OAuth authorization, token, JWKS, and OIDC discovery endpoints are served by Supabase/Auth. Hosted MCP clients should connect to `https://mcp.presscart.com/mcp` and use normal MCP OAuth discovery. After the browser flow completes, they should send `Authorization: Bearer <oauth_access_token>` to `/mcp`.
 
 ### Legacy direct-token mode
 
@@ -185,14 +176,6 @@ curl -X POST https://mcp.presscart.com/mcp \
   --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"example","version":"1.0.0"}}}'
 ```
 
-Example client registration request for MCP OAuth mode:
-
-```bash
-curl -X POST https://mcp.presscart.com/register \
-  -H 'Content-Type: application/json' \
-  --data '{"redirect_uris":["http://127.0.0.1:9898/callback"],"token_endpoint_auth_method":"none","grant_types":["authorization_code","refresh_token"],"response_types":["code"],"client_name":"Presscart MCP Client"}'
-```
-
 ## Client Setup
 
 ### Claude and Claude Desktop
@@ -208,7 +191,7 @@ https://mcp.presscart.com/mcp
 ```
 
 4. Start the OAuth flow when prompted.
-5. On the Presscart approval page (`/oauth/authorize`), enter the Presscart API token and optional default profile ID.
+5. Approve or deny the delegated access request in the Presscart consent UI.
 
 ### Claude Code
 
@@ -229,13 +212,12 @@ codex mcp add presscart --url https://mcp.presscart.com/mcp
 codex mcp login presscart
 ```
 
-Codex supports remote Streamable HTTP MCP servers with OAuth, but the configured MCP URL, the `WWW-Authenticate` `resource_metadata` URL, and both OAuth discovery documents should all point at the same public hostname. If the server is added as `https://mcp.presscart.com/mcp` but discovery still advertises a platform hostname such as `https://presscart-mcp-production.up.railway.app/...`, Codex authentication may fail even if another client succeeds.
+Codex supports remote Streamable HTTP MCP servers with OAuth. The configured MCP URL and the `WWW-Authenticate` `resource_metadata` URL should both use the MCP public hostname, while the protected-resource metadata should advertise the Supabase/Auth issuer as its authorization server.
 
 Quick verification:
 
 ```bash
 curl -i https://mcp.presscart.com/mcp
-curl -s https://mcp.presscart.com/.well-known/oauth-authorization-server | jq
 curl -s https://mcp.presscart.com/.well-known/oauth-protected-resource/mcp | jq
 ```
 
@@ -295,7 +277,7 @@ https://mcp.presscart.com/mcp
 ```
 
 4. Choose OAuth as the authentication mechanism.
-5. Complete the OAuth flow and approve the Presscart credential on `/oauth/authorize`.
+5. Complete the OAuth flow and approve the delegated access request in Presscart.
 
 Notes:
 - ChatGPT currently supports remote servers only, not local MCP servers.

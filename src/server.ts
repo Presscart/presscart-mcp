@@ -7,6 +7,7 @@ import { appendQueryFilters, type QueryParams } from './utils/query-filters.js';
 
 type AuthInfoLike = {
   token: string;
+  scopes?: string[];
   extra?: Record<string, unknown>;
 };
 
@@ -54,6 +55,7 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
       },
     },
     async (input, extra) => {
+      requirePermission(extra, options, 'profiles.lists');
       const api = requireApi(extra, options);
       const teamId = input.team_id ?? requireTeamId(extra, options);
       const response = await api.get(`/teams/${teamId}/profiles`, {
@@ -72,7 +74,7 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
     {
       title: 'List Outlets',
       description:
-        'List reseller-visible Presscart outlets. Supports basic pagination, search, and sorting.',
+        'List reseller-visible Presscart outlets. Supports basic pagination, search, and sorting. Price fields returned as prices[].unit_amount are Presscart USD dollar amounts, not Stripe cent amounts.',
       inputSchema: {
         limit: z.number().int().positive().max(100).optional(),
         page: z.number().int().positive().optional(),
@@ -153,6 +155,7 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
       },
     },
     async (input, extra) => {
+      requirePermission(extra, options, 'outlets.lists');
       const api = requireApi(extra, options);
       const { filters, ...params } = input;
       const query = appendQueryFilters(params as QueryParams, filters);
@@ -165,12 +168,14 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
     'get_product',
     {
       title: 'Get Product',
-      description: 'Fetch a Presscart product by UUID.',
+      description:
+        'Fetch a Presscart product by UUID. Price fields returned as prices[].unit_amount are Presscart USD dollar amounts, not Stripe cent amounts.',
       inputSchema: {
         product_id: z.string().uuid(),
       },
     },
     async (input, extra) => {
+      requirePermission(extra, options, 'products.read');
       const api = requireApi(extra, options);
       const response = await api.get(`/products/${input.product_id}`);
       return jsonResult(response);
@@ -195,6 +200,7 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
       },
     },
     async (input, extra) => {
+      requirePermission(extra, options, 'orders.create');
       const api = requireApi(extra, options);
       const profileId = resolveProfileId(input.profile_id);
       const response = await api.post('/orders/checkout', {
@@ -217,6 +223,7 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
       },
     },
     async (input, extra) => {
+      requirePermission(extra, options, 'orders.read');
       const api = requireApi(extra, options);
       const response = await api.get(`/orders/${input.order_id}`, {
         include_outlets_data: input.include_outlets_data,
@@ -242,6 +249,7 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
       },
     },
     async (input, extra) => {
+      requirePermission(extra, options, 'orders.lists');
       const api = requireApi(extra, options);
       const response = await api.get('/order-items', input);
       return jsonResult(response);
@@ -266,6 +274,7 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
       },
     },
     async (input, extra) => {
+      requirePermission(extra, options, 'campaigns.create');
       const api = requireApi(extra, options);
       const profileId = resolveProfileId(input.profile_id);
       const response = await api.post('/campaigns', {
@@ -298,6 +307,7 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
       },
     },
     async (input, extra) => {
+      requirePermission(extra, options, 'campaigns.lists');
       const api = requireApi(extra, options);
       const response = await api.get('/campaigns', input);
       return jsonResult(response);
@@ -314,6 +324,7 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
       },
     },
     async (input, extra) => {
+      requirePermission(extra, options, 'campaigns.read');
       const api = requireApi(extra, options);
       const response = await api.get(`/campaigns/${input.campaign_id}`);
       return jsonResult(response);
@@ -331,6 +342,7 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
       },
     },
     async (input, extra) => {
+      requirePermission(extra, options, 'campaigns.update');
       const api = requireApi(extra, options);
       const response = await api.post(`/campaigns/${input.campaign_id}/order-items`, {
         order_item_ids: input.order_item_ids,
@@ -349,6 +361,7 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
       },
     },
     async (input, extra) => {
+      requirePermission(extra, options, 'campaigns.read');
       const api = requireApi(extra, options);
       const response = await api.get(`/campaigns/${input.campaign_id}/articles/status-count`);
       return jsonResult(response);
@@ -369,6 +382,7 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
       },
     },
     async (input, extra) => {
+      requirePermission(extra, options, 'orders.lists');
       const api = requireApi(extra, options);
       const profileId = resolveProfileId(input.profile_id);
       const response = await api.get(`/profiles/${profileId}/order-items`, {
@@ -413,6 +427,39 @@ function requireTeamId(extra: ToolExtraLike | undefined, options: ServerOptions)
   throw new Error(
     'team_id is required. Pass team_id explicitly or bind the Presscart credential to the MCP session.'
   );
+}
+
+function requirePermission(
+  extra: ToolExtraLike | undefined,
+  options: ServerOptions,
+  permission: string
+) {
+  const authInfo = resolveAuthInfo(extra, options);
+
+  if (!isOAuthSession(authInfo)) return;
+
+  const permissions = new Set(readOAuthPermissions(authInfo));
+  if (permissions.has(permission)) return;
+
+  throw new Error(`OAuth grant is missing required permission: ${permission}`);
+}
+
+function isOAuthSession(authInfo: AuthInfoLike | undefined): authInfo is AuthInfoLike {
+  return (
+    authInfo?.extra?.source === 'oauth' ||
+    typeof authInfo?.extra?.oauth_grant_id === 'string'
+  );
+}
+
+function readOAuthPermissions(authInfo: AuthInfoLike) {
+  const extraPermissions = authInfo.extra?.permissions;
+  if (Array.isArray(extraPermissions)) {
+    return extraPermissions.filter(
+      (permission): permission is string => typeof permission === 'string' && permission.length > 0
+    );
+  }
+
+  return authInfo.scopes ?? [];
 }
 
 function resolveProfileId(profileId: string | undefined) {

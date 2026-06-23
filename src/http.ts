@@ -1,10 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
-import express, { type Request, type Response } from 'express';
-import {
-  getOAuthProtectedResourceMetadataUrl,
-  mcpAuthRouter,
-} from '@modelcontextprotocol/sdk/server/auth/router.js';
+import { type Request, type Response } from 'express';
+import { getOAuthProtectedResourceMetadataUrl } from '@modelcontextprotocol/sdk/server/auth/router.js';
 import { requireBearerAuth } from '@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js';
 import { createMcpExpressApp } from '@modelcontextprotocol/sdk/server/express.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -13,8 +10,8 @@ import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 
 import { PresscartApiClient, PresscartApiError, type TokenSessionResponse } from './api.js';
 import { env } from './env.js';
-import { PresscartOAuthProvider } from './oauth.js';
 import { createPresscartMcpServer, formatServerError } from './server.js';
+import { SupabaseOAuthVerifier } from './supabase-oauth.js';
 
 type SessionState = {
   transport: StreamableHTTPServerTransport;
@@ -37,7 +34,8 @@ const sessions = new Map<string, SessionState>();
 const tokenCache = new Map<string, { authInfo: AuthInfo; verifiedAtMs: number }>();
 
 const mcpServerUrl = resolveMcpServerUrl();
-const issuerUrl = env.MCP_OAUTH_ENABLED ? resolveIssuerUrl(mcpServerUrl) : undefined;
+const issuerUrl = env.MCP_OAUTH_ENABLED ? resolveIssuerUrl() : undefined;
+const oauthAudience = env.MCP_OAUTH_ENABLED ? new URL(env.MCP_OAUTH_AUDIENCE) : undefined;
 const allowedOrigins = resolveAllowedOrigins(mcpServerUrl);
 
 const app = createMcpExpressApp({
@@ -53,39 +51,26 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true });
 });
 
-let oauthProvider: PresscartOAuthProvider | undefined;
 let bearerAuth:
   | ReturnType<typeof requireBearerAuth>
   | undefined;
 
 if (env.MCP_OAUTH_ENABLED) {
-  oauthProvider = new PresscartOAuthProvider({
+  const oauthVerifier = new SupabaseOAuthVerifier({
     issuerUrl: issuerUrl!,
-    mcpServerUrl,
-    presscartApiUrl: env.PRESSCART_API_URL,
-    supportedScopes: ['mcp:tools'],
-    signingSecret: env.MCP_OAUTH_SIGNING_SECRET,
+    audience: oauthAudience!,
   });
 
-  app.get('/oauth/authorize', (req, res) => void oauthProvider!.renderAuthorizationPage(req, res));
-  app.post(
-    '/oauth/authorize',
-    express.urlencoded({ extended: false }),
-    (req, res) => void oauthProvider!.approveAuthorization(req, res)
-  );
+  app.get('/.well-known/oauth-protected-resource', (_req, res) => {
+    res.json(createProtectedResourceMetadata());
+  });
 
-  app.use(
-    mcpAuthRouter({
-      provider: oauthProvider,
-      issuerUrl: issuerUrl!,
-      resourceServerUrl: mcpServerUrl,
-      scopesSupported: ['mcp:tools'],
-      resourceName: 'Presscart MCP',
-    })
-  );
+  app.get('/.well-known/oauth-protected-resource/mcp', (_req, res) => {
+    res.json(createProtectedResourceMetadata());
+  });
 
   bearerAuth = requireBearerAuth({
-    verifier: oauthProvider,
+    verifier: oauthVerifier,
     requiredScopes: [],
     resourceMetadataUrl: getOAuthProtectedResourceMetadataUrl(mcpServerUrl),
   });
@@ -297,6 +282,10 @@ async function verifyPresscartToken(token: string): Promise<AuthInfo> {
   const api = new PresscartApiClient(env.PRESSCART_API_URL, token);
   const session = await api.get<TokenSessionResponse>('/auth/token');
 
+  if (session.source !== 'api_token') {
+    throw new HttpError(401, 'Expected a Presscart API-token session.');
+  }
+
   const authInfo: AuthInfo = {
     token,
     clientId: session.team_id,
@@ -335,19 +324,19 @@ function validateOAuthSessionAuth(
 
   const sessionClientId = sessionAuthInfo.clientId;
   const requestClientId = requestAuthInfo.clientId;
-  const sessionTeamId = readAuthExtraValue(sessionAuthInfo, 'team_id');
-  const requestTeamId = readAuthExtraValue(requestAuthInfo, 'team_id');
-  const sessionPresscartToken = readAuthExtraValue(sessionAuthInfo, 'presscart_api_token');
-  const requestPresscartToken = readAuthExtraValue(requestAuthInfo, 'presscart_api_token');
+  const sessionSubject = readAuthExtraValue(sessionAuthInfo, 'sub');
+  const requestSubject = readAuthExtraValue(requestAuthInfo, 'sub');
+  const sessionGrantId = readAuthExtraValue(sessionAuthInfo, 'oauth_grant_id');
+  const requestGrantId = readAuthExtraValue(requestAuthInfo, 'oauth_grant_id');
 
   if (
     sessionClientId !== requestClientId ||
-    sessionTeamId !== requestTeamId ||
-    sessionPresscartToken !== requestPresscartToken
+    sessionSubject !== requestSubject ||
+    sessionGrantId !== requestGrantId
   ) {
     throw new HttpError(
       401,
-      'Authorization token does not match the credential bound to the active MCP session.'
+      'Authorization token does not match the OAuth grant bound to the active MCP session.'
     );
   }
 
@@ -380,9 +369,12 @@ function resolveMcpServerUrl() {
   return new URL(`${protocol}://${host}:${env.MCP_PORT}/mcp`);
 }
 
-function resolveIssuerUrl(serverUrl: URL) {
-  if (env.MCP_OAUTH_ISSUER_URL) return new URL(env.MCP_OAUTH_ISSUER_URL);
-  return new URL('/', serverUrl);
+function resolveIssuerUrl() {
+  if (!env.MCP_OAUTH_ISSUER_URL) {
+    throw new Error('MCP_OAUTH_ISSUER_URL is required when MCP_OAUTH_ENABLED=true.');
+  }
+
+  return new URL(env.MCP_OAUTH_ISSUER_URL);
 }
 
 function resolveAllowedHostnames(serverUrl: URL) {
@@ -419,6 +411,24 @@ function readHeader(req: Request, key: string) {
 function readAuthExtraValue(authInfo: AuthInfo, key: string) {
   const value = authInfo.extra?.[key];
   return typeof value === 'string' ? value : undefined;
+}
+
+function createProtectedResourceMetadata() {
+  if (!issuerUrl) {
+    throw new Error('OAuth issuer URL is not configured.');
+  }
+
+  return {
+    resource: mcpServerUrl.href,
+    authorization_servers: [normalizeUrlWithoutTrailingSlash(issuerUrl)],
+    scopes_supported: ['openid', 'profile'],
+    bearer_methods_supported: ['header'],
+    resource_name: 'Presscart MCP',
+  };
+}
+
+function normalizeUrlWithoutTrailingSlash(url: URL) {
+  return url.href.endsWith('/') ? url.href.slice(0, -1) : url.href;
 }
 
 function sendJsonRpcError(
