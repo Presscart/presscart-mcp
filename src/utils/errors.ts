@@ -1,13 +1,17 @@
 import { PresscartApiError } from '../api.js';
 
-export function formatServerError(error: unknown) {
+export function formatServerError(error: unknown, options: { exposeMessage?: boolean } = {}) {
   if (error instanceof PresscartApiError) {
-    return `${error.message}\n${JSON.stringify(error.body, null, 2)}`;
+    if (error.status === 401 || error.status === 403) return 'Unauthorized';
+    if (error.status === 404) return 'Presscart API resource not found';
+    if (error.status === 504) return 'Presscart API request timed out';
+    if (error.status >= 500) return 'Presscart API is unavailable';
+    return error.message;
   }
 
-  if (error instanceof Error) {
-    return `${error.name}: ${error.message}`;
+  if (options.exposeMessage && error instanceof Error) {
+    return error.message;
   }
 
-  return String(error);
+  return 'Internal server error';
 }

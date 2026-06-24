@@ -23,7 +23,7 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
     'auth_whoami',
     {
       title: 'Auth Whoami',
-      description: 'Return the current Presscart API-token session details.',
+      description: 'Return the current Presscart MCP session details.',
       inputSchema: {},
     },
     async (_input, extra) => {
@@ -182,14 +182,16 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
       description: 'Create a Presscart checkout order for a profile and one or more line items.',
       inputSchema: {
         profile_id: z.string().uuid().optional(),
-        line_items: z.array(
-          z.object({
-            product_id: z.string().uuid(),
-            quantity: z.number().int().positive(),
-            is_add_on: z.boolean(),
-            linked_order_line_item_id: z.string().uuid().optional(),
-          })
-        ),
+        line_items: z
+          .array(
+            z.object({
+              product_id: z.string().uuid(),
+              quantity: z.number().int().positive(),
+              is_add_on: z.boolean(),
+              linked_order_line_item_id: z.string().uuid().optional(),
+            })
+          )
+          .min(1),
       },
     },
     async (input, extra) => {

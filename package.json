@@ -6,10 +6,11 @@
   "scripts": {
     "dev": "tsx src/http.ts",
     "dev:http": "tsx src/http.ts",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
     "start": "node dist/http.js",
     "start:http": "node dist/http.js",
-    "check": "tsc --noEmit -p tsconfig.json"
+    "check": "tsc --noEmit -p tsconfig.json",
+    "test": "node --import tsx --test \"src/**/*.test.ts\""
   },
   "engines": {
     "node": ">=22"

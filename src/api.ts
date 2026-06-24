@@ -1,5 +1,7 @@
 type QueryValue = string | number | boolean | undefined | null;
 
+const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
+
 export type TokenSessionResponse =
   | {
       source: 'api_token';
@@ -30,7 +32,8 @@ export class PresscartApiError extends Error {
 export class PresscartApiClient {
   constructor(
     private readonly baseUrl: string,
-    private readonly apiToken: string
+    private readonly apiToken: string,
+    private readonly requestTimeoutMs = DEFAULT_REQUEST_TIMEOUT_MS
   ) {}
 
   async get<T>(path: string, query?: Record<string, QueryValue>): Promise<T> {
@@ -73,14 +76,24 @@ export class PresscartApiClient {
       }
     }
 
-    const response = await fetch(url, {
-      ...init,
-      headers: {
-        Accept: 'application/json',
-        Authorization: `Bearer ${this.apiToken}`,
-        ...(init.body ? { 'Content-Type': 'application/json' } : {}),
-      },
-    });
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        ...init,
+        signal: init.signal ?? AbortSignal.timeout(this.requestTimeoutMs),
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${this.apiToken}`,
+          ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+        },
+      });
+    } catch (error) {
+      if (isTimeoutError(error)) {
+        throw new PresscartApiError('Presscart API request timed out', 504, null);
+      }
+
+      throw error;
+    }
 
     const text = await response.text();
     const body = tryParseJson(text);
@@ -95,6 +108,13 @@ export class PresscartApiClient {
 
     return body as T;
   }
+}
+
+function isTimeoutError(error: unknown) {
+  return (
+    error instanceof DOMException &&
+    (error.name === 'TimeoutError' || error.name === 'AbortError')
+  );
 }
 
 function ensureTrailingSlash(url: string) {

@@ -29,7 +29,7 @@ export function createPresscartApiClient(extra: ToolExtraLike | undefined, optio
     );
   }
 
-  return new PresscartApiClient(env.PRESSCART_API_URL, tokenFromSession);
+  return new PresscartApiClient(env.PRESSCART_API_URL, tokenFromSession, env.PRESSCART_API_TIMEOUT_MS);
 }
 
 export function requireTeamId(extra: ToolExtraLike | undefined, options: ServerOptions) {

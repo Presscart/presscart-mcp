@@ -17,6 +17,7 @@ import { formatServerError } from './utils/errors.js';
 type SessionState = {
   transport: StreamableHTTPServerTransport;
   authInfo?: AuthInfo;
+  lastSeenAtMs: number;
 };
 
 class HttpError extends Error {
@@ -30,6 +31,9 @@ class HttpError extends Error {
 }
 
 const PRESSCART_TOKEN_HEADER = 'x-presscart-api-token';
+const SESSION_IDLE_TTL_MS = 30 * 60 * 1000;
+const SESSION_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+const TOKEN_CACHE_TTL_MS = 60_000;
 
 const sessions = new Map<string, SessionState>();
 const tokenCache = new Map<string, { authInfo: AuthInfo; verifiedAtMs: number }>();
@@ -38,6 +42,8 @@ const mcpServerUrl = resolveMcpServerUrl();
 const issuerUrl = env.MCP_OAUTH_ENABLED ? resolveIssuerUrl() : undefined;
 const oauthAudience = env.MCP_OAUTH_ENABLED ? new URL(env.MCP_OAUTH_AUDIENCE) : undefined;
 const allowedOrigins = resolveAllowedOrigins(mcpServerUrl);
+const cleanupTimer = setInterval(cleanupExpiredState, SESSION_CLEANUP_INTERVAL_MS);
+cleanupTimer.unref();
 
 const app = createMcpExpressApp({
   host: env.MCP_HOST,
@@ -102,6 +108,7 @@ app.post('/mcp', ...(bearerAuth ? [bearerAuth] : []), async (req, res) => {
     req.auth = authInfo;
 
     if (existingSession) {
+      touchSession(existingSession);
       await existingSession.transport.handleRequest(req, res, req.body);
       return;
     }
@@ -124,7 +131,7 @@ app.post('/mcp', ...(bearerAuth ? [bearerAuth] : []), async (req, res) => {
     await server.connect(transport);
     await transport.handleRequest(req, res, req.body);
   } catch (error) {
-    sendJsonRpcError(res, resolveErrorStatus(error), -32000, formatServerError(error));
+    handleRouteError(req, res, error);
   }
 });
 
@@ -154,9 +161,10 @@ app.get('/mcp', ...(bearerAuth ? [bearerAuth] : []), async (req, res) => {
       existingSession.authInfo = validateOAuthSessionAuth(existingSession.authInfo, req.auth);
     }
 
+    touchSession(existingSession);
     await existingSession.transport.handleRequest(req, res);
   } catch (error) {
-    sendJsonRpcError(res, resolveErrorStatus(error), -32000, formatServerError(error));
+    handleRouteError(req, res, error);
   }
 });
 
@@ -186,9 +194,10 @@ app.delete('/mcp', ...(bearerAuth ? [bearerAuth] : []), async (req, res) => {
       existingSession.authInfo = validateOAuthSessionAuth(existingSession.authInfo, req.auth);
     }
 
+    touchSession(existingSession);
     await existingSession.transport.handleRequest(req, res);
   } catch (error) {
-    sendJsonRpcError(res, resolveErrorStatus(error), -32000, formatServerError(error));
+    handleRouteError(req, res, error);
   }
 });
 
@@ -205,7 +214,12 @@ const server = app.listen(env.MCP_PORT, env.MCP_HOST, () => {
   console.error(`Presscart MCP server listening on http://${env.MCP_HOST}:${env.MCP_PORT}/mcp`);
 });
 
-process.on('SIGINT', async () => {
+process.on('SIGINT', () => void shutdown());
+process.on('SIGTERM', () => void shutdown());
+
+async function shutdown() {
+  clearInterval(cleanupTimer);
+
   for (const [sessionId, session] of sessions.entries()) {
     try {
       await session.transport.close();
@@ -217,7 +231,7 @@ process.on('SIGINT', async () => {
   }
 
   server.close(() => process.exit(0));
-});
+}
 
 function createTransport(authInfo: AuthInfo | undefined) {
   let transport: StreamableHTTPServerTransport;
@@ -229,6 +243,7 @@ function createTransport(authInfo: AuthInfo | undefined) {
       sessions.set(initializedSessionId, {
         transport,
         authInfo,
+        lastSeenAtMs: Date.now(),
       });
     },
   });
@@ -276,11 +291,11 @@ async function resolveLegacyRequestAuthInfo(
 
 async function verifyPresscartToken(token: string): Promise<AuthInfo> {
   const cached = tokenCache.get(token);
-  if (cached && Date.now() - cached.verifiedAtMs < 60_000) {
+  if (cached && Date.now() - cached.verifiedAtMs < TOKEN_CACHE_TTL_MS) {
     return cached.authInfo;
   }
 
-  const api = new PresscartApiClient(env.PRESSCART_API_URL, token);
+  const api = new PresscartApiClient(env.PRESSCART_API_URL, token, env.PRESSCART_API_TIMEOUT_MS);
   const session = await api.get<TokenSessionResponse>('/auth/token');
 
   if (session.source !== 'api_token') {
@@ -353,7 +368,7 @@ function validateOriginHeader(allowed: string[]) {
     }
 
     if (allowed.length > 0 && !allowed.includes(origin)) {
-      sendJsonRpcError(res, 403, -32000, `Invalid Origin header: ${origin}`);
+      sendJsonRpcError(res, 403, -32000, 'Invalid Origin header');
       return;
     }
 
@@ -445,10 +460,75 @@ function sendJsonRpcError(
   });
 }
 
+function handleRouteError(req: Request, res: Response, error: unknown) {
+  const statusCode = resolveErrorStatus(error);
+  logRouteError(req, statusCode, error);
+  sendJsonRpcError(
+    res,
+    statusCode,
+    -32000,
+    formatServerError(error, { exposeMessage: error instanceof HttpError })
+  );
+}
+
 function resolveErrorStatus(error: unknown) {
   if (error instanceof HttpError) return error.statusCode;
   if (error instanceof PresscartApiError && (error.status === 401 || error.status === 403)) {
     return 401;
   }
   return 500;
+}
+
+function touchSession(session: SessionState) {
+  session.lastSeenAtMs = Date.now();
+}
+
+function cleanupExpiredState() {
+  const now = Date.now();
+
+  for (const [sessionId, session] of sessions.entries()) {
+    if (now - session.lastSeenAtMs <= SESSION_IDLE_TTL_MS) continue;
+
+    sessions.delete(sessionId);
+    void session.transport.close().catch(error => {
+      logServerEvent('warn', 'Failed to close idle MCP session.', { error: readErrorMessage(error) });
+    });
+  }
+
+  for (const [token, cached] of tokenCache.entries()) {
+    if (now - cached.verifiedAtMs <= TOKEN_CACHE_TTL_MS) continue;
+    tokenCache.delete(token);
+  }
+}
+
+function logRouteError(req: Request, statusCode: number, error: unknown) {
+  const level = statusCode >= 500 ? 'error' : 'warn';
+  logServerEvent(level, 'MCP request failed.', {
+    method: req.method,
+    path: req.path,
+    statusCode,
+    error: readErrorMessage(error),
+  });
+}
+
+function logServerEvent(level: 'warn' | 'error', message: string, context: Record<string, unknown>) {
+  const payload = JSON.stringify({ message, ...context });
+  if (level === 'error') {
+    console.error(payload);
+    return;
+  }
+
+  console.warn(payload);
+}
+
+function readErrorMessage(error: unknown) {
+  if (error instanceof PresscartApiError) {
+    return `${error.message} (${error.status})`;
+  }
+
+  if (error instanceof Error) {
+    return `${error.name}: ${error.message}`;
+  }
+
+  return String(error);
 }
