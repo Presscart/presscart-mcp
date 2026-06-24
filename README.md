@@ -3,7 +3,6 @@
 Standalone MCP server for the Presscart reseller workflow.
 
 Supports:
-- local `stdio` mode
 - hosted Streamable HTTP mode
 
 Hosted HTTP mode supports two auth models:
@@ -12,16 +11,15 @@ Hosted HTTP mode supports two auth models:
 
 ## Environment
 
-Required in all modes:
+Required:
 
 ```bash
 export PRESSCART_API_URL="https://api.presscart.com"
 ```
 
-Optional local fallback for stdio mode:
+Optional default profile for tools that need one:
 
 ```bash
-export PRESSCART_API_TOKEN="pc_..."
 export PRESSCART_PROFILE_ID="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 ```
 
@@ -49,7 +47,6 @@ export MCP_OAUTH_AUDIENCE="https://mcp.presscart.com"
 ```
 
 Notes:
-- `PRESSCART_API_TOKEN` is optional now. It is only used as a local fallback in stdio mode.
 - `PRESSCART_PROFILE_ID` is optional globally, but tools that create orders/campaigns or read profile order items need a profile id from either env or tool input.
 - In MCP OAuth mode, the app's Supabase OAuth Server handles authorization and consent. This MCP runtime validates the issued access token against Supabase JWKS and delegated permissions.
 - In legacy direct-token mode, send `X-Presscart-API-Token: <presscart_api_token>` on `initialize` and later requests that need to confirm the active session credential.
@@ -64,12 +61,6 @@ npm install
 ## Run
 
 Development:
-
-```bash
-npm run dev
-```
-
-Hosted HTTP development:
 
 ```bash
 npm run dev:http
@@ -104,27 +95,6 @@ npm run start:http
 - `assign_order_items_to_campaign`
 - `get_campaign_article_status`
 - `list_profile_order_items`
-
-## Example MCP config
-
-Local stdio config:
-
-```json
-{
-  "mcpServers": {
-    "presscart": {
-      "command": "node",
-      "args": ["/Users/edgarli/Documents/Presscart/presscart-mcp/dist/index.js"],
-      "cwd": "/Users/edgarli/Documents/Presscart/presscart-mcp",
-      "env": {
-        "PRESSCART_API_URL": "https://api.presscart.com",
-        "PRESSCART_API_TOKEN": "pc_...",
-        "PRESSCART_PROFILE_ID": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-      }
-    }
-  }
-}
-```
 
 ## Hosted deployment shape
 
@@ -219,12 +189,6 @@ Quick verification:
 ```bash
 curl -i https://mcp.presscart.com/mcp
 curl -s https://mcp.presscart.com/.well-known/oauth-protected-resource/mcp | jq
-```
-
-If you need an immediate workaround while hosted OAuth is being fixed, use the local stdio server instead:
-
-```bash
-codex mcp add presscart --env PRESSCART_API_URL=https://api.presscart.com --env PRESSCART_API_TOKEN=pc_... --env PRESSCART_PROFILE_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx -- node /Users/edgarli/Documents/Presscart/presscart-mcp/dist/index.js
 ```
 
 ### Cursor

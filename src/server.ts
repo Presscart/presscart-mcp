@@ -1,24 +1,17 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
-import { PresscartApiClient, PresscartApiError, type TokenSessionResponse } from './api.js';
-import { env } from './env.js';
+import type { TokenSessionResponse } from './api.js';
+import { normalizePriceFields } from './utils/price-fields.js';
 import { appendQueryFilters, type QueryParams } from './utils/query-filters.js';
-
-type AuthInfoLike = {
-  token: string;
-  scopes?: string[];
-  extra?: Record<string, unknown>;
-};
-
-type ToolExtraLike = {
-  authInfo?: AuthInfoLike;
-  sessionId?: string;
-};
-
-type ServerOptions = {
-  getSessionAuthInfo?: (sessionId?: string) => AuthInfoLike | undefined;
-};
+import {
+  createPresscartApiClient,
+  requirePermission,
+  requireTeamId,
+  resolveProfileId,
+  type ServerOptions,
+} from './utils/tool-context.js';
+import { jsonResult } from './utils/tool-result.js';
 
 export function createPresscartMcpServer(options: ServerOptions = {}) {
   const server = new McpServer({
@@ -34,7 +27,7 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
       inputSchema: {},
     },
     async (_input, extra) => {
-      const api = requireApi(extra, options);
+      const api = createPresscartApiClient(extra, options);
       const response = await api.get<TokenSessionResponse>('/auth/token');
       return jsonResult(response);
     }
@@ -56,7 +49,7 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
     },
     async (input, extra) => {
       requirePermission(extra, options, 'profiles.lists');
-      const api = requireApi(extra, options);
+      const api = createPresscartApiClient(extra, options);
       const teamId = input.team_id ?? requireTeamId(extra, options);
       const response = await api.get(`/teams/${teamId}/profiles`, {
         limit: input.limit,
@@ -72,9 +65,9 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
   server.registerTool(
     'list_outlets',
     {
-      title: 'List Outlets',
+      title: 'List Product Listings',
       description:
-        'List reseller-visible Presscart outlets. Supports basic pagination, search, and sorting. Price fields returned as prices[].unit_amount are Presscart USD dollar amounts, not Stripe cent amounts.',
+        'List reseller-visible Presscart product listings and their outlet details. Supports basic pagination, search, and sorting. Price fields are returned as prices[].price in the listed currency, with prices[].display_price formatted for display. Do not divide price by 100.',
       inputSchema: {
         limit: z.number().int().positive().max(100).optional(),
         page: z.number().int().positive().optional(),
@@ -98,7 +91,7 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
                 'SUSPENDED',
               ])
               .optional()
-              .describe('Outlet publication status (defaults to ACTIVE)'),
+              .describe('Product listing publication status (defaults to ACTIVE)'),
             channel_type: z
               .enum([
                 'WEBSITE',
@@ -132,7 +125,7 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
                 max: z.number().optional().describe('Maximum price in USD dollars'),
               })
               .optional()
-              .describe('Filter by unit_amount price range (in USD dollars, not cents)'),
+              .describe('Filter by price range in the listed currency. Do not divide by 100.'),
             domain_authority: z
               .object({
                 min: z.number().optional().describe('Minimum DA score'),
@@ -156,11 +149,11 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
     },
     async (input, extra) => {
       requirePermission(extra, options, 'outlets.lists');
-      const api = requireApi(extra, options);
+      const api = createPresscartApiClient(extra, options);
       const { filters, ...params } = input;
       const query = appendQueryFilters(params as QueryParams, filters);
       const response = await api.get('/outlets', query);
-      return jsonResult(response);
+      return jsonResult(normalizePriceFields(response));
     }
   );
 
@@ -169,16 +162,16 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
     {
       title: 'Get Product',
       description:
-        'Fetch a Presscart product by UUID. Price fields returned as prices[].unit_amount are Presscart USD dollar amounts, not Stripe cent amounts.',
+        'Fetch a Presscart product by UUID. Price fields are returned as prices[].price in the listed currency, with prices[].display_price formatted for display. Do not divide price by 100.',
       inputSchema: {
         product_id: z.string().uuid(),
       },
     },
     async (input, extra) => {
       requirePermission(extra, options, 'products.read');
-      const api = requireApi(extra, options);
+      const api = createPresscartApiClient(extra, options);
       const response = await api.get(`/products/${input.product_id}`);
-      return jsonResult(response);
+      return jsonResult(normalizePriceFields(response));
     }
   );
 
@@ -201,7 +194,7 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
     },
     async (input, extra) => {
       requirePermission(extra, options, 'orders.create');
-      const api = requireApi(extra, options);
+      const api = createPresscartApiClient(extra, options);
       const profileId = resolveProfileId(input.profile_id);
       const response = await api.post('/orders/checkout', {
         profile_id: profileId,
@@ -224,7 +217,7 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
     },
     async (input, extra) => {
       requirePermission(extra, options, 'orders.read');
-      const api = requireApi(extra, options);
+      const api = createPresscartApiClient(extra, options);
       const response = await api.get(`/orders/${input.order_id}`, {
         include_outlets_data: input.include_outlets_data,
         include_order_items_data: input.include_order_items_data,
@@ -250,7 +243,7 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
     },
     async (input, extra) => {
       requirePermission(extra, options, 'orders.lists');
-      const api = requireApi(extra, options);
+      const api = createPresscartApiClient(extra, options);
       const response = await api.get('/order-items', input);
       return jsonResult(response);
     }
@@ -275,7 +268,7 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
     },
     async (input, extra) => {
       requirePermission(extra, options, 'campaigns.create');
-      const api = requireApi(extra, options);
+      const api = createPresscartApiClient(extra, options);
       const profileId = resolveProfileId(input.profile_id);
       const response = await api.post('/campaigns', {
         profile_id: profileId,
@@ -308,7 +301,7 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
     },
     async (input, extra) => {
       requirePermission(extra, options, 'campaigns.lists');
-      const api = requireApi(extra, options);
+      const api = createPresscartApiClient(extra, options);
       const response = await api.get('/campaigns', input);
       return jsonResult(response);
     }
@@ -325,7 +318,7 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
     },
     async (input, extra) => {
       requirePermission(extra, options, 'campaigns.read');
-      const api = requireApi(extra, options);
+      const api = createPresscartApiClient(extra, options);
       const response = await api.get(`/campaigns/${input.campaign_id}`);
       return jsonResult(response);
     }
@@ -343,7 +336,7 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
     },
     async (input, extra) => {
       requirePermission(extra, options, 'campaigns.update');
-      const api = requireApi(extra, options);
+      const api = createPresscartApiClient(extra, options);
       const response = await api.post(`/campaigns/${input.campaign_id}/order-items`, {
         order_item_ids: input.order_item_ids,
       });
@@ -362,7 +355,7 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
     },
     async (input, extra) => {
       requirePermission(extra, options, 'campaigns.read');
-      const api = requireApi(extra, options);
+      const api = createPresscartApiClient(extra, options);
       const response = await api.get(`/campaigns/${input.campaign_id}/articles/status-count`);
       return jsonResult(response);
     }
@@ -383,7 +376,7 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
     },
     async (input, extra) => {
       requirePermission(extra, options, 'orders.lists');
-      const api = requireApi(extra, options);
+      const api = createPresscartApiClient(extra, options);
       const profileId = resolveProfileId(input.profile_id);
       const response = await api.get(`/profiles/${profileId}/order-items`, {
         type: input.type,
@@ -396,113 +389,4 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
   );
 
   return server;
-}
-
-function requireApi(extra: ToolExtraLike | undefined, options: ServerOptions) {
-  const authInfo = resolveAuthInfo(extra, options);
-  const tokenFromSession =
-    typeof authInfo?.extra?.presscart_api_token === 'string'
-      ? authInfo.extra.presscart_api_token
-      : authInfo?.token;
-  const token = tokenFromSession ?? env.PRESSCART_API_TOKEN;
-
-  if (!token) {
-    throw new Error(
-      'No Presscart API token available. Bind a session with X-Presscart-API-Token or configure PRESSCART_API_TOKEN for local stdio use.'
-    );
-  }
-
-  return new PresscartApiClient(env.PRESSCART_API_URL, token);
-}
-
-function resolveAuthInfo(extra: ToolExtraLike | undefined, options: ServerOptions) {
-  return extra?.authInfo ?? options.getSessionAuthInfo?.(extra?.sessionId);
-}
-
-function requireTeamId(extra: ToolExtraLike | undefined, options: ServerOptions) {
-  const authInfo = resolveAuthInfo(extra, options);
-  const teamId = authInfo?.extra?.team_id;
-  if (typeof teamId === 'string' && teamId.length > 0) return teamId;
-
-  throw new Error(
-    'team_id is required. Pass team_id explicitly or bind the Presscart credential to the MCP session.'
-  );
-}
-
-function requirePermission(
-  extra: ToolExtraLike | undefined,
-  options: ServerOptions,
-  permission: string
-) {
-  const authInfo = resolveAuthInfo(extra, options);
-
-  if (!isOAuthSession(authInfo)) return;
-
-  const permissions = new Set(readOAuthPermissions(authInfo));
-  if (permissions.has(permission)) return;
-
-  throw new Error(`OAuth grant is missing required permission: ${permission}`);
-}
-
-function isOAuthSession(authInfo: AuthInfoLike | undefined): authInfo is AuthInfoLike {
-  return (
-    authInfo?.extra?.source === 'oauth' ||
-    typeof authInfo?.extra?.oauth_grant_id === 'string'
-  );
-}
-
-function readOAuthPermissions(authInfo: AuthInfoLike) {
-  const extraPermissions = authInfo.extra?.permissions;
-  if (Array.isArray(extraPermissions)) {
-    return extraPermissions.filter(
-      (permission): permission is string => typeof permission === 'string' && permission.length > 0
-    );
-  }
-
-  return authInfo.scopes ?? [];
-}
-
-function resolveProfileId(profileId: string | undefined) {
-  const resolved = profileId ?? env.PRESSCART_PROFILE_ID;
-
-  if (!resolved) {
-    throw new Error(
-      'profile_id is required. Pass profile_id explicitly or configure PRESSCART_PROFILE_ID for local stdio use.'
-    );
-  }
-
-  return resolved;
-}
-
-function jsonResult(data: unknown) {
-  return {
-    content: [
-      {
-        type: 'text' as const,
-        text: JSON.stringify(data, null, 2),
-      },
-    ],
-    structuredContent: normalizeStructuredContent(data),
-  };
-}
-
-function normalizeStructuredContent(data: unknown) {
-  if (Array.isArray(data)) {
-    return { records: data };
-  }
-
-  if (data !== null && typeof data === 'object') return data as Record<string, unknown>;
-  return { value: data };
-}
-
-export function formatServerError(error: unknown) {
-  if (error instanceof PresscartApiError) {
-    return `${error.message}\n${JSON.stringify(error.body, null, 2)}`;
-  }
-
-  if (error instanceof Error) {
-    return `${error.name}: ${error.message}`;
-  }
-
-  return String(error);
 }

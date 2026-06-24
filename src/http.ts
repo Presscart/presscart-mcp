@@ -10,8 +10,9 @@ import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 
 import { PresscartApiClient, PresscartApiError, type TokenSessionResponse } from './api.js';
 import { env } from './env.js';
-import { createPresscartMcpServer, formatServerError } from './server.js';
+import { createPresscartMcpServer } from './server.js';
 import { SupabaseOAuthVerifier } from './supabase-oauth.js';
+import { formatServerError } from './utils/errors.js';
 
 type SessionState = {
   transport: StreamableHTTPServerTransport;
