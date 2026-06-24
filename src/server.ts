@@ -36,10 +36,39 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
   );
 
   server.registerTool(
+    'list_teams',
+    {
+      title: 'List Teams',
+      description:
+        'List Presscart teams available to the authenticated account. Use this first when a team_id is needed and the user has not provided one; call list_profiles with the selected team_id when a profile_id is needed.',
+      inputSchema: {
+        limit: z.number().int().positive().max(100).optional(),
+        page: z.number().int().positive().optional(),
+        sort_by: z.string().trim().min(1).optional(),
+        order_by: z.enum(['asc', 'desc']).optional(),
+        include_archived: z.boolean().optional(),
+      },
+    },
+    async (input, extra) => {
+      requirePermission(extra, options, 'teams.read');
+      const api = createPresscartApiClient(extra, options);
+      const response = await api.get('/me/teams', {
+        limit: input.limit,
+        page: input.page,
+        sort_by: input.sort_by,
+        order_by: input.order_by,
+        include_archived: input.include_archived,
+      });
+      return jsonResult(response);
+    }
+  );
+
+  server.registerTool(
     'list_profiles',
     {
       title: 'List Profiles',
-      description: 'List profiles for the authenticated team.',
+      description:
+        'List profiles for a Presscart team. If team_id is unknown, call list_teams first and use one of the returned team IDs.',
       inputSchema: {
         team_id: z.string().uuid().optional(),
         limit: z.number().int().positive().max(100).optional(),
@@ -181,7 +210,8 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
     'create_order_checkout',
     {
       title: 'Create Order Checkout',
-      description: 'Create a Presscart checkout order for a profile and one or more line items.',
+      description:
+        'Create a Presscart checkout order for a profile and one or more line items. If profile_id is unknown, call list_teams first, choose the team_id, then call list_profiles with that team_id. Before checkout is created, refer to any summed item prices only as an estimated item subtotal, not the order total. After checkout is created, use the returned subtotal, discount, processing_fee, credits_applied, and total fields as the authoritative order amounts.',
       inputSchema: {
         profile_id: z.string().uuid().optional(),
         line_items: z
