@@ -6,12 +6,14 @@ import { normalizePriceFields } from './utils/price-fields.js';
 import { appendQueryFilters, type QueryParams } from './utils/query-filters.js';
 import {
   createPresscartApiClient,
+  getSessionAuthInfo,
   requirePermission,
   requireTeamId,
   resolveProfileId,
   type ServerOptions,
 } from './utils/tool-context.js';
 import { jsonResult } from './utils/tool-result.js';
+import { includeOAuthSessionClaims } from './utils/session-claims.js';
 
 export function createPresscartMcpServer(options: ServerOptions = {}) {
   const server = new McpServer({
@@ -29,7 +31,7 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
     async (_input, extra) => {
       const api = createPresscartApiClient(extra, options);
       const response = await api.get<TokenSessionResponse>('/auth/token');
-      return jsonResult(response);
+      return jsonResult(includeOAuthSessionClaims(response, getSessionAuthInfo(extra, options)));
     }
   );
 

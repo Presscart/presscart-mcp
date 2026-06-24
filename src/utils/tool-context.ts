@@ -17,7 +17,7 @@ export type ServerOptions = {
 };
 
 export function createPresscartApiClient(extra: ToolExtraLike | undefined, options: ServerOptions) {
-  const authInfo = resolveAuthInfo(extra, options);
+  const authInfo = getSessionAuthInfo(extra, options);
   const tokenFromSession =
     typeof authInfo?.extra?.presscart_api_token === 'string'
       ? authInfo.extra.presscart_api_token
@@ -33,7 +33,7 @@ export function createPresscartApiClient(extra: ToolExtraLike | undefined, optio
 }
 
 export function requireTeamId(extra: ToolExtraLike | undefined, options: ServerOptions) {
-  const authInfo = resolveAuthInfo(extra, options);
+  const authInfo = getSessionAuthInfo(extra, options);
   const teamId = authInfo?.extra?.team_id;
   if (typeof teamId === 'string' && teamId.length > 0) return teamId;
 
@@ -47,7 +47,7 @@ export function requirePermission(
   options: ServerOptions,
   permission: string
 ) {
-  const authInfo = resolveAuthInfo(extra, options);
+  const authInfo = getSessionAuthInfo(extra, options);
 
   if (!isOAuthSession(authInfo)) return;
 
@@ -69,7 +69,7 @@ export function resolveProfileId(profileId: string | undefined) {
   return resolved;
 }
 
-function resolveAuthInfo(extra: ToolExtraLike | undefined, options: ServerOptions) {
+export function getSessionAuthInfo(extra: ToolExtraLike | undefined, options: ServerOptions) {
   return extra?.authInfo ?? options.getSessionAuthInfo?.(extra?.sessionId);
 }
 
