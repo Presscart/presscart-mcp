@@ -58,15 +58,11 @@ export function requirePermission(
 }
 
 export function resolveProfileId(profileId: string | undefined) {
-  const resolved = profileId ?? env.PRESSCART_PROFILE_ID;
+  if (profileId) return profileId;
 
-  if (!resolved) {
-    throw new Error(
-      'profile_id is required. Pass profile_id explicitly or configure PRESSCART_PROFILE_ID.'
-    );
-  }
-
-  return resolved;
+  throw new Error(
+    'profile_id is required. Call list_teams, then list_profiles, and pass the selected profile_id.'
+  );
 }
 
 export function getSessionAuthInfo(extra: ToolExtraLike | undefined, options: ServerOptions) {

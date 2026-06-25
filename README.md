@@ -17,12 +17,6 @@ Required:
 export PRESSCART_API_URL="https://api.presscart.com"
 ```
 
-Optional default profile for tools that need one:
-
-```bash
-export PRESSCART_PROFILE_ID="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-```
-
 Optional hosted mode settings:
 
 ```bash
@@ -47,7 +41,8 @@ export MCP_OAUTH_AUDIENCE="https://mcp.presscart.com"
 ```
 
 Notes:
-- `PRESSCART_PROFILE_ID` is optional globally, but tools that create orders/campaigns or read profile order items need a profile id from either env or tool input.
+- `PRESSCART_API_URL` must point at the app API base that exposes `/teams/*` routes, not a public-api-only base.
+- Tools that create orders/campaigns or read profile orders need an explicit `profile_id`. If the profile is unknown, call `list_teams`, then `list_profiles`.
 - In MCP OAuth mode, the app's Supabase OAuth Server handles authorization and consent. This MCP runtime validates the issued access token against Supabase JWKS and delegated permissions.
 - In legacy direct-token mode, send `X-Presscart-API-Token: <presscart_api_token>` on `initialize` and later requests that need to confirm the active session credential.
 
@@ -83,18 +78,20 @@ npm run start:http
 ## Tools
 
 - `auth_whoami`
+- `list_teams`
+- `get_team`
 - `list_profiles`
 - `list_outlets`
 - `get_product`
 - `create_order`
 - `get_order`
 - `list_order_items`
+- `list_profile_orders`
 - `create_campaign`
 - `list_campaigns`
 - `get_campaign`
 - `assign_order_items_to_campaign`
 - `get_campaign_article_status`
-- `list_profile_order_items`
 
 ## Hosted deployment shape
 

@@ -2,7 +2,6 @@ import { z } from 'zod';
 
 const envSchema = z.object({
   PRESSCART_API_URL: z.string().url(),
-  PRESSCART_PROFILE_ID: z.string().uuid().optional(),
   MCP_HOST: z.string().default('0.0.0.0'),
   MCP_PORT: z.coerce.number().int().positive().default(8787),
   MCP_SERVER_URL: z.string().url().optional(),
@@ -16,7 +15,6 @@ const envSchema = z.object({
 
 export const env = envSchema.parse({
   PRESSCART_API_URL: process.env.PRESSCART_API_URL,
-  PRESSCART_PROFILE_ID: process.env.PRESSCART_PROFILE_ID,
   MCP_HOST: process.env.MCP_HOST,
   // Railway injects PORT at runtime; keep MCP_PORT as an override for local/dev use.
   MCP_PORT: process.env.PORT ?? process.env.MCP_PORT,

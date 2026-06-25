@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 process.env.PRESSCART_API_URL ??= 'https://api.presscart.test';
 
-const { requirePermission, requireTeamId } = await import('./tool-context.js');
+const { requirePermission, requireTeamId, resolveProfileId } = await import('./tool-context.js');
 
 test('requires OAuth permissions when the session comes from an OAuth grant', () => {
   assert.doesNotThrow(() =>
@@ -72,5 +72,17 @@ test('resolves team_id from the bound session when present', () => {
       {}
     ),
     'team-1'
+  );
+});
+
+test('requires explicit profile_id for profile-scoped workflows', () => {
+  assert.equal(
+    resolveProfileId('8a42709c-dcdf-4a07-9d92-f3da9f82a902'),
+    '8a42709c-dcdf-4a07-9d92-f3da9f82a902'
+  );
+
+  assert.throws(
+    () => resolveProfileId(undefined),
+    /profile_id is required\. Call list_teams, then list_profiles/
   );
 });
