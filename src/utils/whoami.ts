@@ -6,7 +6,6 @@ export type WhoamiResponse =
       id?: string;
       name?: string;
       email?: string;
-      displayName?: string;
     }
   | {
       team_id: string;
@@ -30,23 +29,16 @@ export function toWhoamiResponse(
   const firstName = readString(authInfo?.extra?.first_name);
   const lastName = readString(authInfo?.extra?.last_name);
   const fullName = [firstName, lastName].filter(Boolean).join(' ');
-  const displayName = firstName || readEmailUsername(email);
 
   return removeUndefinedValues({
     id: readString(authInfo?.extra?.sub),
     name: fullName || email,
     email,
-    displayName,
   });
 }
 
 function readString(value: unknown) {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
-}
-
-function readEmailUsername(email: string | undefined) {
-  if (!email) return undefined;
-  return email.split('@')[0];
 }
 
 function removeUndefinedValues<T extends Record<string, unknown>>(value: T) {

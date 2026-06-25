@@ -81,6 +81,7 @@ npm run start:http
 - `list_teams`
 - `get_team`
 - `list_profiles`
+- `upload_files`
 - `list_outlets`
 - `get_product`
 - `create_order`
@@ -90,8 +91,13 @@ npm run start:http
 - `create_campaign`
 - `list_campaigns`
 - `get_campaign`
-- `assign_order_items_to_campaign`
+- `add_order_items_to_campaign`
 - `get_campaign_article_status`
+- `upload_campaign_questionnaire`
+- `upload_article`
+- `replace_article_file`
+- `submit_article`
+- `request_article_writing`
 
 ## Hosted deployment shape
 

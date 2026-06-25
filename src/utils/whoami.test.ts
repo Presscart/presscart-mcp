@@ -26,7 +26,6 @@ test('returns public OAuth identity fields for get_user', () => {
       id: 'user-1',
       name: 'Renz Vallinas',
       email: 'renz@presscart.com',
-      displayName: 'Renz',
     }
   );
 });
@@ -52,7 +51,6 @@ test('falls back to email identity values when OAuth name claims are unavailable
       id: 'user-1',
       name: 'renz@presscart.com',
       email: 'renz@presscart.com',
-      displayName: 'renz',
     }
   );
 });

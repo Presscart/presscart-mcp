@@ -51,11 +51,37 @@ export class PresscartApiClient {
     );
   }
 
+  async postForm<T>(
+    path: string,
+    formData: FormData,
+    query?: Record<string, QueryValue>
+  ): Promise<T> {
+    return this.request<T>(
+      path,
+      {
+        method: 'POST',
+        body: formData,
+      },
+      query
+    );
+  }
+
   async put<T>(path: string, body?: unknown, query?: Record<string, QueryValue>): Promise<T> {
     return this.request<T>(
       path,
       {
         method: 'PUT',
+        body: body ? JSON.stringify(body) : undefined,
+      },
+      query
+    );
+  }
+
+  async patch<T>(path: string, body?: unknown, query?: Record<string, QueryValue>): Promise<T> {
+    return this.request<T>(
+      path,
+      {
+        method: 'PATCH',
         body: body ? JSON.stringify(body) : undefined,
       },
       query
@@ -84,7 +110,9 @@ export class PresscartApiClient {
         headers: {
           Accept: 'application/json',
           Authorization: `Bearer ${this.apiToken}`,
-          ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+          ...(init.body && !(init.body instanceof FormData)
+            ? { 'Content-Type': 'application/json' }
+            : {}),
         },
       });
     } catch (error) {
