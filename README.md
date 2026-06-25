@@ -77,7 +77,7 @@ npm run start:http
 
 ## Tools
 
-- `auth_whoami`
+- `get_user`
 - `list_teams`
 - `get_team`
 - `list_profiles`

@@ -57,6 +57,8 @@ function toAuthInfo(token: string, payload: JWTPayload, audience: URL): AuthInfo
       permissions,
       scope: readStringClaim(payload, 'scope'),
       email: readStringClaim(payload, 'email'),
+      first_name: readUserMetadataStringClaim(payload, 'first_name'),
+      last_name: readUserMetadataStringClaim(payload, 'last_name'),
     },
   };
 }
@@ -70,6 +72,16 @@ function readStringArrayClaim(payload: JWTPayload, key: string) {
   const value = payload[key];
   if (!Array.isArray(value)) return [];
   return value.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0);
+}
+
+function readUserMetadataStringClaim(payload: JWTPayload, key: string) {
+  const userMetadata = payload.user_metadata;
+  if (!userMetadata || typeof userMetadata !== 'object' || Array.isArray(userMetadata)) {
+    return undefined;
+  }
+
+  const value = (userMetadata as Record<string, unknown>)[key];
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
 function ensureTrailingSlash(url: URL) {

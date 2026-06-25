@@ -1,26 +1,26 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 import type { TokenSessionResponse } from '../api.js';
-import { includeOAuthSessionClaims } from '../utils/session-claims.js';
 import {
   createPresscartApiClient,
   getSessionAuthInfo,
   type ServerOptions,
 } from '../utils/tool-context.js';
 import { jsonResult } from '../utils/tool-result.js';
+import { toWhoamiResponse } from '../utils/whoami.js';
 
 export function registerAuthTools(server: McpServer, options: ServerOptions) {
   server.registerTool(
-    'auth_whoami',
+    'get_user',
     {
-      title: 'Auth Whoami',
-      description: 'Return the current Presscart MCP session details.',
+      title: 'Get User',
+      description: 'Return the current authenticated user.',
       inputSchema: {},
     },
     async (_input, extra) => {
       const api = createPresscartApiClient(extra, options);
       const response = await api.get<TokenSessionResponse>('/auth/token');
-      return jsonResult(includeOAuthSessionClaims(response, getSessionAuthInfo(extra, options)));
+      return jsonResult(toWhoamiResponse(response, getSessionAuthInfo(extra, options)));
     }
   );
 }
