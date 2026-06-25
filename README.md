@@ -86,7 +86,7 @@ npm run start:http
 - `list_profiles`
 - `list_outlets`
 - `get_product`
-- `create_order_checkout`
+- `create_order`
 - `get_order`
 - `list_order_items`
 - `create_campaign`

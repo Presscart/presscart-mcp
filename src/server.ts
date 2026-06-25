@@ -207,9 +207,9 @@ export function createPresscartMcpServer(options: ServerOptions = {}) {
   );
 
   server.registerTool(
-    'create_order_checkout',
+    'create_order',
     {
-      title: 'Create Order Checkout',
+      title: 'Create Order',
       description:
         'Create a Presscart checkout order for a profile and one or more line items. If profile_id is unknown, call list_teams first, choose the team_id, then call list_profiles with that team_id. Before checkout is created, refer to any summed item prices only as an estimated item subtotal, not the order total. After checkout is created, use the returned subtotal, discount, processing_fee, credits_applied, and total fields as the authoritative order amounts.',
       inputSchema: {
