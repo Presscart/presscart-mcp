@@ -18,7 +18,7 @@ export function registerProductTools(server: McpServer, options: ServerOptions) 
     {
       title: 'List Product Listings',
       description:
-        'List reseller-visible Presscart product listings and their outlet details. Supports basic pagination, search, and sorting. Price fields are returned as prices[].price in the listed currency, with prices[].display_price formatted for display. Do not divide price by 100.',
+        'List reseller-visible product listings and their outlet details. Supports basic pagination, search, and sorting. Price fields are returned as prices[].price in the listed currency, with prices[].display_price formatted for display. Use default_price, or the prices[] item with is_default_price=true, unless the user explicitly asks for a specific tier such as basic. Do not divide price by 100.',
       inputSchema: {
         team_slug: teamSlugSchema,
         ...paginationSchema,
@@ -113,7 +113,7 @@ export function registerProductTools(server: McpServer, options: ServerOptions) 
     {
       title: 'Get Product',
       description:
-        'Fetch a Presscart product by UUID. Price fields are returned as prices[].price in the listed currency, with prices[].display_price formatted for display. Do not divide price by 100.',
+        'Fetch a product by UUID. Price fields are returned as prices[].price in the listed currency, with prices[].display_price formatted for display. Use default_price, or the prices[] item with is_default_price=true, unless the user explicitly asks for a specific tier such as basic. Do not divide price by 100.',
       inputSchema: {
         team_slug: teamSlugSchema,
         product_id: z.string().uuid(),

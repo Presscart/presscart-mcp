@@ -29,10 +29,63 @@ test('normalizes nested Presscart price fields for MCP responses', () => {
             display_price: '$1,200.00',
             currency: 'USD',
             pricing_tier: 'basic',
+            is_default_price: true,
           },
         ],
+        default_price: {
+          price: 1200,
+          display_price: '$1,200.00',
+          currency: 'USD',
+          pricing_tier: 'basic',
+          is_default_price: true,
+        },
       },
     ],
+  });
+});
+
+test('uses pro pricing as the default price when present', () => {
+  const normalized = normalizePriceFields({
+    id: 'product-1',
+    prices: [
+      {
+        unit_amount: 1200,
+        currency: 'usd',
+        pricing_tier: 'basic',
+      },
+      {
+        unit_amount: 900,
+        currency: 'usd',
+        pricing_tier: 'pro',
+      },
+    ],
+  });
+
+  assert.deepEqual(normalized, {
+    id: 'product-1',
+    prices: [
+      {
+        price: 900,
+        display_price: '$900.00',
+        currency: 'USD',
+        pricing_tier: 'pro',
+        is_default_price: true,
+      },
+      {
+        price: 1200,
+        display_price: '$1,200.00',
+        currency: 'USD',
+        pricing_tier: 'basic',
+        is_default_price: false,
+      },
+    ],
+    default_price: {
+      price: 900,
+      display_price: '$900.00',
+      currency: 'USD',
+      pricing_tier: 'pro',
+      is_default_price: true,
+    },
   });
 });
 
@@ -60,8 +113,17 @@ test('normalizes single product price arrays for get_product responses', () => {
         id: 'price-1',
         internal_cost: 850,
         pricing_tier: 'basic',
+        is_default_price: true,
       },
     ],
+    default_price: {
+      price: 1700,
+      display_price: '$1,700.00',
+      id: 'price-1',
+      internal_cost: 850,
+      pricing_tier: 'basic',
+      is_default_price: true,
+    },
   });
 });
 

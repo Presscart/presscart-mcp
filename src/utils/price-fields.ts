@@ -9,7 +9,14 @@ export function normalizePriceFields(data: unknown): unknown {
 
   for (const [key, value] of Object.entries(data)) {
     if (key === 'prices' && Array.isArray(value)) {
-      normalized[key] = value.map(normalizePrice);
+      const prices = normalizePrices(value);
+      normalized[key] = prices;
+
+      const defaultPrice = prices.find(isDefaultPrice);
+      if (defaultPrice && normalized.default_price === undefined) {
+        normalized.default_price = defaultPrice;
+      }
+
       continue;
     }
 
@@ -17,6 +24,17 @@ export function normalizePriceFields(data: unknown): unknown {
   }
 
   return normalized;
+}
+
+function normalizePrices(values: unknown[]) {
+  const prices = values.map(normalizePrice);
+  const defaultIndex = findDefaultPriceIndex(prices);
+
+  if (defaultIndex === -1) return prices;
+
+  return prices
+    .map((price, index) => addDefaultPriceFlag(price, index === defaultIndex))
+    .sort((left, right) => Number(isDefaultPrice(right)) - Number(isDefaultPrice(left)));
 }
 
 function normalizePrice(value: unknown): unknown {
@@ -35,6 +53,33 @@ function normalizePrice(value: unknown): unknown {
   }
 
   return { ...normalized, ...rest };
+}
+
+function findDefaultPriceIndex(prices: unknown[]) {
+  const proIndex = prices.findIndex(price => isPricingTier(price, 'pro'));
+  if (proIndex !== -1) return proIndex;
+
+  const basicIndex = prices.findIndex(price => isPricingTier(price, 'basic'));
+  if (basicIndex !== -1) return basicIndex;
+
+  return prices.findIndex(isRecord);
+}
+
+function addDefaultPriceFlag(price: unknown, isDefault: boolean) {
+  if (!isRecord(price)) return price;
+
+  return {
+    ...price,
+    is_default_price: isDefault,
+  };
+}
+
+function isDefaultPrice(value: unknown): value is Record<string, unknown> {
+  return isRecord(value) && value.is_default_price === true;
+}
+
+function isPricingTier(value: unknown, tier: string) {
+  return isRecord(value) && value.pricing_tier === tier;
 }
 
 function formatDisplayPrice(price: number, currency: unknown) {
