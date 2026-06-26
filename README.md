@@ -83,6 +83,10 @@ npm run start:http
 - `list_profiles`
 - `upload_files`
 - `list_outlets`
+- `get_outlet`
+- `create_outlet`
+- `update_outlet`
+- `list_marketplace_outlets`
 - `get_product`
 - `create_order`
 - `get_order`

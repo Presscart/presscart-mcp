@@ -15,11 +15,11 @@ import { paginationSchema, teamSlugSchema } from './schemas.js';
 
 export function registerProductTools(server: McpServer, options: ServerOptions) {
   server.registerTool(
-    'list_outlets',
+    'list_marketplace_outlets',
     {
-      title: 'List Product Listings',
+      title: 'List Marketplace Outlets',
       description:
-        'List reseller-visible product listings and their outlet details. Supports basic pagination, search, and sorting. Price fields are returned as prices[].price in the listed currency, with prices[].display_price formatted for display. Use default_price, or the prices[] item with is_default_price=true, unless the user explicitly asks for a specific tier such as basic. Do not divide price by 100.',
+        'List marketplace outlets available for purchase, including their product listing and outlet details. Use this for buyer/API-client marketplace discovery, not for managing outlets owned by a publisher team. Supports basic pagination, search, and sorting. Price fields are returned as prices[].price in the listed currency, with prices[].display_price formatted for display. Use default_price, or the prices[] item with is_default_price=true, unless the user explicitly asks for a specific tier such as basic. Do not divide price by 100.',
       inputSchema: {
         team_slug: teamSlugSchema,
         ...paginationSchema,
