@@ -81,7 +81,7 @@ export function registerOutletChannelTools(server: McpServer, options: ServerOpt
       annotations: additiveWriteTool,
     },
     async (input, extra) => {
-      requirePermission(extra, options, 'outlets.update');
+      requirePermission(extra, options, 'outlet_channels.create');
       const api = createPresscartApiClient(extra, options);
       const { team_slug, outlet_id, ...body } = input;
       const response = await api.post(teamRoute(team_slug, `/outlets/${outlet_id}/channels`), body);
@@ -114,7 +114,7 @@ export function registerOutletChannelTools(server: McpServer, options: ServerOpt
       annotations: updateTool,
     },
     async (input, extra) => {
-      requirePermission(extra, options, 'outlets.update');
+      requirePermission(extra, options, 'outlet_channels.update');
       const api = createPresscartApiClient(extra, options);
       const { team_slug, outlet_id, channel_id, ...body } = input;
       const response = await api.patch(
@@ -139,7 +139,7 @@ export function registerOutletChannelTools(server: McpServer, options: ServerOpt
       annotations: replaceTool,
     },
     async (input, extra) => {
-      requirePermission(extra, options, 'outlets.update');
+      requirePermission(extra, options, 'outlet_channels.delete');
       const api = createPresscartApiClient(extra, options);
       const response = await api.delete(
         teamRoute(input.team_slug, `/outlets/${input.outlet_id}/channels/${input.channel_id}`)
