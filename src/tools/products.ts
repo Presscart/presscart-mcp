@@ -18,6 +18,12 @@ const exampleLinkSchema = z.object({
   url: z.string().trim().min(1),
 });
 
+type ProductListingLocationsResponse = {
+  countries: string[];
+  states: string[];
+  cities: string[];
+};
+
 const productPayloadSchema = {
   name: z.string().trim().min(1),
   description: z.string().optional().default(''),
@@ -166,6 +172,76 @@ export function registerProductTools(server: McpServer, options: ServerOptions) 
       const query = appendQueryFilters(params as QueryParams, filters);
       const response = await api.get(teamRoute(team_slug, '/products/marketplace/listings'), query);
       return jsonResult(normalizePriceFields(response));
+    }
+  );
+
+  server.registerTool(
+    'list_countries',
+    {
+      title: 'List Countries',
+      description:
+        'List country values that currently have visible buyer marketplace product listings. Use this before list_product_listings when the user wants to filter product listings by location or asks what countries are available.',
+      inputSchema: {
+        team_slug: teamSlugSchema,
+      },
+      annotations: readOnlyTool,
+    },
+    async (input, extra) => {
+      requirePermission(extra, options, 'products.lists');
+      const api = createPresscartApiClient(extra, options);
+      const response = await api.get<ProductListingLocationsResponse>(
+        teamRoute(input.team_slug, '/marketplace/locations')
+      );
+      return jsonResult({ countries: response.countries });
+    }
+  );
+
+  server.registerTool(
+    'list_states',
+    {
+      title: 'List States',
+      description:
+        'List state or region values that currently have visible buyer marketplace product listings. Pass country when the user has selected one, then use the returned state values as filters for list_product_listings.',
+      inputSchema: {
+        team_slug: teamSlugSchema,
+        country: z.string().trim().optional(),
+      },
+      annotations: readOnlyTool,
+    },
+    async (input, extra) => {
+      requirePermission(extra, options, 'products.lists');
+      const api = createPresscartApiClient(extra, options);
+      const { team_slug, ...query } = input;
+      const response = await api.get<ProductListingLocationsResponse>(
+        teamRoute(team_slug, '/marketplace/locations'),
+        query
+      );
+      return jsonResult({ states: response.states });
+    }
+  );
+
+  server.registerTool(
+    'list_cities',
+    {
+      title: 'List Cities',
+      description:
+        'List city values that currently have visible buyer marketplace product listings. Pass country and state when known, then use the returned city values as filters for list_product_listings.',
+      inputSchema: {
+        team_slug: teamSlugSchema,
+        country: z.string().trim().optional(),
+        state: z.string().trim().optional(),
+      },
+      annotations: readOnlyTool,
+    },
+    async (input, extra) => {
+      requirePermission(extra, options, 'products.lists');
+      const api = createPresscartApiClient(extra, options);
+      const { team_slug, ...query } = input;
+      const response = await api.get<ProductListingLocationsResponse>(
+        teamRoute(team_slug, '/marketplace/locations'),
+        query
+      );
+      return jsonResult({ cities: response.cities });
     }
   );
 

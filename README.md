@@ -92,6 +92,9 @@ npm run start:http
 - `delete_outlet_channel`
 - `list_product_types`
 - `list_product_listings`
+- `list_countries`
+- `list_states`
+- `list_cities`
 - `get_product_listing`
 - `list_products`
 - `get_product`
