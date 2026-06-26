@@ -9,6 +9,7 @@ import {
 } from '../utils/tool-context.js';
 import { jsonResult } from '../utils/tool-result.js';
 import { teamRoute } from '../utils/team-routes.js';
+import { additiveWriteTool, readOnlyTool } from './metadata.js';
 import { paginationSchema, sortSchema, teamSlugSchema } from './schemas.js';
 
 export function registerOrderTools(server: McpServer, options: ServerOptions) {
@@ -32,6 +33,7 @@ export function registerOrderTools(server: McpServer, options: ServerOptions) {
           )
           .min(1),
       },
+      annotations: additiveWriteTool,
     },
     async (input, extra) => {
       requirePermission(extra, options, 'orders.create');
@@ -56,6 +58,7 @@ export function registerOrderTools(server: McpServer, options: ServerOptions) {
         include_outlets_data: z.boolean().optional(),
         include_order_items_data: z.boolean().optional(),
       },
+      annotations: readOnlyTool,
     },
     async (input, extra) => {
       requirePermission(extra, options, 'orders.read');
@@ -81,6 +84,7 @@ export function registerOrderTools(server: McpServer, options: ServerOptions) {
         order_line_item_id: z.string().uuid().optional(),
         include_article: z.boolean().optional(),
       },
+      annotations: readOnlyTool,
     },
     async (input, extra) => {
       requirePermission(extra, options, 'orders.lists');
@@ -106,6 +110,7 @@ export function registerOrderTools(server: McpServer, options: ServerOptions) {
         end_date: z.string().trim().optional(),
         paid_orders_only: z.boolean().optional(),
       },
+      annotations: readOnlyTool,
     },
     async (input, extra) => {
       requirePermission(extra, options, 'orders.lists');

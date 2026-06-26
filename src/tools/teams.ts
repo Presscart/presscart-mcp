@@ -9,6 +9,7 @@ import {
 } from '../utils/tool-context.js';
 import { jsonResult } from '../utils/tool-result.js';
 import { teamBySlugRoute } from '../utils/team-routes.js';
+import { readOnlyTool } from './metadata.js';
 import { paginationSchema, sortSchema, teamSlugSchema } from './schemas.js';
 
 export function registerTeamTools(server: McpServer, options: ServerOptions) {
@@ -23,6 +24,7 @@ export function registerTeamTools(server: McpServer, options: ServerOptions) {
         ...sortSchema,
         include_archived: z.boolean().optional(),
       },
+      annotations: readOnlyTool,
     },
     async (input, extra) => {
       requirePermission(extra, options, 'teams.lists');
@@ -46,6 +48,7 @@ export function registerTeamTools(server: McpServer, options: ServerOptions) {
       inputSchema: {
         team_slug: teamSlugSchema,
       },
+      annotations: readOnlyTool,
     },
     async (input, extra) => {
       requirePermission(extra, options, 'teams.read');
@@ -67,6 +70,7 @@ export function registerTeamTools(server: McpServer, options: ServerOptions) {
         ...sortSchema,
         include_archived: z.boolean().optional(),
       },
+      annotations: readOnlyTool,
     },
     async (input, extra) => {
       requirePermission(extra, options, 'profiles.lists');

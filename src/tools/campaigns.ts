@@ -9,6 +9,12 @@ import {
 } from '../utils/tool-context.js';
 import { jsonResult } from '../utils/tool-result.js';
 import { teamRoute } from '../utils/team-routes.js';
+import {
+  additiveWriteTool,
+  addOrderItemsToCampaignOutputSchema,
+  readOnlyTool,
+  updateTool,
+} from './metadata.js';
 import { paginationSchema, sortSchema, teamSlugSchema } from './schemas.js';
 
 export function registerCampaignTools(server: McpServer, options: ServerOptions) {
@@ -29,6 +35,7 @@ export function registerCampaignTools(server: McpServer, options: ServerOptions)
         writing_samples: z.string().trim().nullable().optional(),
         file_id: z.string().trim().nullable().optional(),
       },
+      annotations: additiveWriteTool,
     },
     async (input, extra) => {
       requirePermission(extra, options, 'campaigns.create');
@@ -62,6 +69,7 @@ export function registerCampaignTools(server: McpServer, options: ServerOptions)
         search: z.string().trim().min(1).optional(),
         include_archived: z.boolean().optional(),
       },
+      annotations: readOnlyTool,
     },
     async (input, extra) => {
       requirePermission(extra, options, 'campaigns.lists');
@@ -84,6 +92,7 @@ export function registerCampaignTools(server: McpServer, options: ServerOptions)
         team_slug: teamSlugSchema,
         campaign_id: z.string().uuid(),
       },
+      annotations: readOnlyTool,
     },
     async (input, extra) => {
       requirePermission(extra, options, 'campaigns.read');
@@ -106,6 +115,8 @@ export function registerCampaignTools(server: McpServer, options: ServerOptions)
         campaign_id: z.string().uuid().optional(),
         campaign_name: z.string().trim().min(1).optional(),
       },
+      outputSchema: addOrderItemsToCampaignOutputSchema,
+      annotations: updateTool,
     },
     async (input, extra) => {
       requirePermission(extra, options, 'campaigns.update');
@@ -143,6 +154,7 @@ export function registerCampaignTools(server: McpServer, options: ServerOptions)
         team_slug: teamSlugSchema,
         campaign_id: z.string().uuid(),
       },
+      annotations: readOnlyTool,
     },
     async (input, extra) => {
       requirePermission(extra, options, 'campaigns.read');

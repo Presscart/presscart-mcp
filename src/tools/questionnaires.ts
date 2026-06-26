@@ -9,6 +9,7 @@ import {
 import { assertQuestionnaireFile } from '../utils/file-upload.js';
 import { jsonResult } from '../utils/tool-result.js';
 import { teamRoute } from '../utils/team-routes.js';
+import { additiveWriteTool } from './metadata.js';
 import { teamSlugSchema } from './schemas.js';
 
 type TeamFileResponse = {
@@ -28,6 +29,7 @@ export function registerQuestionnaireTools(server: McpServer, options: ServerOpt
         campaign_id: z.string().uuid(),
         file_id: z.string().uuid(),
       },
+      annotations: additiveWriteTool,
     },
     async (input, extra) => {
       requirePermission(extra, options, 'files.read');

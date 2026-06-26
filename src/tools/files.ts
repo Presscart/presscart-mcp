@@ -9,6 +9,7 @@ import {
 import { buildUploadFormData, ACCEPTED_UPLOAD_MIME_TYPES } from '../utils/file-upload.js';
 import { jsonResult } from '../utils/tool-result.js';
 import { teamRoute } from '../utils/team-routes.js';
+import { additiveWriteTool } from './metadata.js';
 import { teamSlugSchema } from './schemas.js';
 
 const uploadMimeTypeSchema = z.enum(ACCEPTED_UPLOAD_MIME_TYPES);
@@ -38,6 +39,7 @@ export function registerFileTools(server: McpServer, options: ServerOptions) {
           .min(1)
           .max(5),
       },
+      annotations: additiveWriteTool,
     },
     async (input, extra) => {
       requirePermission(extra, options, 'files.create');

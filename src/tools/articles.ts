@@ -9,6 +9,7 @@ import {
 import { assertGoogleDocUrl } from '../utils/file-upload.js';
 import { jsonResult } from '../utils/tool-result.js';
 import { teamRoute } from '../utils/team-routes.js';
+import { replaceTool, updateTool } from './metadata.js';
 import { teamSlugSchema } from './schemas.js';
 
 const articleSourceSchema = z.enum(['google_doc', 'file_attachment']);
@@ -31,6 +32,7 @@ export function registerArticleTools(server: McpServer, options: ServerOptions) 
       description:
         'Use when the user already wrote their own article and wants to submit that article for review. For an uploaded file, call upload_files first and pass source=file_attachment with the returned file_id. For a Google Doc, pass source=google_doc with an HTTPS docs.google.com URL. Do not use this when the article has a writing add-on or the user wants Presscart internal writers to write the article; use request_article_writing instead.',
       inputSchema: articleFileInputSchema,
+      annotations: updateTool,
     },
     async (input, extra) => {
       requirePermission(extra, options, 'articles.update');
@@ -51,6 +53,7 @@ export function registerArticleTools(server: McpServer, options: ServerOptions) 
       description:
         'Use when the user already submitted their own article and wants to replace it with a newer article file or Google Doc. For an uploaded file, call upload_files first and pass source=file_attachment with the returned file_id. For a Google Doc, pass source=google_doc with an HTTPS docs.google.com URL. Do not use this for internal writer requests.',
       inputSchema: articleFileInputSchema,
+      annotations: replaceTool,
     },
     async (input, extra) => {
       requirePermission(extra, options, 'articles.update');
@@ -76,6 +79,7 @@ export function registerArticleTools(server: McpServer, options: ServerOptions) 
         action: z.enum(['draft-ready-for-review', 'pending-publishing']),
         feedback: z.string().trim().nullable().optional(),
       },
+      annotations: updateTool,
     },
     async (input, extra) => {
       requirePermission(extra, options, 'articles.update');
@@ -98,6 +102,7 @@ export function registerArticleTools(server: McpServer, options: ServerOptions) 
         team_slug: teamSlugSchema,
         article_id: z.string().uuid(),
       },
+      annotations: updateTool,
     },
     async (input, extra) => {
       requirePermission(extra, options, 'articles.update');

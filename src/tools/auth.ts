@@ -8,6 +8,7 @@ import {
 } from '../utils/tool-context.js';
 import { jsonResult } from '../utils/tool-result.js';
 import { toWhoamiResponse } from '../utils/whoami.js';
+import { getUserOutputSchema, readOnlyTool } from './metadata.js';
 
 export function registerAuthTools(server: McpServer, options: ServerOptions) {
   server.registerTool(
@@ -16,6 +17,8 @@ export function registerAuthTools(server: McpServer, options: ServerOptions) {
       title: 'Get User',
       description: 'Return the current authenticated user.',
       inputSchema: {},
+      outputSchema: getUserOutputSchema,
+      annotations: readOnlyTool,
     },
     async (_input, extra) => {
       const api = createPresscartApiClient(extra, options);

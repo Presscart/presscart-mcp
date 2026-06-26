@@ -10,6 +10,7 @@ import {
 } from '../utils/tool-context.js';
 import { jsonResult } from '../utils/tool-result.js';
 import { teamRoute } from '../utils/team-routes.js';
+import { readOnlyTool } from './metadata.js';
 import { paginationSchema, teamSlugSchema } from './schemas.js';
 
 export function registerProductTools(server: McpServer, options: ServerOptions) {
@@ -97,6 +98,7 @@ export function registerProductTools(server: McpServer, options: ServerOptions) 
           })
           .optional(),
       },
+      annotations: readOnlyTool,
     },
     async (input, extra) => {
       requirePermission(extra, options, 'products.lists');
@@ -118,6 +120,7 @@ export function registerProductTools(server: McpServer, options: ServerOptions) 
         team_slug: teamSlugSchema,
         product_id: z.string().uuid(),
       },
+      annotations: readOnlyTool,
     },
     async (input, extra) => {
       requirePermission(extra, options, 'products.read');
