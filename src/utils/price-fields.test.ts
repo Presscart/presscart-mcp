@@ -89,7 +89,7 @@ test('uses pro pricing as the default price when present', () => {
   });
 });
 
-test('normalizes single product price arrays for get_product responses', () => {
+test('normalizes single product price arrays for product responses', () => {
   const normalized = normalizePriceFields({
     id: 'product-1',
     name: 'Example Product',

@@ -36,7 +36,7 @@ export function registerOutletTools(server: McpServer, options: ServerOptions) {
     {
       title: 'List Outlets',
       description:
-        'List outlet records owned by the selected team. Use this for publisher/team outlet management. For buyer marketplace discovery, use list_marketplace_outlets instead.',
+        'List outlet records owned by the selected team. Use this for publisher/team outlet management. For buyer marketplace discovery, use list_product_listings instead.',
       inputSchema: {
         team_slug: teamSlugSchema,
         ...paginationSchema,

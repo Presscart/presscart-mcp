@@ -90,8 +90,13 @@ npm run start:http
 - `create_outlet_channel`
 - `update_outlet_channel`
 - `delete_outlet_channel`
-- `list_marketplace_outlets`
+- `list_product_types`
+- `list_product_listings`
+- `get_product_listing`
+- `list_products`
 - `get_product`
+- `create_product`
+- `update_product`
 - `create_order`
 - `get_order`
 - `list_order_items`
