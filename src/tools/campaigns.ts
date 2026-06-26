@@ -103,6 +103,33 @@ export function registerCampaignTools(server: McpServer, options: ServerOptions)
   );
 
   server.registerTool(
+    'list_campaign_articles',
+    {
+      title: 'List Campaign Articles',
+      description:
+        'List articles in a campaign. Use this after selecting a campaign or after add_order_items_to_campaign when the user wants to work on campaign articles. The response includes the raw article records plus an article_queue summary with statuses, add-ons, and a recommended next article. If an article has add-ons, suggest request_article_writing instead of asking the user to upload their own article.',
+      inputSchema: {
+        team_slug: teamSlugSchema,
+        campaign_id: z.string().uuid(),
+        ...paginationSchema,
+        ...sortSchema,
+        include_archived: z.boolean().optional(),
+      },
+      annotations: readOnlyTool,
+    },
+    async (input, extra) => {
+      requirePermission(extra, options, 'articles.lists');
+      const api = createPresscartApiClient(extra, options);
+      const { team_slug, campaign_id, ...query } = input;
+      const response = await api.get<CampaignArticlesResponse>(
+        teamRoute(team_slug, `/campaigns/${campaign_id}/articles`),
+        query
+      );
+      return jsonResult(buildCampaignArticlesResult(response));
+    }
+  );
+
+  server.registerTool(
     'add_order_items_to_campaign',
     {
       title: 'Add Order Items To Campaign',
@@ -222,6 +249,20 @@ type ArticleQueueItem = {
   expected_completion_date: string | null;
 };
 
+function buildCampaignArticlesResult(response: CampaignArticlesResponse) {
+  const articleQueue: ArticleQueueResult = {
+    available: true,
+    records: response.records ?? [],
+    total_records: response.total_records ?? response.records?.length ?? 0,
+  };
+  const summary = buildArticleQueueSummary(articleQueue);
+
+  return {
+    ...response,
+    ...summary,
+  };
+}
+
 async function readCampaignArticleQueue(
   api: ReturnType<typeof createPresscartApiClient>,
   teamSlug: string,
@@ -261,11 +302,24 @@ export function buildAddOrderItemsToCampaignResult(
       message: 'Order items were added to the campaign.',
       next_step:
         'Open the campaign article list before telling the user which article to work on next.',
+      article_queue: [],
+      status_counts: {},
+      recommended_article_id: null,
       article_queue_available: false,
       article_queue_error: articleQueue.reason,
     };
   }
 
+  const summary = buildArticleQueueSummary(articleQueue);
+
+  return {
+    campaign_id: response.campaign_id,
+    message: `Order items were added to the campaign. The campaign now has ${articleQueue.total_records} article${articleQueue.total_records === 1 ? '' : 's'}.`,
+    ...summary,
+  };
+}
+
+function buildArticleQueueSummary(articleQueue: Extract<ArticleQueueResult, { available: true }>) {
   const articles: ArticleQueueItem[] = articleQueue.records.map(article => {
     const latestStatus = article.status?.[0];
     return {
@@ -286,8 +340,6 @@ export function buildAddOrderItemsToCampaignResult(
   const status_counts = countArticleStatuses(articles);
 
   return {
-    campaign_id: response.campaign_id,
-    message: `Order items were added to the campaign. The campaign now has ${articleQueue.total_records} article${articleQueue.total_records === 1 ? '' : 's'}.`,
     next_step: buildNextStep(articles.length, recommendedArticle),
     article_queue: articles,
     status_counts,

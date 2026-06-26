@@ -107,6 +107,7 @@ npm run start:http
 - `create_campaign`
 - `list_campaigns`
 - `get_campaign`
+- `list_campaign_articles`
 - `add_order_items_to_campaign`
 - `get_campaign_article_status`
 - `upload_campaign_questionnaire`
