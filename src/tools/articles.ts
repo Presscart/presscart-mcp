@@ -29,7 +29,7 @@ export function registerArticleTools(server: McpServer, options: ServerOptions) 
     {
       title: 'Upload Article',
       description:
-        'Upload a client-owned article document for review. Use source=file_attachment with a file_id from upload_files, or source=google_doc with an HTTPS Google Docs URL.',
+        'Use when the user already wrote their own article and wants to submit that article for review. For an uploaded file, call upload_files first and pass source=file_attachment with the returned file_id. For a Google Doc, pass source=google_doc with an HTTPS docs.google.com URL. Do not use this when the article has a writing add-on or the user wants Presscart internal writers to write the article; use request_article_writing instead.',
       inputSchema: articleFileInputSchema,
     },
     async (input, extra) => {
@@ -49,7 +49,7 @@ export function registerArticleTools(server: McpServer, options: ServerOptions) 
     {
       title: 'Replace Article File',
       description:
-        'Replace the current client-owned article document. Use source=file_attachment with a file_id from upload_files, or source=google_doc with an HTTPS Google Docs URL.',
+        'Use when the user already submitted their own article and wants to replace it with a newer article file or Google Doc. For an uploaded file, call upload_files first and pass source=file_attachment with the returned file_id. For a Google Doc, pass source=google_doc with an HTTPS docs.google.com URL. Do not use this for internal writer requests.',
       inputSchema: articleFileInputSchema,
     },
     async (input, extra) => {
@@ -69,7 +69,7 @@ export function registerArticleTools(server: McpServer, options: ServerOptions) 
     {
       title: 'Submit Article',
       description:
-        'Submit an article workflow action after the user has confirmed the article is ready for the next step.',
+        'Submit an article workflow action only after the user has confirmed the article is ready for the next step. Use draft-ready-for-review when the uploaded or written draft should be reviewed, and pending-publishing when the user has approved the draft for publishing.',
       inputSchema: {
         team_slug: teamSlugSchema,
         article_id: z.string().uuid(),
@@ -93,7 +93,7 @@ export function registerArticleTools(server: McpServer, options: ServerOptions) 
     {
       title: 'Request Article Writing',
       description:
-        'Request writing for an article. If the campaign questionnaire is missing, call upload_campaign_questionnaire first or ask the user for the questionnaire.',
+        'Use when the user does not have their own written article, the article has a writing add-on, or the user wants Presscart internal writers to write it. This starts the internal writing flow for the article. If the campaign questionnaire is missing, call upload_campaign_questionnaire first or ask the user for the questionnaire. Do not use upload_article unless the user is providing their own finished article file or Google Doc.',
       inputSchema: {
         team_slug: teamSlugSchema,
         article_id: z.string().uuid(),

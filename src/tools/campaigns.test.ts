@@ -122,6 +122,34 @@ test('explains pending content brief as internal writing work', () => {
   assert.match(result.next_step, /does not need to upload their own article/);
 });
 
+test('suggests request article writing when an article has add-ons', () => {
+  const result = buildAddOrderItemsToCampaignResult(
+    { campaign_id: 'campaign-id' },
+    {
+      available: true,
+      total_records: 1,
+      records: [
+        {
+          id: 'article-id',
+          name: 'UNTITLED for SPIN',
+          status: [{ name: 'Action Required', prefix: 'action-required' }],
+          order_item: {
+            name: 'SPIN',
+            addons: [{ name: 'Writing' }],
+            outlet: { name: 'SPIN' },
+          },
+        },
+      ],
+    }
+  );
+
+  assert.equal(result.recommended_article_id, 'article-id');
+  assert.equal(result.article_queue[0].has_addons, true);
+  assert.deepEqual(result.article_queue[0].addons, ['Writing']);
+  assert.match(result.next_step, /request_article_writing/);
+  assert.match(result.next_step, /instead of asking the user to upload their own article/);
+});
+
 test('prioritizes user review over pending internal writing', () => {
   const result = buildAddOrderItemsToCampaignResult(
     { campaign_id: 'campaign-id' },

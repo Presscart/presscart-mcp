@@ -172,6 +172,9 @@ type CampaignArticleRecord = {
   expected_completion_date?: string | null;
   order_item?: {
     name?: string | null;
+    addons?: {
+      name?: string | null;
+    }[] | null;
     outlet?: {
       name?: string | null;
     } | null;
@@ -199,6 +202,8 @@ type ArticleQueueItem = {
   name: string | null | undefined;
   product_name: string | null;
   outlet_name: string | null;
+  addons: string[];
+  has_addons: boolean;
   status: string | null;
   status_prefix: string | null;
   expected_completion_date_title: string | null;
@@ -256,6 +261,8 @@ export function buildAddOrderItemsToCampaignResult(
       name: article.name,
       product_name: article.order_item?.name ?? null,
       outlet_name: article.order_item?.outlet?.name ?? null,
+      addons: article.order_item?.addons?.map(addon => addon.name).filter(isString) ?? [],
+      has_addons: Boolean(article.order_item?.addons?.length),
       status: latestStatus?.name ?? null,
       status_prefix: latestStatus?.prefix ?? null,
       expected_completion_date_title: article.expected_completion_date_title ?? null,
@@ -288,12 +295,24 @@ function buildNextStep(articleCount: number, recommendedArticle: ArticleQueueIte
   const articleLabel = recommendedArticle.name ?? recommendedArticle.product_name ?? 'the first article';
   const appApprovalMessage =
     'Approve it in the application so you can review the content thoroughly before moving it forward.';
+  const hasAddOns = recommendedArticle.has_addons;
 
   if (
     recommendedArticle.status_prefix === 'brief-ready-for-review' ||
     recommendedArticle.status_prefix === 'draft-ready-for-review'
   ) {
     return `${articleLabel} is ready for review. ${appApprovalMessage}`;
+  }
+
+  if (recommendedArticle.status_prefix === 'pending-content-brief') {
+    return `${articleLabel} is queued for internal writing. The user does not need to upload their own article for this item; wait for the brief or draft to be ready for review.`;
+  }
+
+  if (hasAddOns) {
+    const addOnLabel = recommendedArticle.addons.length
+      ? ` Add-ons: ${recommendedArticle.addons.join(', ')}.`
+      : '';
+    return `${articleLabel} includes an add-on, so suggest request_article_writing instead of asking the user to upload their own article.${addOnLabel}`;
   }
 
   if (
@@ -304,10 +323,6 @@ function buildNextStep(articleCount: number, recommendedArticle: ArticleQueueIte
     recommendedArticle.status_prefix === 'rejected'
   ) {
     return `${articleLabel} needs a user response before it can move forward. Current status: ${recommendedArticle.status ?? 'unknown'}.`;
-  }
-
-  if (recommendedArticle.status_prefix === 'pending-content-brief') {
-    return `${articleLabel} is queued for internal writing. The user does not need to upload their own article for this item; wait for the brief or draft to be ready for review.`;
   }
 
   if (articleCount === 1) {
@@ -351,4 +366,8 @@ function countArticleStatuses(articles: ArticleQueueItem[]) {
     counts[key] = (counts[key] ?? 0) + 1;
     return counts;
   }, {});
+}
+
+function isString(value: string | null | undefined): value is string {
+  return typeof value === 'string';
 }
