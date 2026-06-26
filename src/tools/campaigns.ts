@@ -103,6 +103,29 @@ export function registerCampaignTools(server: McpServer, options: ServerOptions)
   );
 
   server.registerTool(
+    'update_campaign',
+    {
+      title: 'Update Campaign',
+      description:
+        'Rename an existing campaign. This tool only updates the campaign name; it does not edit the campaign description, questionnaire answers, objectives, audience, tone, writing samples, files, article content, or order items.',
+      inputSchema: {
+        team_slug: teamSlugSchema,
+        campaign_id: z.string().uuid(),
+        name: z.string().trim().min(1),
+      },
+      annotations: updateTool,
+    },
+    async (input, extra) => {
+      requirePermission(extra, options, 'campaigns.update');
+      const api = createPresscartApiClient(extra, options);
+      const response = await api.put(teamRoute(input.team_slug, `/campaigns/${input.campaign_id}`), {
+        name: input.name,
+      });
+      return jsonResult(response);
+    }
+  );
+
+  server.registerTool(
     'list_campaign_articles',
     {
       title: 'List Campaign Articles',
