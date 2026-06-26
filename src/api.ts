@@ -88,6 +88,10 @@ export class PresscartApiClient {
     );
   }
 
+  async delete<T>(path: string, query?: Record<string, QueryValue>): Promise<T> {
+    return this.request<T>(path, { method: 'DELETE' }, query);
+  }
+
   private async request<T>(
     path: string,
     init: RequestInit,
