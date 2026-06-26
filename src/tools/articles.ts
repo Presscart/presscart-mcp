@@ -1,18 +1,29 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
+import { env } from '../env.js';
 import {
   createPresscartApiClient,
   requirePermission,
   type ServerOptions,
 } from '../utils/tool-context.js';
+import { appendQueryFilters, type QueryParams } from '../utils/query-filters.js';
 import { assertGoogleDocUrl } from '../utils/file-upload.js';
 import { jsonResult } from '../utils/tool-result.js';
 import { teamRoute } from '../utils/team-routes.js';
-import { replaceTool, updateTool } from './metadata.js';
-import { teamSlugSchema } from './schemas.js';
+import { readOnlyTool, replaceTool, updateTool } from './metadata.js';
+import { paginationSchema, sortSchema, teamSlugSchema } from './schemas.js';
 
 const articleSourceSchema = z.enum(['google_doc', 'file_attachment']);
+const publisherArticleStatusSchema = z.enum([
+  'pending-publishing',
+  'publishing',
+  'completed',
+  'published',
+  'revision-requested',
+  'needs-info',
+  'rejected',
+]);
 
 const articleFileInputSchema = {
   team_slug: teamSlugSchema,
@@ -25,6 +36,56 @@ const articleFileInputSchema = {
 type ArticleFileInput = z.infer<z.ZodObject<typeof articleFileInputSchema>>;
 
 export function registerArticleTools(server: McpServer, options: ServerOptions) {
+  server.registerTool(
+    'list_publisher_articles',
+    {
+      title: 'List Publisher Articles',
+      description:
+        'List publisher-owned content/articles for a publisher team, matching the dashboard publisher content page. Use this when a publisher asks for their content, submitted articles, published content, articles needing updates, or content status. This does not list buyer campaign articles; use list_campaign_articles after selecting a buyer campaign.',
+      inputSchema: {
+        team_slug: teamSlugSchema,
+        ...paginationSchema,
+        ...sortSchema,
+        include_archived: z.boolean().optional(),
+        filters: z
+          .object({
+            search: z.string().trim().min(1).optional(),
+            status: z
+              .union([publisherArticleStatusSchema, z.array(publisherArticleStatusSchema)])
+              .optional(),
+            overdue: z.boolean().optional(),
+            start_date: z
+              .string()
+              .trim()
+              .min(1)
+              .optional()
+              .describe('Filter by start date using the API-supported date format.'),
+            end_date: z
+              .string()
+              .trim()
+              .min(1)
+              .optional()
+              .describe('Filter by end date using the API-supported date format.'),
+            product_ids: z
+              .array(z.string().uuid())
+              .optional()
+              .describe('Filter to publisher articles for specific product IDs.'),
+          })
+          .optional()
+          .describe('Publisher-safe article filters from the dashboard content page.'),
+      },
+      annotations: readOnlyTool,
+    },
+    async (input, extra) => {
+      requirePermission(extra, options, 'articles.lists');
+      const api = createPresscartApiClient(extra, options);
+      const { team_slug, filters, ...params } = input;
+      const query = appendQueryFilters(params as QueryParams, filters);
+      const response = await api.get(teamRoute(team_slug, '/articles'), query);
+      return jsonResult(withPublisherArticleReviewUrls(response));
+    }
+  );
+
   server.registerTool(
     'upload_article',
     {
@@ -138,4 +199,48 @@ function buildArticleFileBody(input: ArticleFileInput) {
     google_doc_url: null,
     file_id: input.file_id,
   };
+}
+
+function withPublisherArticleReviewUrls(data: unknown) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return data;
+
+  const response = data as Record<string, unknown>;
+  if (!Array.isArray(response.records)) return data;
+
+  return {
+    ...response,
+    records: response.records.map((record) => {
+      if (!record || typeof record !== 'object' || Array.isArray(record)) return record;
+
+      const article = record as Record<string, unknown>;
+      if (typeof article.id !== 'string') return record;
+
+      return {
+        ...article,
+        review_url: buildPublisherArticleReviewUrl(article.id),
+      };
+    }),
+  };
+}
+
+function buildPublisherArticleReviewUrl(articleId: string) {
+  return new URL(`/publisher/articles/${articleId}`, getPresscartAppUrl()).toString();
+}
+
+function getPresscartAppUrl() {
+  if (env.PRESSCART_APP_URL) return env.PRESSCART_APP_URL;
+
+  const apiUrl = new URL(env.PRESSCART_API_URL);
+
+  if (apiUrl.hostname === 'api.presscart.com') return 'https://app.presscart.com';
+  if (apiUrl.hostname.startsWith('api.')) {
+    apiUrl.hostname = apiUrl.hostname.replace(/^api\./, 'app.');
+    return apiUrl.origin;
+  }
+  if (apiUrl.hostname.startsWith('staging-api.')) {
+    apiUrl.hostname = apiUrl.hostname.replace(/^staging-api\./, 'staging.');
+    return apiUrl.origin;
+  }
+
+  return 'https://app.presscart.com';
 }

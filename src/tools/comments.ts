@@ -7,7 +7,6 @@ import {
   type ServerOptions,
 } from '../utils/tool-context.js';
 import { appendQueryFilters, type QueryParams } from '../utils/query-filters.js';
-import { teamRoute } from '../utils/team-routes.js';
 import { jsonResult } from '../utils/tool-result.js';
 import { additiveWriteTool, readOnlyTool, replaceTool, updateTool } from './metadata.js';
 import { paginationSchema, sortSchema, teamSlugSchema } from './schemas.js';
@@ -29,7 +28,7 @@ export function registerCommentTools(server: McpServer, options: ServerOptions) 
     {
       title: 'List Comments',
       description:
-        'List comments for an entity such as an article. Use entity_type=article and entity_id=<article_id> for article comments. Returns root comments with replies by default.',
+        'List comments for an entity such as an article. Use entity_type=article and entity_id=<article_id> for article comments. Returns total_records, root comments, and replies by default, so do not call a separate count tool or repeatedly call this unless the user asks to refresh or after a comment mutation.',
       inputSchema: {
         team_slug: teamSlugSchema,
         entity_type: commentEntityTypeSchema,
@@ -51,9 +50,10 @@ export function registerCommentTools(server: McpServer, options: ServerOptions) 
         input;
 
       const response = await api.get(
-        teamRoute(team_slug, '/comments'),
+        commentRoute(),
         appendQueryFilters(
           {
+            slug: team_slug,
             limit: query.limit,
             page: query.page,
             sort_by: query.sort_by,
@@ -70,50 +70,6 @@ export function registerCommentTools(server: McpServer, options: ServerOptions) 
           }
         )
       );
-      return jsonResult(response);
-    }
-  );
-
-  server.registerTool(
-    'get_comment',
-    {
-      title: 'Get Comment',
-      description: 'Fetch one comment by its public comment ID/reference.',
-      inputSchema: {
-        team_slug: teamSlugSchema,
-        comment_id: z.string().trim().min(1),
-      },
-      annotations: readOnlyTool,
-    },
-    async (input, extra) => {
-      requirePermission(extra, options, 'comments.read');
-      const api = createPresscartApiClient(extra, options);
-      const response = await api.get(teamRoute(input.team_slug, `/comments/${input.comment_id}`));
-      return jsonResult(response);
-    }
-  );
-
-  server.registerTool(
-    'get_comments_count',
-    {
-      title: 'Get Comments Count',
-      description: 'Get the number of comments for an entity such as an article.',
-      inputSchema: {
-        team_slug: teamSlugSchema,
-        entity_type: commentEntityTypeSchema,
-        entity_id: z.string().uuid(),
-        is_internal: z.boolean().optional(),
-      },
-      annotations: readOnlyTool,
-    },
-    async (input, extra) => {
-      requirePermission(extra, options, 'comments.read');
-      const api = createPresscartApiClient(extra, options);
-      const response = await api.get(teamRoute(input.team_slug, '/comments/count'), {
-        entity_type: input.entity_type,
-        entity_id: input.entity_id,
-        is_internal: input.is_internal,
-      });
       return jsonResult(response);
     }
   );
@@ -138,14 +94,18 @@ export function registerCommentTools(server: McpServer, options: ServerOptions) 
     async (input, extra) => {
       requirePermission(extra, options, 'comments.create');
       const api = createPresscartApiClient(extra, options);
-      const response = await api.post(teamRoute(input.team_slug, '/comments'), {
-        ...buildCommentContent(input.comment_text),
-        is_internal: input.is_internal ?? false,
-        entity_type: input.entity_type,
-        entity_id: input.entity_id,
-        parent_comment_id: input.parent_comment_id ?? null,
-        mentions: toMentions(input.mention_user_ids),
-      });
+      const response = await api.post(
+        commentRoute(),
+        {
+          ...buildCommentContent(input.comment_text),
+          is_internal: input.is_internal ?? false,
+          entity_type: input.entity_type,
+          entity_id: input.entity_id,
+          parent_comment_id: input.parent_comment_id ?? null,
+          mentions: toMentions(input.mention_user_ids),
+        },
+        { slug: input.team_slug }
+      );
       return jsonResult(response);
     }
   );
@@ -172,11 +132,15 @@ export function registerCommentTools(server: McpServer, options: ServerOptions) 
       }
 
       const api = createPresscartApiClient(extra, options);
-      const response = await api.put(teamRoute(input.team_slug, `/comments/${input.comment_id}`), {
-        ...(input.comment_text ? buildCommentContent(input.comment_text) : {}),
-        ...(input.is_internal === undefined ? {} : { is_internal: input.is_internal }),
-        mentions: toMentions(input.mention_user_ids),
-      });
+      const response = await api.put(
+        commentRoute(`/${input.comment_id}`),
+        {
+          ...(input.comment_text ? buildCommentContent(input.comment_text) : {}),
+          ...(input.is_internal === undefined ? {} : { is_internal: input.is_internal }),
+          mentions: toMentions(input.mention_user_ids),
+        },
+        { slug: input.team_slug }
+      );
       return jsonResult(response);
     }
   );
@@ -196,7 +160,9 @@ export function registerCommentTools(server: McpServer, options: ServerOptions) 
     async (input, extra) => {
       requirePermission(extra, options, 'comments.delete');
       const api = createPresscartApiClient(extra, options);
-      const response = await api.delete(teamRoute(input.team_slug, `/comments/${input.comment_id}/archive`));
+      const response = await api.delete(commentRoute(`/${input.comment_id}/archive`), {
+        slug: input.team_slug,
+      });
       return jsonResult(response);
     }
   );
@@ -217,7 +183,7 @@ export function registerCommentTools(server: McpServer, options: ServerOptions) 
     async (input, extra) => {
       requirePermission(extra, options, 'comments.read');
       const api = createPresscartApiClient(extra, options);
-      const response = await api.get(teamRoute(input.team_slug, '/comments/mentions/suggestions'), {
+      const response = await api.get(commentRoute('/mentions/suggestions'), {
         article_id: input.article_id,
         team_slug: input.team_slug,
         search: input.search,
@@ -231,7 +197,7 @@ export function registerCommentTools(server: McpServer, options: ServerOptions) 
     {
       title: 'List Comment Mentions',
       description:
-        'List comment mentions for the current user. Use this to show unread or recent comment notifications.',
+        'List comment mentions for the current user. Use this only for unread or recent mention notifications, not for reading article comments. To read article comments, use list_comments.',
       inputSchema: {
         team_slug: teamSlugSchema,
         is_read: z.boolean().optional(),
@@ -245,7 +211,8 @@ export function registerCommentTools(server: McpServer, options: ServerOptions) 
     async (input, extra) => {
       requirePermission(extra, options, 'comments.read');
       const api = createPresscartApiClient(extra, options);
-      const response = await api.get(teamRoute(input.team_slug, '/comments/mentions/me'), {
+      const response = await api.get(commentRoute('/mentions/me'), {
+        slug: input.team_slug,
         limit: input.limit,
         page: input.page,
         is_read: input.is_read,
@@ -280,14 +247,22 @@ export function registerCommentTools(server: McpServer, options: ServerOptions) 
       }
 
       const api = createPresscartApiClient(extra, options);
-      const response = await api.post(teamRoute(input.team_slug, '/comments/mentions/mark-read'), {
-        comment_ids: input.comment_ids,
-        entity_type: input.entity_type,
-        entity_id: input.entity_id,
-      });
+      const response = await api.post(
+        commentRoute('/mentions/mark-read'),
+        {
+          comment_ids: input.comment_ids,
+          entity_type: input.entity_type,
+          entity_id: input.entity_id,
+        },
+        { slug: input.team_slug }
+      );
       return jsonResult(response);
     }
   );
+}
+
+function commentRoute(path = '') {
+  return `/comments${path}`;
 }
 
 function buildCommentContent(commentText: string) {
