@@ -52,7 +52,8 @@ export function registerOrderTools(server: McpServer, options: ServerOptions) {
     'get_order',
     {
       title: 'Get Order',
-      description: 'Fetch a Presscart order by UUID.',
+      description:
+        'Fetch one Presscart order by UUID. Use only when the user asks about a specific order, checkout/payment state, purchased line items, or when preparing to add that order to a campaign. Do not call this for marketplace publication recommendations.',
       inputSchema: {
         team_slug: teamSlugSchema,
         order_id: z.string().uuid(),
@@ -76,7 +77,8 @@ export function registerOrderTools(server: McpServer, options: ServerOptions) {
     'list_order_items',
     {
       title: 'List Order Items',
-      description: 'List publisher team order items/status rows.',
+      description:
+        'List publisher team order items/status rows for fulfillment review. This is for publisher operations, not buyer order history and not marketplace recommendation. Use list_profile_orders when the user asks about their own purchased orders.',
       inputSchema: {
         team_slug: teamSlugSchema,
         ...paginationSchema,

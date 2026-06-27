@@ -22,7 +22,8 @@ export function registerCampaignTools(server: McpServer, options: ServerOptions)
     'create_campaign',
     {
       title: 'Create Campaign',
-      description: 'Create a Presscart campaign for a profile.',
+      description:
+        'Create a new Presscart campaign for a profile. Use only when the user explicitly wants a new campaign. If the user wants to use an existing campaign or is unsure, call list_campaigns first and let the user choose.',
       inputSchema: {
         team_slug: teamSlugSchema,
         profile_id: z.string().uuid(),
@@ -60,7 +61,8 @@ export function registerCampaignTools(server: McpServer, options: ServerOptions)
     'list_campaigns',
     {
       title: 'List Campaigns',
-      description: 'List campaigns for a profile in a team workspace.',
+      description:
+        'List campaigns for a profile in a team workspace. Use this when the user asks about campaign history/status, needs to select an existing campaign, or is adding purchased order items to a campaign. Do not call this only to recommend marketplace publication placements unless the user asks to connect the recommendations to an existing campaign.',
       inputSchema: {
         team_slug: teamSlugSchema,
         profile_id: z.string().uuid(),
@@ -87,7 +89,8 @@ export function registerCampaignTools(server: McpServer, options: ServerOptions)
     'get_campaign',
     {
       title: 'Get Campaign',
-      description: 'Fetch a Presscart campaign by UUID.',
+      description:
+        'Fetch one Presscart campaign by UUID. Use after list_campaigns when the user asks for details about a specific campaign, or before campaign-specific follow-up actions. Do not call this for every campaign in a list.',
       inputSchema: {
         team_slug: teamSlugSchema,
         campaign_id: z.string().uuid(),
@@ -199,7 +202,8 @@ export function registerCampaignTools(server: McpServer, options: ServerOptions)
     'get_campaign_article_status',
     {
       title: 'Get Campaign Article Status',
-      description: 'Get article status counts for a Presscart campaign.',
+      description:
+        'Get article status counts for a Presscart campaign. Use when the user asks for a campaign article/status summary. If list_campaign_articles was just called, prefer its article_queue/status information instead of making this extra request.',
       inputSchema: {
         team_slug: teamSlugSchema,
         campaign_id: z.string().uuid(),
