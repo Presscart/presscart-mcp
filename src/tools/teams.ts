@@ -8,6 +8,7 @@ import {
   type ServerOptions,
 } from '../utils/tool-context.js';
 import { jsonResult } from '../utils/tool-result.js';
+import { toTeamDetailsResponse } from '../utils/team-details.js';
 import { teamBySlugRoute } from '../utils/team-routes.js';
 import { readOnlyTool } from './metadata.js';
 import { paginationSchema, sortSchema, teamSlugSchema } from './schemas.js';
@@ -18,7 +19,7 @@ export function registerTeamTools(server: McpServer, options: ServerOptions) {
     {
       title: 'List Teams',
       description:
-        'List Presscart teams available to the authenticated account. Use this first when a team_id or team_slug is needed and the user has not provided one; call list_profiles with the selected team_id when a profile_id is needed.',
+        'List Presscart teams available to the authenticated account. Use this first when a team_id or team_slug is needed and the user has not provided one; call list_profiles with the selected team_id when a profile_id is needed. For marketplace recommendation tasks, this is usually enough to choose the workspace/profile context; do not call order tools unless the user asks about existing orders, purchases, or checkout state.',
       inputSchema: {
         ...paginationSchema,
         ...sortSchema,
@@ -54,7 +55,7 @@ export function registerTeamTools(server: McpServer, options: ServerOptions) {
       requirePermission(extra, options, 'teams.read');
       const api = createPresscartApiClient(extra, options);
       const response = await api.get(teamBySlugRoute(input.team_slug));
-      return jsonResult(response);
+      return jsonResult(toTeamDetailsResponse(response));
     }
   );
 
@@ -63,7 +64,7 @@ export function registerTeamTools(server: McpServer, options: ServerOptions) {
     {
       title: 'List Profiles',
       description:
-        'List profiles for a Presscart team. If team_id is unknown, call list_teams first and use one of the returned team IDs.',
+        'List profiles for a Presscart team. If team_id is unknown, call list_teams first and use one of the returned team IDs. Use this to choose a real profile when list_teams is ambiguous; do not call campaigns or orders solely to recommend marketplace publications.',
       inputSchema: {
         team_id: z.string().uuid().optional(),
         ...paginationSchema,

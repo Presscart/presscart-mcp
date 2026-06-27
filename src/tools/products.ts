@@ -24,6 +24,17 @@ type ProductListingLocationsResponse = {
   cities: string[];
 };
 
+const marketplaceDiscoveryLimitSchema = z
+  .number()
+  .int()
+  .positive()
+  .max(100)
+  .optional()
+  .default(100)
+  .describe(
+    'Defaults to 100. Use 100 for broad marketplace recommendation or discovery tasks; use a smaller limit only for exact lookups or narrow refinements.'
+  );
+
 const productPayloadSchema = {
   name: z.string().trim().min(1),
   description: z.string().optional().default(''),
@@ -84,10 +95,11 @@ export function registerProductTools(server: McpServer, options: ServerOptions) 
     {
       title: 'List Product Listings',
       description:
-        'List buyer marketplace product listings available for purchase, including outlet details. Use this for marketplace discovery and purchase planning, not for managing publisher-owned products. Supports basic pagination, search, and sorting. Price fields are returned as prices[].price in the listed currency, with prices[].display_price formatted for display. These are Presscart currency amounts, not Stripe unit_amount cent values; do not divide by 100 or round as cents. Use default_price, or the prices[] item with is_default_price=true, unless the user explicitly asks for a specific tier such as basic.',
+        'List buyer marketplace product listings available for purchase, including outlet details. Use this for marketplace discovery and purchase planning, not for managing publisher-owned products. For recommendation tasks, make one broad call with limit=100 and relevant filters, tags, or search terms, then call get_product_listing only for shortlisted candidates. Do not make many narrow list calls unless refining after the broad result set. Price fields are returned as prices[].price in the listed currency, with prices[].display_price formatted for display. These are Presscart currency amounts, not Stripe unit_amount cent values; do not divide by 100 or round as cents. Use default_price, or the prices[] item with is_default_price=true, unless the user explicitly asks for a specific tier such as basic.',
       inputSchema: {
         team_slug: teamSlugSchema,
         ...paginationSchema,
+        limit: marketplaceDiscoveryLimitSchema,
         sort_by: z
           .enum(['name', 'created_at', 'domain_authority', 'domain_ranking'])
           .optional()
@@ -169,7 +181,10 @@ export function registerProductTools(server: McpServer, options: ServerOptions) 
       requirePermission(extra, options, 'products.lists');
       const api = createPresscartApiClient(extra, options);
       const { team_slug, filters, ...params } = input;
-      const query = appendQueryFilters(params as QueryParams, filters);
+      const query = appendQueryFilters(
+        { ...(params as QueryParams), limit: input.limit ?? 100 },
+        filters
+      );
       const response = await api.get(teamRoute(team_slug, '/products/marketplace/listings'), query);
       return jsonResult(normalizePriceFields(response));
     }
@@ -250,7 +265,7 @@ export function registerProductTools(server: McpServer, options: ServerOptions) 
     {
       title: 'Get Product Listing',
       description:
-        'Fetch one buyer marketplace product listing by UUID. Use this before purchase/order actions when the user wants details for a listing found by list_product_listings. Price fields are returned as prices[].price in the listed currency, with prices[].display_price formatted for display. These are Presscart currency amounts, not Stripe unit_amount cent values; do not divide by 100 or round as cents. Use default_price, or the prices[] item with is_default_price=true, unless the user explicitly asks for a specific tier such as basic.',
+        'Fetch one buyer marketplace product listing by UUID. Use this for shortlisted listings from list_product_listings, especially before final recommendations or purchase/order actions. Do not call this for every search result. Price fields are returned as prices[].price in the listed currency, with prices[].display_price formatted for display. These are Presscart currency amounts, not Stripe unit_amount cent values; do not divide by 100 or round as cents. Use default_price, or the prices[] item with is_default_price=true, unless the user explicitly asks for a specific tier such as basic.',
       inputSchema: {
         team_slug: teamSlugSchema,
         product_id: z.string().uuid(),

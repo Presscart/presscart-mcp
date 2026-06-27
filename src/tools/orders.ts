@@ -7,6 +7,7 @@ import {
   resolveProfileId,
   type ServerOptions,
 } from '../utils/tool-context.js';
+import { sanitizeSensitiveFields } from '../utils/sensitive-fields.js';
 import { jsonResult } from '../utils/tool-result.js';
 import { teamRoute } from '../utils/team-routes.js';
 import { additiveWriteTool, readOnlyTool } from './metadata.js';
@@ -43,7 +44,7 @@ export function registerOrderTools(server: McpServer, options: ServerOptions) {
         profile_id: profileId,
         line_items: input.line_items,
       });
-      return jsonResult(response);
+      return jsonResult(sanitizeSensitiveFields(response));
     }
   );
 
@@ -67,7 +68,7 @@ export function registerOrderTools(server: McpServer, options: ServerOptions) {
         include_outlets_data: input.include_outlets_data,
         include_order_items_data: input.include_order_items_data,
       });
-      return jsonResult(response);
+      return jsonResult(sanitizeSensitiveFields(response));
     }
   );
 
@@ -91,7 +92,7 @@ export function registerOrderTools(server: McpServer, options: ServerOptions) {
       const api = createPresscartApiClient(extra, options);
       const { team_slug, ...query } = input;
       const response = await api.get(teamRoute(team_slug, '/order-items'), query);
-      return jsonResult(response);
+      return jsonResult(sanitizeSensitiveFields(response));
     }
   );
 
@@ -99,7 +100,8 @@ export function registerOrderTools(server: McpServer, options: ServerOptions) {
     'list_profile_orders',
     {
       title: 'List Profile Orders',
-      description: 'List orders and line items for a profile in a team workspace.',
+      description:
+        'List existing orders and line items for a profile in a team workspace. Use this only when the user asks about order history, existing purchases, checkout/payment status, or adding purchased order items to campaigns. Do not call this just to choose a profile or recommend marketplace publications.',
       inputSchema: {
         team_slug: teamSlugSchema,
         profile_id: z.string().uuid(),
@@ -126,7 +128,7 @@ export function registerOrderTools(server: McpServer, options: ServerOptions) {
         end_date: input.end_date,
         paid_orders_only: input.paid_orders_only,
       });
-      return jsonResult(response);
+      return jsonResult(sanitizeSensitiveFields(response));
     }
   );
 }
