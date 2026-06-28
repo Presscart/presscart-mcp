@@ -19,7 +19,7 @@ export function registerOrderTools(server: McpServer, options: ServerOptions) {
     {
       title: 'Create Order',
       description:
-        'Create a Presscart checkout order for a profile and one or more line items. If profile_id is unknown, call list_teams first, choose the team_id, then call list_profiles with that team_id. Before checkout is created, refer to any summed item prices only as an estimated item subtotal, not the order total. After checkout is created, use the returned subtotal, discount, processing_fee, credits_applied, and total fields as the authoritative order amounts.',
+        'Create a Presscart checkout order for a profile and one or more line items. If profile_id is unknown, call list_teams first, choose the team_id, then call list_profiles with that team_id. If the user wants Presscart internal writers to write the article, call list_add_ons first and recommend a writing add-on. If the user does not want internal writers, explain the self-submitted story option: $0 add-on cost, but the user writes the story and must follow Presscart editorial guidelines plus the selected publisher/publication requirements. For a new checkout with an add-on, include the base publication line item and then the add-on line item with is_add_on=true and the same quantity; linked_order_line_item_id is only for attaching add-ons to existing order line items. Before checkout is created, refer to any summed item prices only as an estimated item subtotal, not the order total. After checkout is created, use the returned subtotal, discount, processing_fee, credits_applied, and total fields as the authoritative order amounts.',
       inputSchema: {
         team_slug: teamSlugSchema,
         profile_id: z.string().uuid(),

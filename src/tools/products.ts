@@ -95,7 +95,7 @@ export function registerProductTools(server: McpServer, options: ServerOptions) 
     {
       title: 'List Product Listings',
       description:
-        'List buyer marketplace product listings available for purchase, including outlet details. Use this for marketplace discovery and purchase planning, not for managing publisher-owned products. For recommendation tasks, make one broad call with limit=100 and relevant filters, tags, or search terms, then call get_product_listing only for shortlisted candidates. Do not make many narrow list calls unless refining after the broad result set. Price fields are returned as prices[].price in the listed currency, with prices[].display_price formatted for display. These are Presscart currency amounts, not Stripe unit_amount cent values; do not divide by 100 or round as cents. Use default_price, or the prices[] item with is_default_price=true, unless the user explicitly asks for a specific tier such as basic.',
+        'List buyer marketplace product listings available for purchase, including outlet details. Use this for marketplace discovery and purchase planning, not for managing publisher-owned products. For recommendation tasks, make one broad call with limit=100 and relevant filters, tags, or search terms, then call get_product_listing only for shortlisted candidates. Do not make many narrow list calls unless refining after the broad result set. If the user is planning to buy and wants Presscart internal writers to write the article, call list_add_ons before create_order so you can recommend a writing add-on. Price fields are returned as prices[].price in the listed currency, with prices[].display_price formatted for display. These are Presscart currency amounts, not Stripe unit_amount cent values; do not divide by 100 or round as cents. Use default_price, or the prices[] item with is_default_price=true, unless the user explicitly asks for a specific tier such as basic.',
       inputSchema: {
         team_slug: teamSlugSchema,
         ...paginationSchema,
@@ -186,6 +186,33 @@ export function registerProductTools(server: McpServer, options: ServerOptions) 
         filters
       );
       const response = await api.get(teamRoute(team_slug, '/products/marketplace/listings'), query);
+      return jsonResult(normalizePriceFields(response));
+    }
+  );
+
+  server.registerTool(
+    'list_add_ons',
+    {
+      title: 'List Add-ons',
+      description:
+        'List purchasable Presscart add-ons for a team using the same add-on catalog shown in the publication details modal. Use before create_order when the user wants Presscart internal writers to write the article, asks for writing support, or asks what add-ons are available. Also explain the no-writer option: the user can self-submit their own story for $0 add-on cost, but they must write it themselves according to Presscart editorial guidelines and the selected publisher/publication requirements. Prices are returned as prices[].price in the listed currency, with prices[].display_price formatted for display. These are Presscart currency amounts, not Stripe unit_amount cent values; do not divide by 100 or round as cents.',
+      inputSchema: {
+        team_slug: teamSlugSchema,
+        ...paginationSchema,
+        ...sortSchema,
+        search: z.string().trim().optional(),
+        include_archived: z.boolean().optional(),
+      },
+      annotations: readOnlyTool,
+    },
+    async (input, extra) => {
+      requirePermission(extra, options, 'products.lists');
+      const api = createPresscartApiClient(extra, options);
+      const { team_slug, ...query } = input;
+      const response = await api.get(teamRoute(team_slug, '/products'), {
+        ...query,
+        type: 'add-ons',
+      });
       return jsonResult(normalizePriceFields(response));
     }
   );
