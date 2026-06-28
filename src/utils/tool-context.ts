@@ -80,7 +80,8 @@ function resolvePresscartApiCredential(authInfo: AuthInfoLike | undefined) {
     if (typeof grantId !== 'string' || grantId.length === 0) return undefined;
 
     if (!env.MCP_INTERNAL_AUTH_TOKEN) {
-      throw new Error('MCP_INTERNAL_AUTH_TOKEN is required when MCP OAuth is enabled.');
+      console.error('Missing MCP_INTERNAL_AUTH_TOKEN while MCP OAuth is enabled.');
+      throw new Error('Unable to complete this request right now. Please try again later.');
     }
 
     return {
