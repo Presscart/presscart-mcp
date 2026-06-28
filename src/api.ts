@@ -9,12 +9,13 @@ export type TokenSessionResponse =
       token_type: string;
       scopes: string[];
       pro_pricing_enabled: boolean;
-    }
+    };
+
+export type PresscartApiCredential =
+  | string
   | {
-      source: 'oauth';
-      oauth_client_id: string;
-      oauth_grant_id: string;
-      scopes: string[];
+      bearerToken: string;
+      oauthGrantId?: string;
     };
 
 export class PresscartApiError extends Error {
@@ -30,11 +31,21 @@ export class PresscartApiError extends Error {
 }
 
 export class PresscartApiClient {
+  private readonly credential: {
+    bearerToken: string;
+    oauthGrantId?: string;
+  };
+
   constructor(
     private readonly baseUrl: string,
-    private readonly apiToken: string,
+    credential: PresscartApiCredential,
     private readonly requestTimeoutMs = DEFAULT_REQUEST_TIMEOUT_MS
-  ) {}
+  ) {
+    this.credential =
+      typeof credential === 'string'
+        ? { bearerToken: credential }
+        : credential;
+  }
 
   async get<T>(path: string, query?: Record<string, QueryValue>): Promise<T> {
     return this.request<T>(path, { method: 'GET' }, query);
@@ -113,7 +124,10 @@ export class PresscartApiClient {
         signal: init.signal ?? AbortSignal.timeout(this.requestTimeoutMs),
         headers: {
           Accept: 'application/json',
-          Authorization: `Bearer ${this.apiToken}`,
+          Authorization: `Bearer ${this.credential.bearerToken}`,
+          ...(this.credential.oauthGrantId
+            ? { 'x-presscart-oauth-grant-id': this.credential.oauthGrantId }
+            : {}),
           ...(init.body && !(init.body instanceof FormData)
             ? { 'Content-Type': 'application/json' }
             : {}),

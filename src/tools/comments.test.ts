@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 process.env.PRESSCART_API_URL = 'https://api.presscart.test';
+process.env.MCP_INTERNAL_AUTH_TOKEN = 'internal-token';
 
 const { registerCommentTools } = await import('./comments.js');
 
@@ -33,7 +34,7 @@ test('comments tools call the root comments API with team query context', async 
         entity_type: 'article',
         entity_id: '6b2f4eb8-46db-4ef2-9c44-46b94a7049c7',
       },
-      oauthExtra('comments.lists')
+      mcpExtra()
     );
 
     await tools.get('create_comment')?.handler(
@@ -43,7 +44,7 @@ test('comments tools call the root comments API with team query context', async 
         entity_id: '6b2f4eb8-46db-4ef2-9c44-46b94a7049c7',
         comment_text: 'Looks good.',
       },
-      oauthExtra('comments.create')
+      mcpExtra()
     );
 
     assert.equal(calls[0]?.method, 'GET');
@@ -82,13 +83,13 @@ function registerTools() {
   return tools;
 }
 
-function oauthExtra(permission: string) {
+function mcpExtra() {
   return {
     authInfo: {
-      token: 'test-token',
+      token: 'mcp-access-token',
       extra: {
-        source: 'oauth',
-        permissions: [permission],
+        source: 'mcp',
+        oauth_grant_id: 'grant-1',
       },
     },
   };

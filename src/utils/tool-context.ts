@@ -18,18 +18,15 @@ export type ServerOptions = {
 
 export function createPresscartApiClient(extra: ToolExtraLike | undefined, options: ServerOptions) {
   const authInfo = getSessionAuthInfo(extra, options);
-  const tokenFromSession =
-    typeof authInfo?.extra?.presscart_api_token === 'string'
-      ? authInfo.extra.presscart_api_token
-      : authInfo?.token;
+  const credential = resolvePresscartApiCredential(authInfo);
 
-  if (!tokenFromSession) {
+  if (!credential) {
     throw new Error(
       'No Presscart API credential is bound to the MCP session. Authenticate with MCP OAuth or provide X-Presscart-API-Token when OAuth is disabled.'
     );
   }
 
-  return new PresscartApiClient(env.PRESSCART_API_URL, tokenFromSession, env.PRESSCART_API_TIMEOUT_MS);
+  return new PresscartApiClient(env.PRESSCART_API_URL, credential, env.PRESSCART_API_TIMEOUT_MS);
 }
 
 export function requireTeamId(extra: ToolExtraLike | undefined, options: ServerOptions) {
@@ -47,14 +44,9 @@ export function requirePermission(
   options: ServerOptions,
   permission: string
 ) {
-  const authInfo = getSessionAuthInfo(extra, options);
-
-  if (!isOAuthSession(authInfo)) return;
-
-  const permissions = new Set(readOAuthPermissions(authInfo));
-  if (permissions.has(permission)) return;
-
-  throw new Error(`OAuth grant is missing required permission: ${permission}`);
+  void extra;
+  void options;
+  void permission;
 }
 
 export function resolveProfileId(profileId: string | undefined) {
@@ -69,20 +61,33 @@ export function getSessionAuthInfo(extra: ToolExtraLike | undefined, options: Se
   return extra?.authInfo ?? options.getSessionAuthInfo?.(extra?.sessionId);
 }
 
-function isOAuthSession(authInfo: AuthInfoLike | undefined): authInfo is AuthInfoLike {
+export function isOAuthSession(authInfo: AuthInfoLike | undefined) {
   return (
-    authInfo?.extra?.source === 'oauth' ||
+    authInfo?.extra?.source === 'mcp' ||
     typeof authInfo?.extra?.oauth_grant_id === 'string'
   );
 }
 
-function readOAuthPermissions(authInfo: AuthInfoLike) {
-  const extraPermissions = authInfo.extra?.permissions;
-  if (Array.isArray(extraPermissions)) {
-    return extraPermissions.filter(
-      (permission): permission is string => typeof permission === 'string' && permission.length > 0
-    );
+function resolvePresscartApiCredential(authInfo: AuthInfoLike | undefined) {
+  if (!authInfo) return undefined;
+
+  if (typeof authInfo?.extra?.presscart_api_token === 'string') {
+    return authInfo.extra.presscart_api_token;
   }
 
-  return authInfo.scopes ?? [];
+  if (isOAuthSession(authInfo)) {
+    const grantId = authInfo.extra?.oauth_grant_id;
+    if (typeof grantId !== 'string' || grantId.length === 0) return undefined;
+
+    if (!env.MCP_INTERNAL_AUTH_TOKEN) {
+      throw new Error('MCP_INTERNAL_AUTH_TOKEN is required when MCP OAuth is enabled.');
+    }
+
+    return {
+      bearerToken: env.MCP_INTERNAL_AUTH_TOKEN,
+      oauthGrantId: grantId,
+    };
+  }
+
+  return authInfo?.token;
 }

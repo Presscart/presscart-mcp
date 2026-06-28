@@ -4,6 +4,7 @@ import type { TokenSessionResponse } from '../api.js';
 import {
   createPresscartApiClient,
   getSessionAuthInfo,
+  isOAuthSession,
   type ServerOptions,
 } from '../utils/tool-context.js';
 import { jsonResult } from '../utils/tool-result.js';
@@ -21,9 +22,15 @@ export function registerAuthTools(server: McpServer, options: ServerOptions) {
       annotations: readOnlyTool,
     },
     async (_input, extra) => {
+      const authInfo = getSessionAuthInfo(extra, options);
+
+      if (isOAuthSession(authInfo)) {
+        return jsonResult(toWhoamiResponse(undefined, authInfo));
+      }
+
       const api = createPresscartApiClient(extra, options);
       const response = await api.get<TokenSessionResponse>('/auth/token');
-      return jsonResult(toWhoamiResponse(response, getSessionAuthInfo(extra, options)));
+      return jsonResult(toWhoamiResponse(response, authInfo));
     }
   );
 }

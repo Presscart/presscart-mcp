@@ -37,24 +37,23 @@ function toAuthInfo(token: string, payload: JWTPayload, audience: URL): AuthInfo
   const clientId = readStringClaim(payload, 'client_id');
   const grantId = readStringClaim(payload, 'grant_id');
   const subject = readStringClaim(payload, 'sub');
-  const permissions = readStringArrayClaim(payload, 'permissions');
+  const scopes = readScopeClaim(payload);
 
-  if (!clientId || !grantId || !subject || permissions.length === 0) {
+  if (!clientId || !grantId || !subject) {
     throw new InvalidTokenError('Invalid token claims');
   }
 
   return {
     token,
     clientId,
-    scopes: permissions,
+    scopes,
     expiresAt: payload.exp,
     resource: audience,
     extra: {
-      source: 'oauth',
+      source: 'mcp',
       sub: subject,
       oauth_client_id: clientId,
       oauth_grant_id: grantId,
-      permissions,
       scope: readStringClaim(payload, 'scope'),
       email: readStringClaim(payload, 'email'),
       first_name: readUserMetadataStringClaim(payload, 'first_name'),
@@ -68,10 +67,9 @@ function readStringClaim(payload: JWTPayload, key: string) {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
-function readStringArrayClaim(payload: JWTPayload, key: string) {
-  const value = payload[key];
-  if (!Array.isArray(value)) return [];
-  return value.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0);
+function readScopeClaim(payload: JWTPayload) {
+  const scope = readStringClaim(payload, 'scope');
+  return scope?.split(/\s+/).filter(Boolean) ?? [];
 }
 
 function readUserMetadataStringClaim(payload: JWTPayload, key: string) {

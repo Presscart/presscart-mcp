@@ -3,18 +3,14 @@ import assert from 'node:assert/strict';
 
 import { toWhoamiResponse } from './whoami.js';
 
-test('returns public OAuth identity fields for get_user', () => {
+test('returns public MCP identity fields for get_user', () => {
   assert.deepEqual(
     toWhoamiResponse(
-      {
-        source: 'oauth',
-        oauth_client_id: 'client-1',
-        oauth_grant_id: 'grant-1',
-        scopes: ['outlets.lists'],
-      },
+      undefined,
       {
         token: 'token',
         extra: {
+          source: 'mcp',
           email: 'renz@presscart.com',
           sub: 'user-1',
           first_name: 'Renz',
@@ -30,18 +26,14 @@ test('returns public OAuth identity fields for get_user', () => {
   );
 });
 
-test('falls back to email identity values when OAuth name claims are unavailable', () => {
+test('falls back to email identity values when MCP name claims are unavailable', () => {
   assert.deepEqual(
     toWhoamiResponse(
-      {
-        source: 'oauth',
-        oauth_client_id: 'client-1',
-        oauth_grant_id: 'grant-1',
-        scopes: ['outlets.lists'],
-      },
+      undefined,
       {
         token: 'token',
         extra: {
+          source: 'mcp',
           email: 'renz@presscart.com',
           sub: 'user-1',
         },
@@ -55,19 +47,18 @@ test('falls back to email identity values when OAuth name claims are unavailable
   );
 });
 
-test('does not expose OAuth grant metadata in get_user', () => {
+test('does not expose MCP grant metadata in get_user', () => {
   const response = toWhoamiResponse(
-    {
-      source: 'oauth',
-      oauth_client_id: 'client-1',
-      oauth_grant_id: 'grant-1',
-      scopes: ['outlets.lists'],
-    },
+    undefined,
     {
       token: 'token',
       extra: {
+        source: 'mcp',
         email: 'renz@presscart.com',
         sub: 'user-1',
+        oauth_client_id: 'client-1',
+        oauth_grant_id: 'grant-1',
+        scope: 'openid profile email',
       },
     }
   );

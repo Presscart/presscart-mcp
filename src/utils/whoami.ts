@@ -14,10 +14,10 @@ export type WhoamiResponse =
     };
 
 export function toWhoamiResponse(
-  response: TokenSessionResponse,
+  response: TokenSessionResponse | undefined,
   authInfo: AuthInfoLike | undefined
 ): WhoamiResponse {
-  if (response.source !== 'oauth') {
+  if (response?.source === 'api_token') {
     return {
       team_id: response.team_id,
       token_type: response.token_type,

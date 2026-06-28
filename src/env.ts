@@ -11,6 +11,7 @@ const envSchema = z.object({
   MCP_OAUTH_ENABLED: z.coerce.boolean().default(false),
   MCP_OAUTH_ISSUER_URL: z.string().url().optional(),
   MCP_OAUTH_AUDIENCE: z.string().url().default('https://mcp.presscart.com'),
+  MCP_INTERNAL_AUTH_TOKEN: z.string().min(1).optional(),
   PRESSCART_API_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
 });
 
@@ -26,5 +27,6 @@ export const env = envSchema.parse({
   MCP_OAUTH_ENABLED: process.env.MCP_OAUTH_ENABLED,
   MCP_OAUTH_ISSUER_URL: process.env.MCP_OAUTH_ISSUER_URL,
   MCP_OAUTH_AUDIENCE: process.env.MCP_OAUTH_AUDIENCE,
+  MCP_INTERNAL_AUTH_TOKEN: process.env.MCP_INTERNAL_AUTH_TOKEN,
   PRESSCART_API_TIMEOUT_MS: process.env.PRESSCART_API_TIMEOUT_MS,
 });

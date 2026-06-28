@@ -58,3 +58,42 @@ test('does not force JSON content type for multipart form requests', async t => 
   assert.ok(capturedBody instanceof FormData);
   assert.equal((capturedHeaders as Record<string, string>)['Content-Type'], undefined);
 });
+
+test('sends MCP delegated auth with internal bearer token and grant id', async t => {
+  const originalFetch = globalThis.fetch;
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  let capturedHeaders: unknown;
+
+  globalThis.fetch = ((_input, init) => {
+    capturedHeaders = init?.headers;
+    return Promise.resolve(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
+  }) as typeof fetch;
+
+  const client = new PresscartApiClient(
+    'https://api.presscart.test',
+    {
+      bearerToken: 'internal-token',
+      oauthGrantId: 'grant-1',
+    },
+    5
+  );
+
+  await client.get('/teams');
+
+  assert.equal(
+    (capturedHeaders as Record<string, string>).Authorization,
+    'Bearer internal-token'
+  );
+  assert.equal(
+    (capturedHeaders as Record<string, string>)['x-presscart-oauth-grant-id'],
+    'grant-1'
+  );
+});

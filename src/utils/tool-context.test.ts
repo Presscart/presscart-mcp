@@ -5,39 +5,21 @@ process.env.PRESSCART_API_URL ??= 'https://api.presscart.test';
 
 const { requirePermission, requireTeamId, resolveProfileId } = await import('./tool-context.js');
 
-test('requires OAuth permissions when the session comes from an OAuth grant', () => {
+test('leaves MCP sessions to upstream API authorization checks', () => {
   assert.doesNotThrow(() =>
     requirePermission(
       {
         authInfo: {
-          token: 'oauth-access-token',
+          token: 'mcp-access-token',
           extra: {
-            source: 'oauth',
-            permissions: ['orders.read'],
+            source: 'mcp',
+            oauth_grant_id: 'grant-1',
           },
         },
       },
       {},
       'orders.read'
     )
-  );
-
-  assert.throws(
-    () =>
-      requirePermission(
-        {
-          authInfo: {
-            token: 'oauth-access-token',
-            extra: {
-              source: 'oauth',
-              permissions: ['orders.read'],
-            },
-          },
-        },
-        {},
-        'orders.create'
-      ),
-    /OAuth grant is missing required permission: orders\.create/
   );
 });
 
