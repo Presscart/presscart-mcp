@@ -6,7 +6,7 @@ process.env.MCP_INTERNAL_AUTH_TOKEN = 'internal-token';
 
 const { registerCommentTools } = await import('./comments.js');
 
-test('comments tools call the root comments API with team query context', async () => {
+test('comments tools call the article-scoped comments API', async () => {
   const calls: Array<{ url: string; method?: string; body?: string }> = [];
   const originalFetch = globalThis.fetch;
   globalThis.fetch = (async (input, init) => {
@@ -30,35 +30,49 @@ test('comments tools call the root comments API with team query context', async 
 
     await tools.get('list_comments')?.handler(
       {
-        team_slug: 'acme-team',
-        entity_type: 'article',
-        entity_id: '6b2f4eb8-46db-4ef2-9c44-46b94a7049c7',
+        article_id: '6b2f4eb8-46db-4ef2-9c44-46b94a7049c7',
       },
       mcpExtra()
     );
 
     await tools.get('create_comment')?.handler(
       {
-        team_slug: 'acme-team',
-        entity_type: 'article',
-        entity_id: '6b2f4eb8-46db-4ef2-9c44-46b94a7049c7',
+        article_id: '6b2f4eb8-46db-4ef2-9c44-46b94a7049c7',
         comment_text: 'Looks good.',
       },
       mcpExtra()
     );
 
-    assert.equal(calls[0]?.method, 'GET');
-    assert.equal(new URL(calls[0].url).pathname, '/comments');
-    assert.equal(new URL(calls[0].url).searchParams.get('slug'), 'acme-team');
-    assert.equal(
-      new URL(calls[0].url).searchParams.get('filters[entity_type]'),
-      'article'
+    await tools.get('archive_comment')?.handler(
+      {
+        article_id: '6b2f4eb8-46db-4ef2-9c44-46b94a7049c7',
+        comment_id: 'abc123',
+      },
+      mcpExtra()
     );
 
+    assert.equal(calls[0]?.method, 'GET');
+    assert.equal(
+      new URL(calls[0].url).pathname,
+      '/articles/6b2f4eb8-46db-4ef2-9c44-46b94a7049c7/comments'
+    );
+    assert.equal(new URL(calls[0].url).searchParams.get('slug'), null);
+    assert.equal(new URL(calls[0].url).searchParams.get('filters[entity_type]'), null);
+
     assert.equal(calls[1]?.method, 'POST');
-    assert.equal(new URL(calls[1].url).pathname, '/comments');
-    assert.equal(new URL(calls[1].url).searchParams.get('slug'), 'acme-team');
+    assert.equal(
+      new URL(calls[1].url).pathname,
+      '/articles/6b2f4eb8-46db-4ef2-9c44-46b94a7049c7/comments'
+    );
+    assert.equal(new URL(calls[1].url).searchParams.get('slug'), null);
     assert.match(calls[1].body ?? '', /Looks good/);
+
+    assert.equal(calls[2]?.method, 'DELETE');
+    assert.equal(
+      new URL(calls[2].url).pathname,
+      '/articles/6b2f4eb8-46db-4ef2-9c44-46b94a7049c7/comments/abc123/archive'
+    );
+    assert.equal(new URL(calls[2].url).searchParams.get('slug'), null);
   } finally {
     globalThis.fetch = originalFetch;
   }

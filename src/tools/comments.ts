@@ -26,13 +26,11 @@ export function registerCommentTools(server: McpServer, options: ServerOptions) 
   server.registerTool(
     'list_comments',
     {
-      title: 'List Comments',
+      title: 'List Article Comments',
       description:
-        'List comments for an entity such as an article. Use entity_type=article and entity_id=<article_id> for article comments. Returns total_records, root comments, and replies by default, so do not call a separate count tool or repeatedly call this unless the user asks to refresh or after a comment mutation.',
+        'List comments for one specific article. Requires article_id; if the user has not identified an article, first call an article listing tool such as list_campaign_articles or list_publisher_articles, or ask which article they mean. Returns total_records, root comments, and replies by default, so do not call a separate count tool or repeatedly call this unless the user asks to refresh or after a comment mutation.',
       inputSchema: {
-        team_slug: teamSlugSchema,
-        entity_type: commentEntityTypeSchema,
-        entity_id: z.string().uuid(),
+        article_id: z.string().uuid(),
         is_internal: z.boolean().optional(),
         parent_comment_id: z.string().trim().min(1).optional(),
         search: z.string().trim().min(1).optional(),
@@ -46,14 +44,12 @@ export function registerCommentTools(server: McpServer, options: ServerOptions) 
     async (input, extra) => {
       requirePermission(extra, options, 'comments.lists');
       const api = createPresscartApiClient(extra, options);
-      const { team_slug, entity_type, entity_id, is_internal, parent_comment_id, search, ...query } =
-        input;
+      const { article_id, is_internal, parent_comment_id, search, ...query } = input;
 
       const response = await api.get(
-        commentRoute(),
+        articleCommentRoute(article_id),
         appendQueryFilters(
           {
-            slug: team_slug,
             limit: query.limit,
             page: query.page,
             sort_by: query.sort_by,
@@ -61,8 +57,6 @@ export function registerCommentTools(server: McpServer, options: ServerOptions) 
             include_archived: query.include_archived,
           } as QueryParams,
           {
-            entity_type,
-            entity_id,
             is_internal,
             parent_comment_id,
             search,
@@ -77,13 +71,11 @@ export function registerCommentTools(server: McpServer, options: ServerOptions) 
   server.registerTool(
     'create_comment',
     {
-      title: 'Create Comment',
+      title: 'Create Article Comment',
       description:
-        'Create a comment or reply on an entity. For article comments, use entity_type=article and entity_id=<article_id>. Pass parent_comment_id to reply to an existing comment. The tool accepts plain comment_text and formats it for the application.',
+        'Create a comment or reply on one specific article. Requires article_id; if the user has not identified an article, first call an article listing tool such as list_campaign_articles or list_publisher_articles, or ask which article they want to comment on. Pass parent_comment_id to reply to an existing comment. The tool accepts plain comment_text and formats it for the application.',
       inputSchema: {
-        team_slug: teamSlugSchema,
-        entity_type: commentEntityTypeSchema,
-        entity_id: z.string().uuid(),
+        article_id: z.string().uuid(),
         comment_text: z.string().trim().min(1),
         is_internal: z.boolean().optional(),
         parent_comment_id: z.string().trim().min(1).nullable().optional(),
@@ -95,16 +87,13 @@ export function registerCommentTools(server: McpServer, options: ServerOptions) 
       requirePermission(extra, options, 'comments.create');
       const api = createPresscartApiClient(extra, options);
       const response = await api.post(
-        commentRoute(),
+        articleCommentRoute(input.article_id),
         {
           ...buildCommentContent(input.comment_text),
           is_internal: input.is_internal ?? false,
-          entity_type: input.entity_type,
-          entity_id: input.entity_id,
           parent_comment_id: input.parent_comment_id ?? null,
           mentions: toMentions(input.mention_user_ids),
-        },
-        { slug: input.team_slug }
+        }
       );
       return jsonResult(response);
     }
@@ -115,9 +104,9 @@ export function registerCommentTools(server: McpServer, options: ServerOptions) 
     {
       title: 'Update Comment',
       description:
-        'Update one of the current user comments. Only the original comment author can update it. Pass comment_text when changing the body, and pass is_internal when changing visibility.',
+        'Update one of the current user comments on one specific article. Requires article_id; if the user has not identified an article, first call an article listing tool or ask which article they mean. Only the original comment author can update it. Pass comment_text when changing the body, and pass is_internal when changing visibility.',
       inputSchema: {
-        team_slug: teamSlugSchema,
+        article_id: z.string().uuid(),
         comment_id: z.string().trim().min(1),
         comment_text: z.string().trim().min(1).optional(),
         is_internal: z.boolean().optional(),
@@ -133,13 +122,12 @@ export function registerCommentTools(server: McpServer, options: ServerOptions) 
 
       const api = createPresscartApiClient(extra, options);
       const response = await api.put(
-        commentRoute(`/${input.comment_id}`),
+        articleCommentRoute(input.article_id, `/${input.comment_id}`),
         {
           ...(input.comment_text ? buildCommentContent(input.comment_text) : {}),
           ...(input.is_internal === undefined ? {} : { is_internal: input.is_internal }),
           mentions: toMentions(input.mention_user_ids),
-        },
-        { slug: input.team_slug }
+        }
       );
       return jsonResult(response);
     }
@@ -150,9 +138,9 @@ export function registerCommentTools(server: McpServer, options: ServerOptions) 
     {
       title: 'Archive Comment',
       description:
-        'Archive one of the current user comments. This soft-deletes the comment in the application and should only be used after the user confirms.',
+        'Archive one of the current user comments on one specific article. Requires article_id; if the user has not identified an article, first call an article listing tool or ask which article they mean. This soft-deletes the comment in the application and should only be used after the user confirms.',
       inputSchema: {
-        team_slug: teamSlugSchema,
+        article_id: z.string().uuid(),
         comment_id: z.string().trim().min(1),
       },
       annotations: replaceTool,
@@ -160,9 +148,9 @@ export function registerCommentTools(server: McpServer, options: ServerOptions) 
     async (input, extra) => {
       requirePermission(extra, options, 'comments.delete');
       const api = createPresscartApiClient(extra, options);
-      const response = await api.delete(commentRoute(`/${input.comment_id}/archive`), {
-        slug: input.team_slug,
-      });
+      const response = await api.delete(
+        articleCommentRoute(input.article_id, `/${input.comment_id}/archive`)
+      );
       return jsonResult(response);
     }
   );
@@ -263,6 +251,10 @@ export function registerCommentTools(server: McpServer, options: ServerOptions) 
 
 function commentRoute(path = '') {
   return `/comments${path}`;
+}
+
+function articleCommentRoute(articleId: string, path = '') {
+  return `/articles/${encodeURIComponent(articleId)}/comments${path}`;
 }
 
 function buildCommentContent(commentText: string) {
