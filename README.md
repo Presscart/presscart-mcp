@@ -14,7 +14,7 @@ Hosted HTTP mode supports two auth models:
 Required:
 
 ```bash
-export PRESSCART_API_URL="https://api.presscart.com"
+export PRESSCART_API_URL="http://api.presscart.com/"
 ```
 
 Optional app link settings:
@@ -35,8 +35,10 @@ Optional host/origin overrides for reverse proxies or multiple domains:
 
 ```bash
 export MCP_ALLOWED_HOSTS="mcp.presscart.com"
-export MCP_ALLOWED_ORIGINS="https://mcp.presscart.com"
+export MCP_ALLOWED_ORIGINS="https://mcp.presscart.com,https://claude.ai,https://claude.com"
 ```
+
+When `MCP_ALLOWED_ORIGINS` is not set, hosted mode allows the configured MCP server origin plus Claude's remote connector origins.
 
 Optional OAuth settings:
 
@@ -159,7 +161,7 @@ git push origin v0.2.0
 Enable OAuth:
 
 ```bash
-PRESSCART_API_URL=https://api.presscart.com
+PRESSCART_API_URL=http://api.presscart.com/
 MCP_HOST=0.0.0.0
 MCP_PORT=8787
 MCP_SERVER_URL=https://mcp.presscart.com/mcp
@@ -180,7 +182,7 @@ If `MCP_OAUTH_ENABLED` is unset or `false`, hosted clients can still connect to 
 For Railway:
 
 ```bash
-PRESSCART_API_URL=https://api.presscart.com
+PRESSCART_API_URL=http://api.presscart.com/
 MCP_HOST=0.0.0.0
 MCP_PORT=8787
 MCP_SERVER_URL=https://mcp.presscart.com/mcp

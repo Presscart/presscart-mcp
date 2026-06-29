@@ -34,6 +34,20 @@ const PRESSCART_TOKEN_HEADER = 'x-presscart-api-token';
 const SESSION_IDLE_TTL_MS = 30 * 60 * 1000;
 const SESSION_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
 const TOKEN_CACHE_TTL_MS = 60_000;
+const MCP_CORS_ALLOWED_METHODS = 'GET, POST, DELETE, OPTIONS';
+const MCP_CORS_ALLOWED_HEADERS = [
+  'accept',
+  'authorization',
+  'content-type',
+  'mcp-protocol-version',
+  'mcp-session-id',
+].join(', ');
+const MCP_CORS_EXPOSED_HEADERS = [
+  'mcp-protocol-version',
+  'mcp-session-id',
+  'www-authenticate',
+].join(', ');
+const KNOWN_REMOTE_MCP_CLIENT_ORIGINS = ['https://claude.ai', 'https://claude.com'];
 
 const sessions = new Map<string, SessionState>();
 const tokenCache = new Map<string, { authInfo: AuthInfo; verifiedAtMs: number }>();
@@ -52,6 +66,8 @@ const app = createMcpExpressApp({
 
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
+app.use('/mcp', applyMcpCorsHeaders(allowedOrigins));
+app.options('/mcp', validateOriginHeader(allowedOrigins), handleMcpPreflight);
 app.use('/mcp', validateOriginHeader(allowedOrigins));
 
 app.get('/health', (_req, res) => {
@@ -376,6 +392,32 @@ function validateOriginHeader(allowed: string[]) {
   };
 }
 
+function applyMcpCorsHeaders(allowed: string[]) {
+  return (req: Request, res: Response, next: () => void) => {
+    const origin = readHeader(req, 'origin');
+    if (origin && isAllowedOrigin(origin, allowed)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Expose-Headers', MCP_CORS_EXPOSED_HEADERS);
+      res.setHeader('Vary', 'Origin, Access-Control-Request-Method, Access-Control-Request-Headers');
+    }
+
+    next();
+  };
+}
+
+function handleMcpPreflight(req: Request, res: Response) {
+  const requestedHeaders = readHeader(req, 'access-control-request-headers');
+
+  res.setHeader('Access-Control-Allow-Methods', MCP_CORS_ALLOWED_METHODS);
+  res.setHeader('Access-Control-Allow-Headers', requestedHeaders || MCP_CORS_ALLOWED_HEADERS);
+  res.setHeader('Access-Control-Max-Age', '86400');
+  res.status(204).send();
+}
+
+function isAllowedOrigin(origin: string, allowed: string[]) {
+  return allowed.length === 0 || allowed.includes(origin);
+}
+
 function resolveMcpServerUrl() {
   if (env.MCP_SERVER_URL) return new URL(env.MCP_SERVER_URL);
 
@@ -408,7 +450,7 @@ function resolveAllowedOrigins(serverUrl: URL) {
     ];
   }
 
-  return [serverUrl.origin];
+  return [serverUrl.origin, ...KNOWN_REMOTE_MCP_CLIENT_ORIGINS];
 }
 
 function parseCsvList(value: string) {
