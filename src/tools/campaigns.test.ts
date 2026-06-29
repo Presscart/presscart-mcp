@@ -3,7 +3,46 @@ import test from 'node:test';
 
 process.env.PRESSCART_API_URL = 'https://api.presscart.test';
 
-const { buildAddOrderItemsToCampaignResult } = await import('./campaigns.js');
+const { buildAddOrderItemsToCampaignResult, buildCampaignArticlesResult } = await import(
+  './campaigns.js'
+);
+
+test('returns app and live article URLs without brief or draft document URLs', () => {
+  const result = buildCampaignArticlesResult(
+    {
+      total_records: 1,
+      records: [
+        {
+          id: 'article-id',
+          name: 'UNTITLED for Digital Music News',
+          live_url: 'https://publisher.example/live-article',
+          brief_google_doc_url: 'https://docs.google.com/document/d/brief',
+          draft_google_doc_url: 'https://docs.google.com/document/d/draft',
+          google_doc_url: 'https://docs.google.com/document/d/source',
+          status: [{ name: 'Published', prefix: 'published' }],
+        },
+      ],
+    },
+    {
+      teamSlug: 'raintech',
+      profileId: 'profile-id',
+      campaignId: 'campaign-id',
+    }
+  );
+
+  const expectedArticlePageUrl =
+    'https://app.presscart.test/raintech/profiles/profile-id/campaigns/campaign-id/articles/article-id';
+  const article = result.records?.[0];
+
+  assert.ok(article);
+  assert.equal(article.article_page_url, expectedArticlePageUrl);
+  assert.equal(article.live_url, 'https://publisher.example/live-article');
+  assert.equal('brief_google_doc_url' in article, false);
+  assert.equal('draft_google_doc_url' in article, false);
+  assert.equal('google_doc_url' in article, false);
+  assert.equal(result.article_queue[0].article_page_url, expectedArticlePageUrl);
+  assert.equal(result.article_queue[0].live_url, 'https://publisher.example/live-article');
+});
 
 test('summarizes a single campaign article after adding order items', () => {
   const result = buildAddOrderItemsToCampaignResult(

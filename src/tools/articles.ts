@@ -1,12 +1,16 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
-import { env } from '../env.js';
 import {
   createPresscartApiClient,
   requirePermission,
   type ServerOptions,
 } from '../utils/tool-context.js';
+import {
+  buildPublisherArticlePageUrl,
+  getArticleLiveUrl,
+  omitInternalArticleUrls,
+} from '../utils/article-urls.js';
 import { appendQueryFilters, type QueryParams } from '../utils/query-filters.js';
 import { assertGoogleDocUrl } from '../utils/file-upload.js';
 import { jsonResult } from '../utils/tool-result.js';
@@ -41,7 +45,7 @@ export function registerArticleTools(server: McpServer, options: ServerOptions) 
     {
       title: 'List Publisher Articles',
       description:
-        'List publisher-owned content/articles for a publisher team, matching the dashboard publisher content page. Use this when a publisher asks for their content, submitted articles, published content, articles needing updates, or content status. This does not list buyer campaign articles; use list_campaign_articles after selecting a buyer campaign.',
+        'List publisher-owned content/articles for a publisher team, matching the dashboard publisher content page. Use this when a publisher asks for their content, submitted articles, published content, articles needing updates, content status, or article URLs. This does not list buyer campaign articles; use list_campaign_articles after selecting a buyer campaign. When the user asks for an article URL, use article_page_url for the Presscart article page and live_url only when available; do not present brief or draft document links as article URLs.',
       inputSchema: {
         team_slug: teamSlugSchema,
         ...paginationSchema,
@@ -82,7 +86,7 @@ export function registerArticleTools(server: McpServer, options: ServerOptions) 
       const { team_slug, filters, ...params } = input;
       const query = appendQueryFilters(params as QueryParams, filters);
       const response = await api.get(teamRoute(team_slug, '/articles'), query);
-      return jsonResult(withPublisherArticleReviewUrls(response));
+      return jsonResult(withPublisherArticleUrls(response));
     }
   );
 
@@ -201,7 +205,7 @@ function buildArticleFileBody(input: ArticleFileInput) {
   };
 }
 
-function withPublisherArticleReviewUrls(data: unknown) {
+function withPublisherArticleUrls(data: unknown) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) return data;
 
   const response = data as Record<string, unknown>;
@@ -216,31 +220,10 @@ function withPublisherArticleReviewUrls(data: unknown) {
       if (typeof article.id !== 'string') return record;
 
       return {
-        ...article,
-        review_url: buildPublisherArticleReviewUrl(article.id),
+        ...omitInternalArticleUrls(article),
+        article_page_url: buildPublisherArticlePageUrl(article.id),
+        live_url: getArticleLiveUrl(article),
       };
     }),
   };
-}
-
-function buildPublisherArticleReviewUrl(articleId: string) {
-  return new URL(`/publisher/articles/${articleId}`, getPresscartAppUrl()).toString();
-}
-
-function getPresscartAppUrl() {
-  if (env.PRESSCART_APP_URL) return env.PRESSCART_APP_URL;
-
-  const apiUrl = new URL(env.PRESSCART_API_URL);
-
-  if (apiUrl.hostname === 'api.presscart.com') return 'https://app.presscart.com';
-  if (apiUrl.hostname.startsWith('api.')) {
-    apiUrl.hostname = apiUrl.hostname.replace(/^api\./, 'app.');
-    return apiUrl.origin;
-  }
-  if (apiUrl.hostname.startsWith('staging-api.')) {
-    apiUrl.hostname = apiUrl.hostname.replace(/^staging-api\./, 'staging.');
-    return apiUrl.origin;
-  }
-
-  return 'https://app.presscart.com';
 }

@@ -7,6 +7,11 @@ import {
   resolveProfileId,
   type ServerOptions,
 } from '../utils/tool-context.js';
+import {
+  buildCampaignArticlePageUrl,
+  getArticleLiveUrl,
+  omitInternalArticleUrls,
+} from '../utils/article-urls.js';
 import { jsonResult } from '../utils/tool-result.js';
 import { teamRoute } from '../utils/team-routes.js';
 import {
@@ -133,9 +138,16 @@ export function registerCampaignTools(server: McpServer, options: ServerOptions)
     {
       title: 'List Campaign Articles',
       description:
-        'List articles in a campaign. Use this after selecting a campaign or after add_order_items_to_campaign when the user wants to work on campaign articles. The response includes the raw article records plus an article_queue summary with statuses, add-ons, and a recommended next article. If an article has add-ons, suggest request_article_writing instead of asking the user to upload their own article.',
+        'List articles in a campaign. Use this after selecting a campaign or after add_order_items_to_campaign when the user wants to work on campaign articles. The response includes article records plus an article_queue summary with statuses, add-ons, and a recommended next article. If an article has add-ons, suggest request_article_writing instead of asking the user to upload their own article. When the user asks for an article URL, use article_page_url for the Presscart article page and live_url only when available; do not present brief or draft document links as article URLs.',
       inputSchema: {
         team_slug: teamSlugSchema,
+        profile_id: z
+          .string()
+          .uuid()
+          .optional()
+          .describe(
+            'Optional profile ID. Provide it when available so article_page_url can point directly to the campaign article page.'
+          ),
         campaign_id: z.string().uuid(),
         ...paginationSchema,
         ...sortSchema,
@@ -146,12 +158,18 @@ export function registerCampaignTools(server: McpServer, options: ServerOptions)
     async (input, extra) => {
       requirePermission(extra, options, 'articles.lists');
       const api = createPresscartApiClient(extra, options);
-      const { team_slug, campaign_id, ...query } = input;
+      const { team_slug, profile_id, campaign_id, ...query } = input;
       const response = await api.get<CampaignArticlesResponse>(
         teamRoute(team_slug, `/campaigns/${campaign_id}/articles`),
         query
       );
-      return jsonResult(buildCampaignArticlesResult(response));
+      return jsonResult(
+        buildCampaignArticlesResult(response, {
+          teamSlug: team_slug,
+          profileId: profile_id,
+          campaignId: campaign_id,
+        })
+      );
     }
   );
 
@@ -233,6 +251,10 @@ type CampaignArticleStatus = {
 type CampaignArticleRecord = {
   id?: string;
   name?: string | null;
+  live_url?: string | null;
+  brief_google_doc_url?: string | null;
+  draft_google_doc_url?: string | null;
+  google_doc_url?: string | null;
   status?: CampaignArticleStatus[] | null;
   expected_completion_date_title?: string | null;
   expected_completion_date?: string | null;
@@ -265,6 +287,8 @@ type ArticleQueueResult =
 
 type ArticleQueueItem = {
   article_id?: string;
+  article_page_url: string | null;
+  live_url: string | null;
   name: string | null | undefined;
   product_name: string | null;
   outlet_name: string | null;
@@ -276,16 +300,26 @@ type ArticleQueueItem = {
   expected_completion_date: string | null;
 };
 
-function buildCampaignArticlesResult(response: CampaignArticlesResponse) {
+type CampaignArticleUrlContext = {
+  teamSlug: string;
+  profileId?: string;
+  campaignId: string;
+};
+
+export function buildCampaignArticlesResult(
+  response: CampaignArticlesResponse,
+  urlContext?: CampaignArticleUrlContext
+) {
   const articleQueue: ArticleQueueResult = {
     available: true,
     records: response.records ?? [],
     total_records: response.total_records ?? response.records?.length ?? 0,
   };
-  const summary = buildArticleQueueSummary(articleQueue);
+  const summary = buildArticleQueueSummary(articleQueue, urlContext);
 
   return {
     ...response,
+    records: response.records?.map(article => withCampaignArticleUrls(article, urlContext)),
     ...summary,
   };
 }
@@ -346,11 +380,16 @@ export function buildAddOrderItemsToCampaignResult(
   };
 }
 
-function buildArticleQueueSummary(articleQueue: Extract<ArticleQueueResult, { available: true }>) {
+function buildArticleQueueSummary(
+  articleQueue: Extract<ArticleQueueResult, { available: true }>,
+  urlContext?: CampaignArticleUrlContext
+) {
   const articles: ArticleQueueItem[] = articleQueue.records.map(article => {
     const latestStatus = article.status?.[0];
     return {
       article_id: article.id,
+      article_page_url: buildCampaignArticlePageUrlIfPossible(article, urlContext),
+      live_url: getArticleLiveUrl(article as Record<string, unknown>),
       name: article.name,
       product_name: article.order_item?.name ?? null,
       outlet_name: article.order_item?.outlet?.name ?? null,
@@ -457,6 +496,31 @@ function countArticleStatuses(articles: ArticleQueueItem[]) {
     counts[key] = (counts[key] ?? 0) + 1;
     return counts;
   }, {});
+}
+
+function withCampaignArticleUrls(
+  article: CampaignArticleRecord,
+  urlContext?: CampaignArticleUrlContext
+) {
+  return {
+    ...omitInternalArticleUrls(article as Record<string, unknown>),
+    article_page_url: buildCampaignArticlePageUrlIfPossible(article, urlContext),
+    live_url: getArticleLiveUrl(article as Record<string, unknown>),
+  };
+}
+
+function buildCampaignArticlePageUrlIfPossible(
+  article: CampaignArticleRecord,
+  urlContext?: CampaignArticleUrlContext
+) {
+  if (!article.id || !urlContext?.profileId) return null;
+
+  return buildCampaignArticlePageUrl({
+    teamSlug: urlContext.teamSlug,
+    profileId: urlContext.profileId,
+    campaignId: urlContext.campaignId,
+    articleId: article.id,
+  });
 }
 
 function isString(value: string | null | undefined): value is string {
