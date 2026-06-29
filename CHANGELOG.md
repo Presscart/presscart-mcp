@@ -1,3 +1,10 @@
+## [1.0.2](https://github.com/Presscart/presscart-mcp/compare/v1.0.1...v1.0.2) (2026-06-29)
+
+
+### Bug Fixes
+
+* remove healthcheckPath from railway.json ([a214c60](https://github.com/Presscart/presscart-mcp/commit/a214c603e2e7a185d57ce89544422c5c05324b69))
+
 ## [1.0.1](https://github.com/Presscart/presscart-mcp/compare/v1.0.0...v1.0.1) (2026-06-29)
 
 
