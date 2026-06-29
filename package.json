@@ -14,11 +14,8 @@
     "test": "node --import tsx --test \"src/**/*.test.ts\"",
     "prepare": "husky",
     "sync:version": "node scripts/sync-version.mjs",
-    "version": "npm run sync:version && git add package.json package-lock.json src/version.ts",
-    "release:patch": "npm version patch",
-    "release:minor": "npm version minor",
-    "release:major": "npm version major",
-    "release:rc": "npm version prerelease --preid rc"
+    "release": "semantic-release",
+    "release:dry-run": "semantic-release --dry-run"
   },
   "engines": {
     "node": ">=22"
@@ -32,9 +29,17 @@
   "devDependencies": {
     "@commitlint/cli": "^21.1.0",
     "@commitlint/config-conventional": "^21.1.0",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/commit-analyzer": "^13.0.1",
+    "@semantic-release/exec": "^7.1.0",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^12.0.8",
+    "@semantic-release/npm": "^13.1.5",
+    "@semantic-release/release-notes-generator": "^14.1.1",
     "@types/express": "^5.0.6",
     "@types/node": "^24.3.0",
     "husky": "^9.1.7",
+    "semantic-release": "^25.0.5",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2"
   }

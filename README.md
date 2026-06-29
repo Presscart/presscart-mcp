@@ -84,25 +84,30 @@ npm run start:http
 
 ## Release
 
-Use the GitHub Actions `Release` workflow for normal releases. Run it from the branch you want to release, choose `patch`, `minor`, `major`, or `prerelease`, and the workflow will:
+Releases are automated by semantic-release from Conventional Commits.
 
-- run check, test, and build
-- bump `package.json` and `package-lock.json`
-- sync the MCP server version in `src/version.ts`
-- push the release commit and `vX.Y.Z` tag
-- create the GitHub release
+- `fix:` creates a patch release.
+- `feat:` creates a minor release.
+- `!` or `BREAKING CHANGE:` creates a major release.
+- `docs:`, `test:`, `chore:`, and other non-release commits do not publish a new version by default.
+
+The `Release` workflow runs on pushes to `main` and `staging`. It runs check, test, and build, then semantic-release updates `CHANGELOG.md`, `package.json`, `package-lock.json`, and `src/version.ts`, creates the `vX.Y.Z` tag, and publishes the GitHub release.
+
+- `main` publishes stable releases.
+- `staging` publishes release candidates with the `rc` prerelease channel.
+
+You can dry-run the release locally:
 
 ```bash
-gh workflow run release.yml --ref staging -f bump=patch
+npm run release:dry-run
 ```
 
-For prereleases:
+If the repository has no existing release tag yet, create the baseline tag before the first semantic-release run so the next release continues from the current version:
 
 ```bash
-gh workflow run release.yml --ref staging -f bump=prerelease -f preid=rc
+git tag v0.2.0
+git push origin v0.2.0
 ```
-
-The local `npm run release:*` scripts are kept for emergency manual releases only.
 
 ## Tools
 
