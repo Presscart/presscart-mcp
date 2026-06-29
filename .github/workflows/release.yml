@@ -45,4 +45,9 @@ jobs:
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run release
+        run: |
+          if [ "${GITHUB_REF_NAME}" = "staging" ]; then
+            npm run release:staging
+          else
+            npm run release
+          fi
