@@ -26,7 +26,7 @@ const stagingPlugins = [
 const isStagingRelease = process.env.PRESSCART_RELEASE_TARGET === 'staging';
 
 export default {
-  branches: isStagingRelease ? [{ name: 'staging', prerelease: 'rc' }] : ['main'],
+  branches: ['main', { name: 'staging', prerelease: 'rc' }],
   tagFormat: 'v${version}',
   plugins: isStagingRelease ? stagingPlugins : stablePlugins,
 };
