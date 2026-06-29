@@ -1,3 +1,10 @@
+## [1.0.1](https://github.com/Presscart/presscart-mcp/compare/v1.0.0...v1.0.1) (2026-06-29)
+
+
+### Bug Fixes
+
+* **release:** avoid staging metadata commits ([fd47246](https://github.com/Presscart/presscart-mcp/commit/fd4724645a4d7c34370ba5238cf2637944232466))
+
 # 1.0.0 (2026-06-29)
 
 
