@@ -12,12 +12,18 @@ test('times out stalled upstream API requests', async t => {
   globalThis.fetch = ((_input, init) => {
     const signal = init?.signal;
     return new Promise<Response>((_resolve, reject) => {
+      const keepAlive = setTimeout(() => {}, 1_000);
+      const rejectWithAbortReason = () => {
+        clearTimeout(keepAlive);
+        reject(signal?.reason);
+      };
+
       if (signal?.aborted) {
-        reject(signal.reason);
+        rejectWithAbortReason();
         return;
       }
 
-      signal?.addEventListener('abort', () => reject(signal.reason), { once: true });
+      signal?.addEventListener('abort', rejectWithAbortReason, { once: true });
     });
   }) as typeof fetch;
 
