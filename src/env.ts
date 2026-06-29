@@ -4,7 +4,7 @@ const envSchema = z.object({
   PRESSCART_API_URL: z.string().url(),
   PRESSCART_APP_URL: z.string().url().optional(),
   MCP_HOST: z.string().default('0.0.0.0'),
-  MCP_PORT: z.coerce.number().int().positive().default(8787),
+  MCP_PORT: z.coerce.number().int().positive().default(8080),
   MCP_SERVER_URL: z.string().url().optional(),
   MCP_ALLOWED_HOSTS: z.string().min(1).optional(),
   MCP_ALLOWED_ORIGINS: z.string().min(1).optional(),
