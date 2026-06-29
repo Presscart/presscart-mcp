@@ -93,15 +93,16 @@ Releases are automated by semantic-release from Conventional Commits.
 - `!` or `BREAKING CHANGE:` creates a major release.
 - `docs:`, `test:`, `chore:`, and other non-release commits do not publish a new version by default.
 
-The `Release` workflow runs on pushes to `main` and `staging`. It runs check, test, and build, then semantic-release updates `CHANGELOG.md`, `package.json`, `package-lock.json`, and `src/version.ts`, creates the `vX.Y.Z` tag, and publishes the GitHub release.
+The `Release` workflow runs on pushes to `main` and `staging`. It runs check, test, and build, then semantic-release creates the release tag and publishes the GitHub release.
 
-- `main` publishes stable releases.
-- `staging` publishes release candidates with the `rc` prerelease channel.
+- `main` publishes stable releases and commits generated release files: `CHANGELOG.md`, `package.json`, `package-lock.json`, and `src/version.ts`.
+- `staging` publishes release candidates with the `rc` prerelease channel, but does not commit generated release files. This keeps staging-to-main promotion merges from conflicting on prerelease metadata.
 
 You can dry-run the release locally:
 
 ```bash
 npm run release:dry-run
+npm run release:staging:dry-run
 ```
 
 If the repository has no existing release tag yet, create the baseline tag before the first semantic-release run so the next release continues from the current version:

@@ -15,7 +15,9 @@
     "prepare": "husky",
     "sync:version": "node scripts/sync-version.mjs",
     "release": "semantic-release",
-    "release:dry-run": "semantic-release --dry-run"
+    "release:dry-run": "semantic-release --dry-run",
+    "release:staging": "PRESSCART_RELEASE_TARGET=staging semantic-release",
+    "release:staging:dry-run": "PRESSCART_RELEASE_TARGET=staging semantic-release --dry-run"
   },
   "engines": {
     "node": ">=22"
