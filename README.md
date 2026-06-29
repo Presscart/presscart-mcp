@@ -82,6 +82,28 @@ npm run build
 npm run start:http
 ```
 
+## Release
+
+Use the GitHub Actions `Release` workflow for normal releases. Run it from the branch you want to release, choose `patch`, `minor`, `major`, or `prerelease`, and the workflow will:
+
+- run check, test, and build
+- bump `package.json` and `package-lock.json`
+- sync the MCP server version in `src/version.ts`
+- push the release commit and `vX.Y.Z` tag
+- create the GitHub release
+
+```bash
+gh workflow run release.yml --ref staging -f bump=patch
+```
+
+For prereleases:
+
+```bash
+gh workflow run release.yml --ref staging -f bump=prerelease -f preid=rc
+```
+
+The local `npm run release:*` scripts are kept for emergency manual releases only.
+
 ## Tools
 
 - `get_user`

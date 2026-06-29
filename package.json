@@ -1,16 +1,24 @@
 {
   "name": "presscart-mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "tsx src/http.ts",
     "dev:http": "tsx src/http.ts",
+    "prebuild": "npm run sync:version",
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/http.js",
     "start:http": "node dist/http.js",
     "check": "tsc --noEmit -p tsconfig.json",
-    "test": "node --import tsx --test \"src/**/*.test.ts\""
+    "test": "node --import tsx --test \"src/**/*.test.ts\"",
+    "prepare": "husky",
+    "sync:version": "node scripts/sync-version.mjs",
+    "version": "npm run sync:version && git add package.json package-lock.json src/version.ts",
+    "release:patch": "npm version patch",
+    "release:minor": "npm version minor",
+    "release:major": "npm version major",
+    "release:rc": "npm version prerelease --preid rc"
   },
   "engines": {
     "node": ">=22"
@@ -22,8 +30,11 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@commitlint/cli": "^21.1.0",
+    "@commitlint/config-conventional": "^21.1.0",
     "@types/express": "^5.0.6",
     "@types/node": "^24.3.0",
+    "husky": "^9.1.7",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2"
   }
