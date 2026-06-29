@@ -227,7 +227,7 @@ app.use((req, res) => {
 });
 
 const server = app.listen(env.MCP_PORT, env.MCP_HOST, () => {
-  console.error(`Presscart MCP server listening on http://${env.MCP_HOST}:${env.MCP_PORT}/mcp`);
+  console.info(`Presscart MCP server listening on http://${env.MCP_HOST}:${env.MCP_PORT}/mcp`);
 });
 
 process.on('SIGINT', () => void shutdown());
