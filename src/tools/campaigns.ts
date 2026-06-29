@@ -160,7 +160,7 @@ export function registerCampaignTools(server: McpServer, options: ServerOptions)
     {
       title: 'Add Order Items To Campaign',
       description:
-        'Add all eligible unassigned paid items from an order to a campaign. If the user wants an existing campaign, call list_campaigns first and pass campaign_id. If the user wants a new campaign, pass campaign_name. If the user has not said whether to use a new or existing campaign, ask before calling this tool. Provide exactly one of campaign_id or campaign_name.',
+        'Add only eligible unassigned paid order items to a campaign. Do not call this tool for unpaid, pending, draft, or checkout-created orders; if an order is not paid, tell the user it must be paid before its items can be added to a campaign. If the user wants an existing campaign, call list_campaigns first and pass campaign_id. If the user wants a new campaign, pass campaign_name. If the user has not said whether to use a new or existing campaign, ask before calling this tool. Provide exactly one of campaign_id or campaign_name.',
       inputSchema: {
         team_slug: teamSlugSchema,
         profile_id: z.string().uuid(),
