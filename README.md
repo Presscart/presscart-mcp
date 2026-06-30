@@ -29,6 +29,7 @@ Optional hosted mode settings:
 export MCP_HOST="0.0.0.0"
 export MCP_PORT="8787"
 export MCP_SERVER_URL="https://mcp.presscart.com/mcp"
+export MCP_SESSION_IDLE_TTL_MS="43200000"
 ```
 
 Optional host/origin overrides for reverse proxies or multiple domains:
@@ -53,6 +54,7 @@ Notes:
 - `PRESSCART_APP_URL` controls direct application links returned by tools such as `list_publisher_articles`. Set it per environment so staging MCP links open staging.
 - Tools that create orders/campaigns or read profile orders need an explicit `profile_id`. If the profile is unknown, call `list_teams`, then `list_profiles`.
 - In MCP OAuth mode, the app's Supabase OAuth Server handles authorization and consent. This MCP runtime validates the issued access token against Supabase JWKS and delegated permissions.
+- Refresh tokens are owned by the MCP client and Supabase OAuth flow. This server does not receive or store refresh tokens.
 - In legacy direct-token mode, send `X-Presscart-API-Token: <presscart_api_token>` on `initialize` and later requests that need to confirm the active session credential.
 
 ## Install
@@ -166,6 +168,7 @@ PRESSCART_API_URL=http://api.presscart.com/
 MCP_HOST=0.0.0.0
 MCP_PORT=8787
 MCP_SERVER_URL=https://mcp.presscart.com/mcp
+MCP_SESSION_IDLE_TTL_MS=43200000
 MCP_OAUTH_ENABLED=true
 MCP_OAUTH_ISSUER_URL=https://<project-ref>.supabase.co/auth/v1
 MCP_OAUTH_AUDIENCE=https://mcp.presscart.com

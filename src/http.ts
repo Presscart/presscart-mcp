@@ -31,7 +31,7 @@ class HttpError extends Error {
 }
 
 const PRESSCART_TOKEN_HEADER = 'x-presscart-api-token';
-const SESSION_IDLE_TTL_MS = 30 * 60 * 1000;
+const SESSION_IDLE_TTL_MS = env.MCP_SESSION_IDLE_TTL_MS;
 const SESSION_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
 const TOKEN_CACHE_TTL_MS = 60_000;
 const MCP_CORS_ALLOWED_METHODS = 'GET, POST, DELETE, OPTIONS';
@@ -532,6 +532,11 @@ function cleanupExpiredState() {
     if (now - session.lastSeenAtMs <= SESSION_IDLE_TTL_MS) continue;
 
     sessions.delete(sessionId);
+    logServerEvent('warn', 'Closed idle MCP session.', {
+      sessionId,
+      idleMs: now - session.lastSeenAtMs,
+      ttlMs: SESSION_IDLE_TTL_MS,
+    });
     void session.transport.close().catch(error => {
       logServerEvent('warn', 'Failed to close idle MCP session.', { error: readErrorMessage(error) });
     });
