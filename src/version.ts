@@ -1,2 +1,2 @@
 // Generated from package.json by npm run sync:version.
-export const PACKAGE_VERSION = '1.0.3';
+export const PACKAGE_VERSION = '1.0.4';

@@ -1,3 +1,10 @@
+## [1.0.4](https://github.com/Presscart/presscart-mcp/compare/v1.0.3...v1.0.4) (2026-06-30)
+
+
+### Bug Fixes
+
+* extend mcp session idle timeout ([6553dbe](https://github.com/Presscart/presscart-mcp/commit/6553dbedad68bc3b87e35a8c487f63fd40b31eb7))
+
 ## [1.0.3](https://github.com/Presscart/presscart-mcp/compare/v1.0.2...v1.0.3) (2026-06-29)
 
 
