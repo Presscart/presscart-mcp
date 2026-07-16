@@ -1,8 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { type Request, type Response } from 'express';
-import { getOAuthProtectedResourceMetadataUrl } from '@modelcontextprotocol/sdk/server/auth/router.js';
-import { requireBearerAuth } from '@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js';
+import { type Request, type RequestHandler, type Response } from 'express';
 import { createMcpExpressApp } from '@modelcontextprotocol/sdk/server/express.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
@@ -10,6 +8,11 @@ import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 
 import { PresscartApiClient, PresscartApiError, type TokenSessionResponse } from './api.js';
 import { env } from './env.js';
+import {
+  OAuthSessionAuthError,
+  createOAuthHttpLayer,
+  validateOAuthSessionAuth,
+} from './oauth-http.js';
 import { createPresscartMcpServer } from './server.js';
 import { SupabaseOAuthVerifier } from './supabase-oauth.js';
 import { formatServerError } from './utils/errors.js';
@@ -53,8 +56,7 @@ const sessions = new Map<string, SessionState>();
 const tokenCache = new Map<string, { authInfo: AuthInfo; verifiedAtMs: number }>();
 
 const mcpServerUrl = resolveMcpServerUrl();
-const issuerUrl = env.MCP_OAUTH_ENABLED ? resolveIssuerUrl() : undefined;
-const oauthAudience = env.MCP_OAUTH_ENABLED ? new URL(env.MCP_OAUTH_AUDIENCE) : undefined;
+const oauthConfig = resolveOAuthRuntimeConfig();
 const allowedOrigins = resolveAllowedOrigins(mcpServerUrl);
 const cleanupTimer = setInterval(cleanupExpiredState, SESSION_CLEANUP_INTERVAL_MS);
 cleanupTimer.unref();
@@ -66,6 +68,31 @@ const app = createMcpExpressApp({
 
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
+
+let bearerAuth: RequestHandler | undefined;
+
+if (oauthConfig) {
+  validateOAuthResourceUrl(oauthConfig.resource, mcpServerUrl);
+
+  const oauthVerifier = new SupabaseOAuthVerifier({
+    issuerUrl: oauthConfig.issuer,
+    audiences: oauthConfig.audiences,
+    resource: oauthConfig.resource,
+  });
+  const oauthLayer = createOAuthHttpLayer({
+    serverUrl: mcpServerUrl,
+    verifier: oauthVerifier,
+    resource: oauthConfig.resource,
+    authorizationServer: new URL(mcpServerUrl.origin),
+    upstreamIssuer: oauthConfig.issuer,
+    translatorEnabled: env.MCP_OAUTH_TRANSLATOR_ENABLED,
+    upstreamTimeoutMs: env.MCP_OAUTH_UPSTREAM_TIMEOUT_MS,
+  });
+
+  app.use(oauthLayer.router);
+  bearerAuth = oauthLayer.bearerAuth;
+}
+
 app.use('/mcp', applyMcpCorsHeaders(allowedOrigins));
 app.options('/mcp', validateOriginHeader(allowedOrigins), handleMcpPreflight);
 app.use('/mcp', validateOriginHeader(allowedOrigins));
@@ -73,32 +100,6 @@ app.use('/mcp', validateOriginHeader(allowedOrigins));
 app.get('/health', (_req, res) => {
   res.json({ ok: true });
 });
-
-let bearerAuth:
-  | ReturnType<typeof requireBearerAuth>
-  | undefined;
-
-if (env.MCP_OAUTH_ENABLED) {
-  const oauthVerifier = new SupabaseOAuthVerifier({
-    issuerUrl: issuerUrl!,
-    audiences: [oauthAudience!],
-    resource: mcpServerUrl,
-  });
-
-  app.get('/.well-known/oauth-protected-resource', (_req, res) => {
-    res.json(createProtectedResourceMetadata());
-  });
-
-  app.get('/.well-known/oauth-protected-resource/mcp', (_req, res) => {
-    res.json(createProtectedResourceMetadata());
-  });
-
-  bearerAuth = requireBearerAuth({
-    verifier: oauthVerifier,
-    requiredScopes: [],
-    resourceMetadataUrl: getOAuthProtectedResourceMetadataUrl(mcpServerUrl),
-  });
-}
 
 app.post('/mcp', ...(bearerAuth ? [bearerAuth] : []), async (req, res) => {
   try {
@@ -343,39 +344,6 @@ function rejectLegacyPresscartHeader(req: Request) {
   }
 }
 
-function validateOAuthSessionAuth(
-  sessionAuthInfo: AuthInfo | undefined,
-  requestAuthInfo: AuthInfo | undefined
-) {
-  if (!requestAuthInfo) {
-    throw new HttpError(401, 'Missing Authorization header');
-  }
-
-  if (!sessionAuthInfo) {
-    return requestAuthInfo;
-  }
-
-  const sessionClientId = sessionAuthInfo.clientId;
-  const requestClientId = requestAuthInfo.clientId;
-  const sessionSubject = readAuthExtraValue(sessionAuthInfo, 'sub');
-  const requestSubject = readAuthExtraValue(requestAuthInfo, 'sub');
-  const sessionGrantId = readAuthExtraValue(sessionAuthInfo, 'oauth_grant_id');
-  const requestGrantId = readAuthExtraValue(requestAuthInfo, 'oauth_grant_id');
-
-  if (
-    sessionClientId !== requestClientId ||
-    sessionSubject !== requestSubject ||
-    sessionGrantId !== requestGrantId
-  ) {
-    throw new HttpError(
-      401,
-      'Authorization token does not match the OAuth grant bound to the active MCP session.'
-    );
-  }
-
-  return requestAuthInfo;
-}
-
 function validateOriginHeader(allowed: string[]) {
   return (req: Request, res: Response, next: () => void) => {
     const origin = readHeader(req, 'origin');
@@ -436,6 +404,34 @@ function resolveIssuerUrl() {
   return new URL(env.MCP_OAUTH_ISSUER_URL);
 }
 
+function resolveOAuthRuntimeConfig() {
+  if (env.MCP_OAUTH_TRANSLATOR_ENABLED && !env.MCP_OAUTH_ENABLED) {
+    throw new Error('MCP_OAUTH_TRANSLATOR_ENABLED requires MCP_OAUTH_ENABLED=true.');
+  }
+
+  if (!env.MCP_OAUTH_ENABLED) return undefined;
+
+  const issuer = resolveIssuerUrl();
+  const resource = new URL(env.MCP_OAUTH_AUDIENCE);
+  const legacy = env.MCP_OAUTH_LEGACY_AUDIENCE
+    ? new URL(env.MCP_OAUTH_LEGACY_AUDIENCE)
+    : undefined;
+  const audiences: [URL, ...URL[]] = legacy ? [resource, legacy] : [resource];
+  return { issuer, resource, audiences };
+}
+
+function validateOAuthResourceUrl(resource: URL, serverUrl: URL) {
+  if (normalizeUrlForComparison(resource) !== normalizeUrlForComparison(serverUrl)) {
+    throw new Error(
+      'MCP_OAUTH_AUDIENCE must match MCP_SERVER_URL, allowing only a trailing-slash difference.'
+    );
+  }
+}
+
+function normalizeUrlForComparison(url: URL) {
+  return url.href.endsWith('/') ? url.href.slice(0, -1) : url.href;
+}
+
 function resolveAllowedHostnames(serverUrl: URL) {
   if (env.MCP_ALLOWED_HOSTS) return parseCsvList(env.MCP_ALLOWED_HOSTS);
   return [serverUrl.hostname];
@@ -467,29 +463,6 @@ function readHeader(req: Request, key: string) {
   return value;
 }
 
-function readAuthExtraValue(authInfo: AuthInfo, key: string) {
-  const value = authInfo.extra?.[key];
-  return typeof value === 'string' ? value : undefined;
-}
-
-function createProtectedResourceMetadata() {
-  if (!issuerUrl) {
-    throw new Error('OAuth issuer URL is not configured.');
-  }
-
-  return {
-    resource: mcpServerUrl.href,
-    authorization_servers: [normalizeUrlWithoutTrailingSlash(issuerUrl)],
-    scopes_supported: ['openid', 'profile'],
-    bearer_methods_supported: ['header'],
-    resource_name: 'Presscart MCP',
-  };
-}
-
-function normalizeUrlWithoutTrailingSlash(url: URL) {
-  return url.href.endsWith('/') ? url.href.slice(0, -1) : url.href;
-}
-
 function sendJsonRpcError(
   res: Response,
   statusCode: number,
@@ -506,16 +479,18 @@ function sendJsonRpcError(
 function handleRouteError(req: Request, res: Response, error: unknown) {
   const statusCode = resolveErrorStatus(error);
   logRouteError(req, statusCode, error);
+  const exposeMessage = error instanceof HttpError || error instanceof OAuthSessionAuthError;
   sendJsonRpcError(
     res,
     statusCode,
     -32000,
-    formatServerError(error, { exposeMessage: error instanceof HttpError })
+    formatServerError(error, { exposeMessage })
   );
 }
 
 function resolveErrorStatus(error: unknown) {
   if (error instanceof HttpError) return error.statusCode;
+  if (error instanceof OAuthSessionAuthError) return error.statusCode;
   if (error instanceof PresscartApiError && (error.status === 401 || error.status === 403)) {
     return 401;
   }

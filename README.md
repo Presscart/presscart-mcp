@@ -46,7 +46,10 @@ Optional OAuth settings:
 ```bash
 export MCP_OAUTH_ENABLED="true"
 export MCP_OAUTH_ISSUER_URL="https://<project-ref>.supabase.co/auth/v1"
-export MCP_OAUTH_AUDIENCE="https://mcp.presscart.com"
+export MCP_OAUTH_AUDIENCE="https://mcp.presscart.com/mcp"
+export MCP_OAUTH_TRANSLATOR_ENABLED="false"
+export MCP_OAUTH_LEGACY_AUDIENCE="https://mcp.presscart.com"
+export MCP_OAUTH_UPSTREAM_TIMEOUT_MS="10000"
 ```
 
 Notes:
@@ -54,13 +57,16 @@ Notes:
 - `PRESSCART_APP_URL` controls direct application links returned by tools such as `list_publisher_articles`. Set it per environment so staging MCP links open staging.
 - Tools that create orders/campaigns or read profile orders need an explicit `profile_id`. If the profile is unknown, call `list_teams`, then `list_profiles`.
 - In MCP OAuth mode, the app's Supabase OAuth Server handles authorization and consent. This MCP runtime validates the issued access token against Supabase JWKS and delegated permissions.
-- Refresh tokens are owned by the MCP client and Supabase OAuth flow. This server does not receive or store refresh tokens.
+- `MCP_OAUTH_TRANSLATOR_ENABLED` defaults to `false`. When enabled, the MCP origin publishes a standards-based OAuth facade while Supabase remains responsible for clients, codes, tokens, rotation, signing, and consent.
+- `MCP_OAUTH_LEGACY_AUDIENCE` is an optional verifier-only migration value. It never changes the canonical protected resource advertised to clients.
+- MCP clients store their own refresh tokens, initiate refresh automatically, and replace rotated refresh and access tokens. This server handles the refresh request statelessly and does not store refresh tokens.
+- The translator changes only MCP OAuth. It does not change ordinary Presscart browser or app sessions, and disabling MCP OAuth still preserves legacy direct-token mode.
 - In legacy direct-token mode, send `X-Presscart-API-Token: <presscart_api_token>` on `initialize` and later requests that need to confirm the active session credential.
 
 ## Install
 
 ```bash
-cd /Users/edgarli/Documents/Presscart/presscart-mcp
+cd presscart-mcp
 npm install
 ```
 
@@ -171,13 +177,44 @@ MCP_SERVER_URL=https://mcp.presscart.com/mcp
 MCP_SESSION_IDLE_TTL_MS=43200000
 MCP_OAUTH_ENABLED=true
 MCP_OAUTH_ISSUER_URL=https://<project-ref>.supabase.co/auth/v1
-MCP_OAUTH_AUDIENCE=https://mcp.presscart.com
+MCP_OAUTH_AUDIENCE=https://mcp.presscart.com/mcp
+MCP_OAUTH_TRANSLATOR_ENABLED=false
+MCP_OAUTH_LEGACY_AUDIENCE=https://mcp.presscart.com
+MCP_OAUTH_UPSTREAM_TIMEOUT_MS=10000
 ```
 
-The server will expose:
+The canonical resource and JWT audience must match `MCP_SERVER_URL`, allowing only a trailing-slash difference. `MCP_OAUTH_LEGACY_AUDIENCE` is needed only during the migration window and should otherwise be unset.
+
+With the translator disabled, the server exposes direct-Supabase protected-resource metadata at:
+
+- `/.well-known/oauth-protected-resource`
 - `/.well-known/oauth-protected-resource/mcp`
 
-The OAuth authorization, token, JWKS, and OIDC discovery endpoints are served by Supabase/Auth. Hosted MCP clients should connect to `https://mcp.presscart.com/mcp` and use normal MCP OAuth discovery. After the browser flow completes, they should send `Authorization: Bearer <oauth_access_token>` to `/mcp`.
+With the translator enabled, those routes advertise `https://mcp.presscart.com` as the authorization server, and the server also exposes:
+
+- `/.well-known/oauth-authorization-server`
+- `/oauth/authorize`
+- `/oauth/register`
+- `/oauth/token`
+
+The facade accepts the standard authorization-code and refresh-token flows and proxies only to the configured Supabase issuer. It does not derive upstream targets from request hosts, forwarded headers, query parameters, or client-supplied URLs.
+
+Hosted MCP clients should connect to `https://mcp.presscart.com/mcp` and use normal MCP OAuth discovery. After the browser flow completes, they send `Authorization: Bearer <oauth_access_token>` to `/mcp`. Clients own refresh-token storage, automatically initiate refresh, and persist each rotated refresh token returned by Supabase through the facade.
+
+ChatGPT, Claude, Cursor, and Codex consume the same MCP and OAuth standards. The server has no vendor-specific authentication branches. Labels and prompts such as **Connect** or **Authenticate** are controlled by each client platform, not by this server.
+
+### OAuth rollout and rollback
+
+Deploy the audience migration and translator in this order:
+
+1. Deploy this MCP server with `MCP_OAUTH_TRANSLATOR_ENABLED=false`, canonical `MCP_OAUTH_AUDIENCE=https://mcp.presscart.com/mcp`, and temporary `MCP_OAUTH_LEGACY_AUDIENCE=https://mcp.presscart.com` dual-audience verification.
+2. Deploy the Presscart app access-token hook so initial and refreshed MCP tokens use the canonical `/mcp` audience.
+3. Wait at least one full access-token lifetime, then confirm legacy-audience use has drained.
+4. Enable `MCP_OAUTH_TRANSLATOR_ENABLED=true` in non-production, run discovery, authorization-code, refresh, and revocation smoke tests, then enable it in production.
+5. Create and publish a replacement ChatGPT workspace app. Keep the old app available during the reconnection window.
+6. Verify ChatGPT, Claude, Cursor, and Codex before and after access-token expiry, then remove the old app and `MCP_OAUTH_LEGACY_AUDIENCE` only after telemetry confirms they are unused.
+
+To roll back the facade, set `MCP_OAUTH_TRANSLATOR_ENABLED=false`; direct Supabase metadata returns without changing legacy direct-token MCP or ordinary Presscart sessions. Keep canonical audience issuance and temporary legacy verification in place until the rollback window is complete. Clients registered against the facade may need to reconnect through the direct Supabase flow.
 
 ### Legacy direct-token mode
 
