@@ -269,6 +269,7 @@ import {
 
 const resource = new URL('https://mcp.presscart.com/mcp');
 const facade = new URL('https://mcp.presscart.com');
+const facadeIssuer = facade.href.replace(/\/$/, '');
 const upstream = new URL('https://project.supabase.co/auth/v1');
 
 describe('scope translation', () => {
@@ -293,8 +294,8 @@ test('accepts only the exact canonical resource', () => {
 });
 
 test('builds facade and direct-Supabase metadata without mixing issuers', () => {
-  assert.equal(createAuthorizationServerMetadata(facade).issuer, facade.href);
-  assert.deepEqual(createProtectedResourceMetadata({ resource, authorizationServer: facade, translatorEnabled: true }).authorization_servers, [facade.href]);
+  assert.equal(createAuthorizationServerMetadata(facade).issuer, facadeIssuer);
+  assert.deepEqual(createProtectedResourceMetadata({ resource, authorizationServer: facade, translatorEnabled: true }).authorization_servers, [facadeIssuer]);
   assert.deepEqual(createProtectedResourceMetadata({ resource, authorizationServer: upstream, translatorEnabled: false }).scopes_supported, ['openid', 'profile']);
 });
 
@@ -523,7 +524,9 @@ test('redirects a valid S256 request to the fixed Supabase authorize endpoint', 
     scope: 'offline_access profile',
   });
   const response = await fetch(`${base}/oauth/authorize?${query}`, { redirect: 'manual' });
-  const location = new URL(response.headers.get('location')!);
+  const locationHeader = response.headers.get('location');
+  assert(locationHeader);
+  const location = new URL(locationHeader);
   assert.equal(response.headers.get('cache-control'), 'no-store');
   assert.equal(location.origin + location.pathname, 'https://project.supabase.co/auth/v1/oauth/authorize');
   assert.equal(location.searchParams.get('scope'), 'profile');
@@ -545,7 +548,7 @@ test('returns a local JSON error and never redirects an invalid scope', async ()
 });
 ```
 
-Also add concrete cases for missing/duplicate scalar parameters, wrong `resource`, `plain` PKCE, an authorization URL over 8 KiB, both protected-resource routes, `Cache-Control`, and endpoint-specific 429 responses.
+Also add concrete cases for missing/duplicate scalar parameters, wrong `resource`, `plain` PKCE, request URLs over 8 KiB on each of `/oauth/authorize`, `/oauth/register`, and `/oauth/token`, both protected-resource routes, `Cache-Control`, and endpoint-specific 429 responses. The register/token URL-limit tests must send otherwise-valid POST requests with oversized query strings and assert that no upstream fetch occurs.
 
 - [ ] **Step 2: Add failing DCR and token forwarding tests**
 
@@ -611,7 +614,7 @@ export type OAuthRouterOptions = {
   now?: () => number;
 };
 
-const AUTHORIZATION_URL_LIMIT = 8 * 1024;
+const REQUEST_URL_LIMIT = 8 * 1024;
 const FORM_BODY_LIMIT = '16kb';
 const JSON_BODY_LIMIT = '32kb';
 const RATE_LIMITS = {
@@ -637,6 +640,8 @@ Implement a separate in-memory fixed-window limiter instance per endpoint. Key i
 Authorization must schema-check only `response_type`, `client_id`, `redirect_uri`, `code_challenge`, `code_challenge_method`, `state`, `resource`, and `scope`; reject arrays/duplicates and unknown parameters. Validate locally, then build a new URL against the fixed `upstreamAuthorize` value. Set `Cache-Control: no-store` on the successful 302 response before calling `res.redirect()`. Never fetch or follow a redirect and never use `redirect_uri` as a response target.
 
 Registration must use `express.json({ limit: JSON_BODY_LIMIT, strict: true, type: 'application/json' })`; token must use `express.urlencoded({ extended: false, limit: FORM_BODY_LIMIT, type: 'application/x-www-form-urlencoded' })`. Build new upstream request bodies from parsed/validated allowlisted fields rather than forwarding raw bytes. Set `redirect: 'manual'`, use `AbortSignal.timeout(options.upstreamTimeoutMs)`, and forward no caller headers except a syntactically valid Basic authorization header on the token endpoint.
+
+Before endpoint-specific parsing or rate-limit accounting, reject any request whose `req.originalUrl.length` exceeds `REQUEST_URL_LIMIT` on all three translator endpoints. Return a local `invalid_request` response with HTTP 414 and never contact Supabase. Body limits remain separate and still apply to registration and token requests.
 
 Use one error responder:
 
@@ -783,7 +788,7 @@ app.use(oauthLayer.router);
 bearerAuth = oauthLayer.bearerAuth;
 ```
 
-Mount the layer before `/mcp` and before the final 404 handler. Delete the duplicated protected-resource route handlers, direct `requireBearerAuth()` construction, and `createProtectedResourceMetadata()` from `http.ts`. Replace the private session validator call with the exported tested function. Update `resolveErrorStatus()` to recognize `OAuthSessionAuthError` as 401.
+Mount the layer before `/mcp` and before the final 404 handler. Delete the duplicated protected-resource route handlers, direct `requireBearerAuth()` construction, and `createProtectedResourceMetadata()` from `http.ts`. Replace the private session validator call with the exported tested function. Update `resolveErrorStatus()` to recognize `OAuthSessionAuthError` as 401, and update `handleRouteError()` so `formatServerError(..., { exposeMessage })` exposes messages for both `HttpError` and `OAuthSessionAuthError`. Add an HTTP-layer assertion that a mismatched refreshed token returns 401 with the preserved grant-mismatch message instead of `Internal server error`.
 
 Do not derive upstream targets from `Host`, `Forwarded`, or request query/header values.
 
