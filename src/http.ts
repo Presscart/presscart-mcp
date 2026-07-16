@@ -82,7 +82,7 @@ if (env.MCP_OAUTH_ENABLED) {
   const oauthVerifier = new SupabaseOAuthVerifier({
     issuerUrl: issuerUrl!,
     audiences: [oauthAudience!],
-    resource: oauthAudience!,
+    resource: mcpServerUrl,
   });
 
   app.get('/.well-known/oauth-protected-resource', (_req, res) => {
