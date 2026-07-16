@@ -87,11 +87,19 @@ test('requires returned registration metadata to match the accepted request', ()
     grant_types: ['refresh_token', 'authorization_code'],
     response_types: ['code'],
   });
-  const validUpstream = { ...request.upstream, client_id: 'client-1' };
+  const validUpstream = {
+    ...request.upstream,
+    client_id: 'client-1',
+    client_secret: 'client-secret',
+  };
+  assert.equal(translateRegistrationResponse({
+    request: request.facade,
+    upstream: validUpstream,
+  }).client_id, 'client-1');
 
   for (const upstreamResponse of [
     { ...validUpstream, redirect_uris: ['https://client.example/other'] },
-    { ...validUpstream, token_endpoint_auth_method: 'none' },
+    { ...validUpstream, token_endpoint_auth_method: 'client_secret_basic' },
     { ...validUpstream, grant_types: ['authorization_code'] },
     { ...validUpstream, response_types: [] },
   ]) {
@@ -107,7 +115,14 @@ test('requires returned registration metadata to match the accepted request', ()
 test('rejects incomplete or unknown registration response fields', () => {
   const request = translateRegistrationRequest({
     redirect_uris: ['https://client.example/callback'],
+    token_endpoint_auth_method: 'none',
   });
+  const validUpstream = { ...request.upstream, client_id: 'client-1' };
+  assert.equal(translateRegistrationResponse({
+    request: request.facade,
+    upstream: validUpstream,
+  }).client_id, 'client-1');
+
   for (const upstreamResponse of [
     {
       redirect_uris: request.upstream.redirect_uris,
@@ -115,8 +130,7 @@ test('rejects incomplete or unknown registration response fields', () => {
       scope: 'profile',
     },
     {
-      ...request.upstream,
-      client_id: 'client-1',
+      ...validUpstream,
       client_secret_jwt_key: 'must-not-escape',
     },
   ]) {
