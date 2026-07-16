@@ -30,22 +30,23 @@ Prioritize real, exploitable weaknesses over theoretical ones. Focus areas for t
 
 **Secrets & configuration**
 - Hardcoded credentials, API keys, tokens, DB URLs (cross-reference the `security-hygiene` rule).
-- Server-only secrets leaking to the client: env vars exposed via `NEXT_PUBLIC_*`, secrets imported into client components, secrets serialized into props/HTML.
+- Server-only secrets leaking to MCP clients: tokens or env values included in tool results (`jsonResult`), error messages (`formatServerError` with `exposeMessage`), or logs. Check `src/utils/sensitive-fields.ts` stripping is applied where backend records carry secrets.
 - Sensitive values logged or returned in responses/errors.
 
 **Injection & unsafe data handling**
 - SQL/NoSQL injection, command injection, unsanitized inputs reaching queries.
-- XSS: `dangerouslySetInnerHTML`, unescaped user content, unsafe HTML rendering.
+- XSS in served HTML: unescaped user/query input in any HTML the Express layer renders (e.g. OAuth consent/callback pages).
 - SSRF: user-controlled URLs passed to server-side fetch.
 - Path traversal in file reads/writes.
 - Unsafe deserialization or `eval`-like execution.
 
-**Web/framework specifics (Next.js)**
-- Server actions and route handlers that don't validate input (no Zod/schema) or don't authenticate.
-- CSRF exposure on state-changing endpoints.
-- Open redirects, missing/weak security headers, permissive CORS.
-- Improper caching of authenticated/personalized responses.
-- Over-broad data returned from the server (returning full records when the client needs a subset).
+**Server specifics (Express + MCP)**
+- MCP tools missing `requirePermission` or checking the wrong `domain.action` scope; Express routes in `src/http.ts` reachable without auth.
+- OAuth token verification (`jose` / `src/supabase-oauth.ts`): issuer, audience, and expiry actually enforced; no unverified-token fallback when `MCP_OAUTH_ENABLED` is on.
+- Session binding (`getSessionAuthInfo` in `src/utils/tool-context.ts`): one session's Presscart credential must never be served to another session; watch session-ID trust and idle-TTL handling.
+- Host/origin protection: `MCP_ALLOWED_HOSTS`/`MCP_ALLOWED_ORIGINS` bypasses, permissive CORS, DNS-rebinding exposure on the MCP endpoint.
+- Open redirects in OAuth flows; missing/weak security headers.
+- Over-broad data returned by tools (full backend records where a subset is needed, `sensitive-fields` stripping skipped).
 
 **Dependencies & misc**
 - Obviously vulnerable or outdated dependencies introduced by the change.
@@ -59,7 +60,7 @@ Prioritize real, exploitable weaknesses over theoretical ones. Focus areas for t
 
 ## How to investigate
 
-- Use `Grep`/`Glob` to find sinks (`dangerouslySetInnerHTML`, `fetch(`, `process.env`, `NEXT_PUBLIC_`, raw SQL, `exec`, redirects) and trace whether untrusted input reaches them.
+- Use `Grep`/`Glob` to find sinks (`fetch(`, `process.env`, `exec`, redirects, `console.log`/`console.error` of auth material, `exposeMessage`, headers set from request input) and trace whether untrusted input reaches them.
 - Use `Read` to confirm a suspected flaw is real and reachable. Do not report a vulnerability you cannot trace from source to sink.
 
 ## Output format

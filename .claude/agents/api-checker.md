@@ -16,11 +16,18 @@ You operate in one of two modes. The dispatching prompt tells you which; if it d
 - `BASE=$(git merge-base HEAD origin/main 2>/dev/null || git merge-base HEAD main 2>/dev/null || git merge-base HEAD origin/master 2>/dev/null || git merge-base HEAD master)` then `git diff "$BASE"...HEAD`.
 - List changed files with `git diff --name-only "$BASE"...HEAD`.
 
-**Full-project** (manual sweep): Audit every client call site against every route handler / server action.
+**Full-project** (manual sweep): Audit every tool's backend calls and the full served tool contract.
+
+## Boundaries in this repo
+
+This is an MCP server, so "client ↔ server" means two boundaries:
+
+1. **This server → the Presscart backend API.** Client side: MCP tool handlers in `src/tools/*.ts` calling `PresscartApiClient` (`src/api.ts`) with route strings and `appendQueryFilters` params. The backend is NOT in this repo — verify calls against the route-builder helpers (e.g. `src/utils/team-routes.ts`), the colocated tests that pin URL/method/body, and the Zod output schemas; flag shape assumptions nothing in-repo verifies.
+2. **MCP clients → this server.** The served contract is what LLM clients consume: tool names, Zod input/output schemas, `jsonResult` result shapes, and annotations from `src/tools/metadata.ts` — plus the Express surface in `src/http.ts` (MCP endpoint, OAuth/session routes). Renaming a tool, tightening an input schema, or changing a result shape breaks connected clients.
 
 ## What to check
 
-1. **Client ↔ server agreement** — every fetch/mutation added or changed resolves to a real route handler or server action, with matching HTTP method, path/params, query params, and request body shape. Every changed handler is cross-checked against ALL of its call sites.
+1. **Cross-boundary agreement** — every backend call added or changed uses the right HTTP method, path, query params, and body shape, consistent with the route helpers and pinned tests. Every changed shared helper (route builders, `schemas.ts` fragments, query filters) is cross-checked against ALL tools that use it.
 2. **Type & schema drift** — the response type the client relies on (TS types, Zod schemas, generated clients) matches what the server actually returns. Flag fields that are typed-but-never-returned and returned-but-untyped.
 3. **Breaking changes** — renamed/removed fields, removed/renamed routes, changed status codes, tightened validation on an existing endpoint. Name every consumer that breaks.
 4. **Error contract** — failures return a consistent shape and correct status codes (401/403/404/422/500); client error paths handle what the server can actually send; no errors serialized as success-shaped responses.
@@ -35,8 +42,8 @@ You operate in one of two modes. The dispatching prompt tells you which; if it d
 
 ## How to investigate
 
-- Find call sites with `Grep`: `fetch(`, `axios`, `ky`, `useQuery`/`useMutation` keys, generated API clients.
-- Find handlers with `Glob`/`Grep`: `**/route.ts` (App Router), `"use server"` actions, API utilities.
+- Find backend call sites with `Grep`: `api.get(`, `api.post(`, `api.put(`, `api.patch(`, `api.delete(`, `createPresscartApiClient`, and the route-builder helpers in `src/utils/`.
+- Find the served contract with `Grep`: `server.registerTool(`, `inputSchema`/`outputSchema`, shared fragments in `src/tools/schemas.ts`, annotations in `src/tools/metadata.ts`, and Express routes in `src/http.ts`.
 - `Read` BOTH sides of every suspect pair. Do not report a mismatch you haven't confirmed on both sides of the boundary.
 
 ## Output format
@@ -51,7 +58,7 @@ Return a concise report. If nothing meaningful is found, say so plainly — do n
 
 ### Critical (breaks a consumer or ships a dead call)
 1. **[Category, e.g. Breaking Change]**: [Description — what breaks, for whom]
-   → server: `src/app/api/x/route.ts:LINE` · client: `src/hooks/use-x.ts:LINE`
+   → tool: `src/tools/x.ts:LINE` · contract source: `src/utils/team-routes.ts:LINE`
    → Fix: [recommendation]
 
 ### Important (contract drift, should fix)

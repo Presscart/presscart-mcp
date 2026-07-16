@@ -22,15 +22,33 @@ of its consumers). Establish the diff with:
 - `git diff "$BASE"...HEAD`.
 - `git diff --name-only "$BASE"...HEAD`.
 
-Full-project mode is for manual sweeps: audit every client call site against
-every route handler / server action.
+Full-project mode is for manual sweeps: audit every tool's backend calls and
+the full served tool contract.
+
+## Boundaries In This Repo
+
+This is an MCP server, so "client <-> server" means two boundaries:
+
+1. This server -> the Presscart backend API. Client side: MCP tool handlers in
+   `src/tools/*.ts` calling `PresscartApiClient` (`src/api.ts`) with route
+   strings and `appendQueryFilters` params. The backend is NOT in this repo --
+   verify calls against the route-builder helpers (e.g.
+   `src/utils/team-routes.ts`), the colocated tests that pin URL/method/body,
+   and the Zod output schemas; flag shape assumptions nothing in-repo verifies.
+2. MCP clients -> this server. The served contract is what LLM clients
+   consume: tool names, Zod input/output schemas, `jsonResult` result shapes,
+   and annotations from `src/tools/metadata.ts` -- plus the Express surface in
+   `src/http.ts` (MCP endpoint, OAuth/session routes). Renaming a tool,
+   tightening an input schema, or changing a result shape breaks connected
+   clients.
 
 ## What To Check
 
-1. Client <-> server agreement: every fetch/mutation added or changed resolves
-   to a real route handler or server action with matching HTTP method,
-   path/params, query params, and request body shape. Every changed handler is
-   cross-checked against ALL of its call sites.
+1. Cross-boundary agreement: every backend call added or changed uses the
+   right HTTP method, path, query params, and body shape, consistent with the
+   route helpers and pinned tests. Every changed shared helper (route
+   builders, `schemas.ts` fragments, query filters) is cross-checked against
+   ALL tools that use it.
 2. Type and schema drift: the response type the client relies on (TS types,
    Zod schemas, generated clients) matches what the server actually returns.
    Flag typed-but-never-returned and returned-but-untyped fields.
@@ -54,10 +72,12 @@ every route handler / server action.
 
 ## Investigation
 
-Use `rg` for call sites (`fetch(`, `axios`, `ky`, `useQuery`/`useMutation`,
-generated clients) and handlers (`route.ts`, `"use server"` actions). Read
-BOTH sides of every suspect pair; do not report a mismatch you have not
-confirmed on both sides of the boundary.
+Use `rg` for backend call sites (`api.get(`, `api.post(`, `api.put(`,
+`api.patch(`, `api.delete(`, `createPresscartApiClient`, route-builder helpers in
+`src/utils/`) and for the served contract (`server.registerTool(`,
+`inputSchema`/`outputSchema`, `src/tools/schemas.ts`, `src/tools/metadata.ts`,
+Express routes in `src/http.ts`). Read BOTH sides of every suspect pair; do
+not report a mismatch you have not confirmed on both sides of the boundary.
 
 ## Output
 
@@ -71,7 +91,7 @@ Return exactly this structure:
 
 ### Critical (breaks a consumer or ships a dead call)
 1. **[Category]**: [Description - what breaks, for whom]
-   -> server: `src/app/api/x/route.ts:LINE` - client: `src/hooks/use-x.ts:LINE`
+   -> tool: `src/tools/x.ts:LINE` - contract source: `src/utils/team-routes.ts:LINE`
    -> Fix: [recommendation]
 
 ### Important (contract drift, should fix)

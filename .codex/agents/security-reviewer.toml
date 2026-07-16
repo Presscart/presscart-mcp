@@ -35,25 +35,36 @@ Authentication and authorization:
 Secrets and configuration:
 
 - Hardcoded credentials, API keys, tokens, DB URLs, or private keys.
-- Server-only secrets exposed via `NEXT_PUBLIC_*`, client imports, serialized
-  props, logs, or responses.
+- Server-only secrets leaking to MCP clients: tokens or env values included
+  in tool results (`jsonResult`), error messages (`formatServerError` with
+  `exposeMessage`), or logs. Check `src/utils/sensitive-fields.ts` stripping
+  is applied where backend records carry secrets.
 - Sensitive values in errors or monitoring output.
 
 Injection and unsafe data handling:
 
 - SQL/NoSQL injection, command injection, unsafe query construction.
-- XSS through `dangerouslySetInnerHTML` or unsafe HTML rendering.
+- XSS in served HTML: unescaped user/query input in any HTML the Express
+  layer renders (e.g. OAuth consent/callback pages).
 - SSRF through user-controlled server-side fetch URLs.
 - Path traversal in file reads/writes.
 - Unsafe deserialization or eval-like execution.
 
-Next.js and web specifics:
+Server specifics (Express + MCP):
 
-- Server actions and route handlers without validation or auth.
-- CSRF exposure on state-changing endpoints.
-- Open redirects, permissive CORS, missing security headers.
-- Improper caching of authenticated or personalized responses.
-- Over-broad data returned from the server.
+- MCP tools missing `requirePermission` or checking the wrong `domain.action`
+  scope; Express routes in `src/http.ts` reachable without auth.
+- OAuth token verification (`jose` / `src/supabase-oauth.ts`): issuer,
+  audience, and expiry actually enforced; no unverified-token fallback when
+  `MCP_OAUTH_ENABLED` is on.
+- Session binding (`getSessionAuthInfo` in `src/utils/tool-context.ts`): one
+  session's Presscart credential must never be served to another session;
+  watch session-ID trust and idle-TTL handling.
+- Host/origin protection: `MCP_ALLOWED_HOSTS`/`MCP_ALLOWED_ORIGINS` bypasses,
+  permissive CORS, DNS-rebinding exposure on the MCP endpoint.
+- Open redirects in OAuth flows; missing/weak security headers.
+- Over-broad data returned by tools (full backend records where a subset is
+  needed, `sensitive-fields` stripping skipped).
 
 Dependencies and misc:
 
@@ -68,9 +79,10 @@ Dependencies and misc:
 
 ## Investigation
 
-Use `rg` for sinks such as `dangerouslySetInnerHTML`, `fetch(`, `process.env`,
-`NEXT_PUBLIC_`, raw SQL, `exec`, and redirects. Trace source to sink before
-reporting. Do not report vulnerabilities you cannot make concrete.
+Use `rg` for sinks such as `fetch(`, `process.env`, `exec`, redirects,
+`console.log`/`console.error` of auth material, `exposeMessage`, and headers
+set from request input. Trace source to sink before reporting. Do not report
+vulnerabilities you cannot make concrete.
 
 ## Output
 
