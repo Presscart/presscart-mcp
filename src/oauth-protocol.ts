@@ -50,7 +50,20 @@ const registrationResponseSchema = z.object({
   client_secret_expires_at: z.number().int().nonnegative().optional(),
   registration_access_token: z.string().min(1).optional(),
   registration_client_uri: uriSchema.optional(),
-}).strict();
+}).strict().superRefine((response, context) => {
+  const hasClientSecret = response.client_secret !== undefined;
+  const hasSecretExpiry = response.client_secret_expires_at !== undefined;
+  const credentialsMatchAuthMethod = response.token_endpoint_auth_method === 'none'
+    ? !hasClientSecret && !hasSecretExpiry
+    : hasClientSecret;
+
+  if (!credentialsMatchAuthMethod) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'client credentials do not match token endpoint authentication method',
+    });
+  }
+});
 
 const tokenResponseSchema = z.object({
   access_token: z.string().min(1),

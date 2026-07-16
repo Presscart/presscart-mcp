@@ -128,6 +128,68 @@ test('rejects incomplete or unknown registration response fields', () => {
   }
 });
 
+test('rejects client secrets in public-client registration responses', () => {
+  const request = translateRegistrationRequest({
+    redirect_uris: ['https://client.example/callback'],
+    token_endpoint_auth_method: 'none',
+  });
+  const base = { ...request.upstream, client_id: 'client-1' };
+
+  for (const upstreamResponse of [
+    { ...base, client_secret: 'unexpected-secret' },
+    { ...base, client_secret_expires_at: 0 },
+    { ...base, client_secret: 'unexpected-secret', client_secret_expires_at: 1_800_000_000 },
+  ]) {
+    assert.throws(() => translateRegistrationResponse({
+      request: request.facade,
+      upstream: upstreamResponse,
+    }), (error: unknown) => error instanceof OAuthProtocolError
+      && error.code === 'server_error'
+      && error.status === 502);
+  }
+});
+
+test('requires a secret in confidential-client registration responses', () => {
+  for (const tokenEndpointAuthMethod of ['client_secret_basic', 'client_secret_post'] as const) {
+    const request = translateRegistrationRequest({
+      redirect_uris: ['https://client.example/callback'],
+      token_endpoint_auth_method: tokenEndpointAuthMethod,
+    });
+    const base = { ...request.upstream, client_id: 'client-1' };
+
+    for (const upstreamResponse of [
+      base,
+      { ...base, client_secret_expires_at: 0 },
+    ]) {
+      assert.throws(() => translateRegistrationResponse({
+        request: request.facade,
+        upstream: upstreamResponse,
+      }), (error: unknown) => error instanceof OAuthProtocolError
+        && error.code === 'server_error'
+        && error.status === 502);
+    }
+  }
+});
+
+test('accepts a confidential-client response with a non-empty secret', () => {
+  const request = translateRegistrationRequest({
+    redirect_uris: ['https://client.example/callback'],
+    token_endpoint_auth_method: 'client_secret_basic',
+  });
+  const response = translateRegistrationResponse({
+    request: request.facade,
+    upstream: {
+      ...request.upstream,
+      client_id: 'client-1',
+      client_secret: 'client-secret',
+      client_secret_expires_at: 0,
+    },
+  });
+
+  assert.equal(response.client_secret, 'client-secret');
+  assert.equal(response.client_secret_expires_at, 0);
+});
+
 test('normalizes a successful token response and preserves refresh rotation', () => {
   assert.deepEqual(translateTokenResponse({
     grantType: 'refresh_token',
