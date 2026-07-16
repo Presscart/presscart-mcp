@@ -2,16 +2,16 @@ import assert from 'node:assert/strict';
 import { createServer, type Server } from 'node:http';
 import { afterEach, test } from 'node:test';
 
-import express, { type NextFunction, type Request, type Response } from 'express';
+import express from 'express';
 import type { OAuthTokenVerifier } from '@modelcontextprotocol/sdk/server/auth/provider.js';
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 
+import { createHttpRouteErrorHandler } from './http-route-errors.js';
 import {
   OAuthSessionAuthError,
   createOAuthHttpLayer,
   validateOAuthSessionAuth,
 } from './oauth-http.js';
-import { formatServerError } from './utils/errors.js';
 
 const servers: Server[] = [];
 const canonicalResource = new URL('https://mcp.presscart.com/mcp');
@@ -134,7 +134,7 @@ test('rejects missing request authentication', () => {
   );
 });
 
-test('exposes a rotated-session mismatch as an HTTP 401', async () => {
+test('exposes a bearer-authenticated rotated-session mismatch through the production handler', async () => {
   const previous = authInfo();
   const verifier: OAuthTokenVerifier = {
     async verifyAccessToken(token) {
@@ -156,17 +156,20 @@ test('exposes a rotated-session mismatch as an HTTP 401', async () => {
       next(error);
     }
   });
-  app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
-    const exposed = error instanceof OAuthSessionAuthError;
-    res.status(exposed ? error.statusCode : 500).json({
-      message: formatServerError(error, { exposeMessage: exposed }),
-    });
-  });
+  app.use(createHttpRouteErrorHandler({
+    logRouteError() {
+      // Logging behavior is asserted in http-route-errors.test.ts.
+    },
+  }));
 
   const response = await fetch(`${await listen(app)}/mcp`, {
     headers: { authorization: 'Bearer access-rotated' },
   });
 
   assert.equal(response.status, 401);
-  assert.deepEqual(await response.json(), { message: sessionMismatchMessage });
+  assert.deepEqual(await response.json(), {
+    jsonrpc: '2.0',
+    error: { code: -32000, message: sessionMismatchMessage },
+    id: null,
+  });
 });

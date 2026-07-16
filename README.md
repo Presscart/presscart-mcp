@@ -199,6 +199,8 @@ With the translator enabled, those routes advertise `https://mcp.presscart.com` 
 
 The facade accepts the standard authorization-code and refresh-token flows and proxies only to the configured Supabase issuer. It does not derive upstream targets from request hosts, forwarded headers, query parameters, or client-supplied URLs.
 
+The facade does not expose or advertise an RFC token-revocation endpoint. Revocation stays in the existing Presscart app/admin flow: revoke the Presscart OAuth grant there, then verify that a subsequent refresh or access attempt is rejected.
+
 Hosted MCP clients should connect to `https://mcp.presscart.com/mcp` and use normal MCP OAuth discovery. After the browser flow completes, they send `Authorization: Bearer <oauth_access_token>` to `/mcp`. Clients own refresh-token storage, automatically initiate refresh, and persist each rotated refresh token returned by Supabase through the facade.
 
 ChatGPT, Claude, Cursor, and Codex consume the same MCP and OAuth standards. The server has no vendor-specific authentication branches. Labels and prompts such as **Connect** or **Authenticate** are controlled by each client platform, not by this server.
@@ -210,7 +212,7 @@ Deploy the audience migration and translator in this order:
 1. Deploy this MCP server with `MCP_OAUTH_TRANSLATOR_ENABLED=false`, canonical `MCP_OAUTH_AUDIENCE=https://mcp.presscart.com/mcp`, and temporary `MCP_OAUTH_LEGACY_AUDIENCE=https://mcp.presscart.com` dual-audience verification.
 2. Deploy the Presscart app access-token hook so initial and refreshed MCP tokens use the canonical `/mcp` audience.
 3. Wait at least one full access-token lifetime, then confirm legacy-audience use has drained.
-4. Enable `MCP_OAUTH_TRANSLATOR_ENABLED=true` in non-production, run discovery, authorization-code, refresh, and revocation smoke tests, then enable it in production.
+4. Enable `MCP_OAUTH_TRANSLATOR_ENABLED=true` in non-production, run discovery, authorization-code, and refresh smoke tests, then revoke a Presscart OAuth grant through the existing app/admin flow and verify that subsequent refresh and access attempts are rejected before enabling the translator in production.
 5. Create and publish a replacement ChatGPT workspace app. Keep the old app available during the reconnection window.
 6. Verify ChatGPT, Claude, Cursor, and Codex before and after access-token expiry, then remove the old app and `MCP_OAUTH_LEGACY_AUDIENCE` only after telemetry confirms they are unused.
 

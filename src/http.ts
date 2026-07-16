@@ -8,30 +8,19 @@ import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 
 import { PresscartApiClient, PresscartApiError, type TokenSessionResponse } from './api.js';
 import { env } from './env.js';
+import { HttpError, createHttpRouteErrorHandler } from './http-route-errors.js';
 import {
-  OAuthSessionAuthError,
   createOAuthHttpLayer,
   validateOAuthSessionAuth,
 } from './oauth-http.js';
 import { createPresscartMcpServer } from './server.js';
 import { SupabaseOAuthVerifier } from './supabase-oauth.js';
-import { formatServerError } from './utils/errors.js';
 
 type SessionState = {
   transport: StreamableHTTPServerTransport;
   authInfo?: AuthInfo;
   lastSeenAtMs: number;
 };
-
-class HttpError extends Error {
-  constructor(
-    readonly statusCode: number,
-    message: string
-  ) {
-    super(message);
-    this.name = 'HttpError';
-  }
-}
 
 const PRESSCART_TOKEN_HEADER = 'x-presscart-api-token';
 const SESSION_IDLE_TTL_MS = env.MCP_SESSION_IDLE_TTL_MS;
@@ -101,7 +90,7 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/mcp', ...(bearerAuth ? [bearerAuth] : []), async (req, res) => {
+app.post('/mcp', ...(bearerAuth ? [bearerAuth] : []), async (req, res, next) => {
   try {
     if (env.MCP_OAUTH_ENABLED) {
       rejectLegacyPresscartHeader(req);
@@ -149,11 +138,11 @@ app.post('/mcp', ...(bearerAuth ? [bearerAuth] : []), async (req, res) => {
     await server.connect(transport);
     await transport.handleRequest(req, res, req.body);
   } catch (error) {
-    handleRouteError(req, res, error);
+    next(error);
   }
 });
 
-app.get('/mcp', ...(bearerAuth ? [bearerAuth] : []), async (req, res) => {
+app.get('/mcp', ...(bearerAuth ? [bearerAuth] : []), async (req, res, next) => {
   try {
     if (env.MCP_OAUTH_ENABLED) {
       rejectLegacyPresscartHeader(req);
@@ -182,11 +171,11 @@ app.get('/mcp', ...(bearerAuth ? [bearerAuth] : []), async (req, res) => {
     touchSession(existingSession);
     await existingSession.transport.handleRequest(req, res);
   } catch (error) {
-    handleRouteError(req, res, error);
+    next(error);
   }
 });
 
-app.delete('/mcp', ...(bearerAuth ? [bearerAuth] : []), async (req, res) => {
+app.delete('/mcp', ...(bearerAuth ? [bearerAuth] : []), async (req, res, next) => {
   try {
     if (env.MCP_OAUTH_ENABLED) {
       rejectLegacyPresscartHeader(req);
@@ -215,9 +204,11 @@ app.delete('/mcp', ...(bearerAuth ? [bearerAuth] : []), async (req, res) => {
     touchSession(existingSession);
     await existingSession.transport.handleRequest(req, res);
   } catch (error) {
-    handleRouteError(req, res, error);
+    next(error);
   }
 });
+
+app.use(createHttpRouteErrorHandler({ logRouteError }));
 
 app.use((req, res) => {
   if (req.path === '/mcp') {
@@ -474,27 +465,6 @@ function sendJsonRpcError(
     error: { code, message },
     id: null,
   });
-}
-
-function handleRouteError(req: Request, res: Response, error: unknown) {
-  const statusCode = resolveErrorStatus(error);
-  logRouteError(req, statusCode, error);
-  const exposeMessage = error instanceof HttpError || error instanceof OAuthSessionAuthError;
-  sendJsonRpcError(
-    res,
-    statusCode,
-    -32000,
-    formatServerError(error, { exposeMessage })
-  );
-}
-
-function resolveErrorStatus(error: unknown) {
-  if (error instanceof HttpError) return error.statusCode;
-  if (error instanceof OAuthSessionAuthError) return error.statusCode;
-  if (error instanceof PresscartApiError && (error.status === 401 || error.status === 403)) {
-    return 401;
-  }
-  return 500;
 }
 
 function touchSession(session: SessionState) {
