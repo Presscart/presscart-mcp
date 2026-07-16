@@ -81,7 +81,8 @@ let bearerAuth:
 if (env.MCP_OAUTH_ENABLED) {
   const oauthVerifier = new SupabaseOAuthVerifier({
     issuerUrl: issuerUrl!,
-    audience: oauthAudience!,
+    audiences: [oauthAudience!],
+    resource: oauthAudience!,
   });
 
   app.get('/.well-known/oauth-protected-resource', (_req, res) => {
