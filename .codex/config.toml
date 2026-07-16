@@ -1,0 +1,13 @@
+# Project-scoped Codex configuration.
+#
+# NOTE: Codex primarily reads user config from ~/.codex/config.toml, and
+# support for project-scoped config has been inconsistent across releases.
+# If these settings don't take effect on your release, merge them into your
+# user config.
+
+[agents]
+# Concurrent agent threads for subagent fan-out.
+max_threads = 6
+# Keep agent nesting at one level: main agent -> worker (matches the
+# orchestration discipline in AGENTS.md).
+max_depth = 1

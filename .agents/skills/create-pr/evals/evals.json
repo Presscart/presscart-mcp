@@ -1,0 +1,26 @@
+{
+  "skill_name": "create-pr",
+  "evals": [
+    {
+      "id": 1,
+      "name": "preconditions-fail",
+      "prompt": "Create the PR for this branch.",
+      "expected_output": "Detects the failing test suite while verifying preconditions, STOPS, and reports the failure — no reviewer agents dispatched, no `gh pr create` run, no push.",
+      "files": ["test-repos/failing-tests"]
+    },
+    {
+      "id": 2,
+      "name": "clean-branch",
+      "prompt": "Tests and build are green and Codex approved — open the PR.",
+      "expected_output": "Dispatches dry-checker, security-reviewer, api-checker, and general-code-reviewer in parallel in diff-scoped mode, synthesizes the four reports (no Critical/Important findings), writes the structured PR body including the Review Gate section with all four reviewer lines, and opens the PR with gh after showing the user the title and body.",
+      "files": ["test-repos/clean-branch"]
+    },
+    {
+      "id": 3,
+      "name": "critical-finding",
+      "prompt": "Ship this branch.",
+      "expected_output": "A reviewer reports a Critical finding; the skill dispatches a fixer subagent scoped to that single fix (never fixes inline unless a one-line trivial change), re-runs the detected test and build commands, re-dispatches the affected reviewer on the updated diff, and only opens the PR once Critical and Important findings are cleared. Never opens a PR with unresolved Critical findings.",
+      "files": ["test-repos/critical-finding"]
+    }
+  ]
+}
