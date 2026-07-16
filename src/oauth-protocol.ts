@@ -1,3 +1,5 @@
+import { isIP } from 'node:net';
+
 import { z } from 'zod';
 
 export const FACADE_SCOPE = 'profile offline_access';
@@ -13,8 +15,9 @@ const grantTypesSchema = uniqueStringArray(
 ).refine(values => values.includes('authorization_code'));
 const responseTypesSchema = z.array(z.literal('code')).length(1);
 const uriSchema = z.string().min(1).url();
+const redirectUriSchema = z.string().min(1).refine(isAllowedRedirectUri);
 const textSchema = z.string().min(1);
-const redirectUrisSchema = uniqueStringArray(uriSchema, 1);
+const redirectUrisSchema = uniqueStringArray(redirectUriSchema, 1);
 const optionalRegistrationMetadataFields = {
   client_name: textSchema.optional(),
   client_uri: uriSchema.optional(),
@@ -98,6 +101,13 @@ export function parseCanonicalResource(value: string | undefined, canonical: URL
   if (value === undefined) return undefined;
   if (value !== canonical.href) {
     throw new OAuthProtocolError('invalid_target', 'resource is not supported');
+  }
+  return value;
+}
+
+export function parseRedirectUri(value: string) {
+  if (!isAllowedRedirectUri(value)) {
+    throw new OAuthProtocolError('invalid_request', 'redirect_uri is invalid');
   }
   return value;
 }
@@ -193,6 +203,26 @@ function uniqueStringArray<T extends z.ZodType<string>>(item: T, min = 0) {
 
 function sameStringSet(left: readonly string[], right: readonly string[]) {
   return left.length === right.length && left.every(value => right.includes(value));
+}
+
+function isAllowedRedirectUri(value: string) {
+  try {
+    const redirectUri = new URL(value);
+    if (redirectUri.username.length > 0 || redirectUri.password.length > 0 || value.includes('#')) {
+      return false;
+    }
+    if (redirectUri.protocol === 'https:') return true;
+    return redirectUri.protocol === 'http:' && isLoopbackHostname(redirectUri.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function isLoopbackHostname(hostname: string) {
+  const normalized = hostname.toLowerCase();
+  return normalized === 'localhost'
+    || normalized === '[::1]'
+    || (isIP(normalized) === 4 && normalized.startsWith('127.'));
 }
 
 function upstreamResponseError(operation: 'registration' | 'token') {

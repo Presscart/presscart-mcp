@@ -11,17 +11,28 @@ const canonicalResource = 'https://mcp.presscart.com/mcp';
 
 type StartRouterOptions = {
   fetchImpl?: typeof fetch;
+  remoteAddress?: string;
   translatorEnabled?: boolean;
   now?: () => number;
 };
 
 async function startRouter({
   fetchImpl = globalThis.fetch,
+  remoteAddress,
   translatorEnabled = true,
   now,
 }: StartRouterOptions = {}) {
   const app = express();
   app.set('trust proxy', 1);
+  if (remoteAddress !== undefined) {
+    app.use((req, _res, next) => {
+      Object.defineProperty(req.socket, 'remoteAddress', {
+        configurable: true,
+        value: remoteAddress,
+      });
+      next();
+    });
+  }
   app.use(createOAuthRouter({
     resource: new URL(canonicalResource),
     authorizationServer: new URL('https://mcp.presscart.com'),
@@ -31,6 +42,9 @@ async function startRouter({
     fetchImpl,
     now,
   }));
+  app.get('/unrelated', (_req, res) => {
+    res.json({ ok: true });
+  });
   const server = createServer(app);
   servers.push(server);
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -97,10 +111,15 @@ function jsonResponse(value: unknown, status = 200) {
   });
 }
 
+function assertOAuthJson(response: Response) {
+  assert.match(response.headers.get('content-type') ?? '', /^application\/json(?:;|$)/i);
+}
+
 test('publishes facade metadata only when enabled and caches both resource routes', async () => {
   const enabled = await startRouter();
   const authorizationMetadata = await fetch(`${enabled}/.well-known/oauth-authorization-server`);
   assert.equal(authorizationMetadata.status, 200);
+  assertOAuthJson(authorizationMetadata);
   assert.equal(authorizationMetadata.headers.get('cache-control'), 'public, max-age=300');
   assert.deepEqual(await authorizationMetadata.json(), {
     issuer: 'https://mcp.presscart.com',
@@ -119,6 +138,7 @@ test('publishes facade metadata only when enabled and caches both resource route
     fetch(`${enabled}/.well-known/oauth-protected-resource/mcp`),
   ]);
   for (const response of resourceResponses) {
+    assertOAuthJson(response);
     assert.equal(response.headers.get('cache-control'), 'public, max-age=300');
     assert.deepEqual(await response.json(), {
       resource: canonicalResource,
@@ -144,6 +164,66 @@ test('publishes facade metadata only when enabled and caches both resource route
   });
 });
 
+test('requires HTTPS on every owned route unless the client connection is loopback', async () => {
+  let upstreamCalls = 0;
+  const fetchImpl: typeof fetch = async () => {
+    upstreamCalls += 1;
+    return jsonResponse(tokenResponse());
+  };
+  const insecureBase = await startRouter({ fetchImpl, remoteAddress: '198.51.100.10' });
+  const callerHeaders = { host: 'localhost' };
+  const requests = [
+    fetch(`${insecureBase}/.well-known/oauth-protected-resource`, { headers: callerHeaders }),
+    fetch(`${insecureBase}/.well-known/oauth-protected-resource/mcp`, { headers: callerHeaders }),
+    fetch(`${insecureBase}/.well-known/oauth-authorization-server`, { headers: callerHeaders }),
+    fetch(`${insecureBase}/oauth/authorize?${authorizationQuery()}`, {
+      headers: callerHeaders,
+      redirect: 'manual',
+    }),
+    fetch(`${insecureBase}/oauth/register`, {
+      method: 'POST',
+      headers: { ...callerHeaders, 'content-type': 'application/json' },
+      body: JSON.stringify(registrationRequest()),
+    }),
+    fetch(`${insecureBase}/oauth/token`, {
+      method: 'POST',
+      headers: { ...callerHeaders, 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: 'refresh-current',
+        client_id: 'client-1',
+      }),
+    }),
+  ];
+
+  for (const response of await Promise.all(requests)) {
+    assert.equal(response.status, 400);
+    assertOAuthJson(response);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+    assert.deepEqual(await response.json(), {
+      error: 'invalid_request',
+      error_description: 'HTTPS is required',
+    });
+  }
+  assert.equal(upstreamCalls, 0);
+
+  const secureBase = await startRouter({ remoteAddress: '198.51.100.11' });
+  const secure = await fetch(`${secureBase}/.well-known/oauth-protected-resource`, {
+    headers: { 'x-forwarded-proto': 'https' },
+  });
+  assert.equal(secure.status, 200);
+  assertOAuthJson(secure);
+
+  const loopbackBase = await startRouter();
+  assert.equal((await fetch(`${loopbackBase}/.well-known/oauth-protected-resource`)).status, 200);
+
+  const unrelated = await fetch(`${insecureBase}/unrelated?padding=${'x'.repeat(8 * 1024)}`, {
+    headers: callerHeaders,
+  });
+  assert.equal(unrelated.status, 200);
+  assert.deepEqual(await unrelated.json(), { ok: true });
+});
+
 test('redirects a valid S256 request to the fixed Supabase authorize endpoint', async () => {
   const base = await startRouter();
   const response = await fetch(`${base}/oauth/authorize?${authorizationQuery()}`, { redirect: 'manual' });
@@ -167,6 +247,24 @@ test('redirects a valid S256 request to the fixed Supabase authorize endpoint', 
   }
 });
 
+test('accepts loopback HTTP authorization redirect URIs', async () => {
+  const base = await startRouter();
+  for (const redirectUri of [
+    'http://localhost/callback',
+    'http://127.0.0.42/callback',
+    'http://[::1]/callback',
+  ]) {
+    const response = await fetch(
+      `${base}/oauth/authorize?${authorizationQuery({ redirect_uri: redirectUri })}`,
+      { redirect: 'manual' },
+    );
+    assert.equal(response.status, 302);
+    const location = response.headers.get('location');
+    assert(location);
+    assert.equal(new URL(location).searchParams.get('redirect_uri'), redirectUri);
+  }
+});
+
 test('returns local JSON errors without redirecting invalid authorization requests', async () => {
   const base = await startRouter();
   const cases: Array<{ query: URLSearchParams; error: string; description?: string }> = [];
@@ -185,6 +283,11 @@ test('returns local JSON errors without redirecting invalid authorization reques
 
   cases.push({ query: authorizationQuery({ response_type: 'token' }), error: 'invalid_request' });
   cases.push({ query: authorizationQuery({ redirect_uri: 'not-a-uri' }), error: 'invalid_request' });
+  cases.push({ query: authorizationQuery({ redirect_uri: 'http://client.example/callback' }), error: 'invalid_request' });
+  cases.push({ query: authorizationQuery({ redirect_uri: 'ftp://client.example/callback' }), error: 'invalid_request' });
+  cases.push({ query: authorizationQuery({ redirect_uri: 'javascript:alert(1)' }), error: 'invalid_request' });
+  cases.push({ query: authorizationQuery({ redirect_uri: 'https://user:password@client.example/callback' }), error: 'invalid_request' });
+  cases.push({ query: authorizationQuery({ redirect_uri: 'https://client.example/callback#fragment' }), error: 'invalid_request' });
   cases.push({ query: authorizationQuery({ code_challenge_method: 'plain' }), error: 'invalid_request' });
   cases.push({ query: authorizationQuery({ code_challenge: 'short' }), error: 'invalid_request' });
   cases.push({
@@ -202,6 +305,7 @@ test('returns local JSON errors without redirecting invalid authorization reques
     const response = await fetch(`${base}/oauth/authorize?${item.query}`, { redirect: 'manual' });
     assert.equal(response.status, 400);
     assert.equal(response.headers.get('location'), null);
+    assertOAuthJson(response);
     assert.equal(response.headers.get('cache-control'), 'no-store');
     assert.equal(response.headers.get('pragma'), 'no-cache');
     const body = await response.json() as { error: string; error_description: string };
@@ -210,7 +314,7 @@ test('returns local JSON errors without redirecting invalid authorization reques
   }
 });
 
-test('rejects overlong translator URLs before parsing, rate limiting, or upstream fetches', async () => {
+test('rejects every overlong OAuth route URL before parsing, rate limiting, or upstream fetches', async () => {
   let upstreamCalls = 0;
   const fetchImpl: typeof fetch = async () => {
     upstreamCalls += 1;
@@ -219,6 +323,9 @@ test('rejects overlong translator URLs before parsing, rate limiting, or upstrea
   const base = await startRouter({ fetchImpl });
   const oversized = `padding=${'x'.repeat(8 * 1024)}`;
   const requests = [
+    fetch(`${base}/.well-known/oauth-protected-resource?${oversized}`),
+    fetch(`${base}/.well-known/oauth-protected-resource/mcp?${oversized}`),
+    fetch(`${base}/.well-known/oauth-authorization-server?${oversized}`),
     fetch(`${base}/oauth/authorize?${oversized}`, { redirect: 'manual' }),
     fetch(`${base}/oauth/register?${oversized}`, {
       method: 'POST',
@@ -238,6 +345,8 @@ test('rejects overlong translator URLs before parsing, rate limiting, or upstrea
 
   for (const response of await Promise.all(requests)) {
     assert.equal(response.status, 414);
+    assertOAuthJson(response);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
     assert.equal((await response.json() as { error: string }).error, 'invalid_request');
   }
   assert.equal(upstreamCalls, 0);
@@ -259,12 +368,33 @@ test('enforces independent fixed-window limits for authorize, registration, and 
     }
     const limited = await fetch(`${base}${endpoint.path}`, { method: endpoint.method, redirect: 'manual' });
     assert.equal(limited.status, 429);
+    assertOAuthJson(limited);
     assert.equal(limited.headers.get('retry-after'), '60');
     assert.deepEqual(await limited.json(), {
       error: 'temporarily_unavailable',
       error_description: 'request rate limit exceeded',
     });
   }
+});
+
+test('rate limits partition callers by IP and reset after the fixed window', async () => {
+  let currentTime = 0;
+  const base = await startRouter({ now: () => currentTime });
+  const requestFrom = (address: string) => fetch(`${base}/oauth/authorize`, {
+    headers: { 'x-forwarded-for': address },
+    redirect: 'manual',
+  });
+
+  for (let index = 0; index < 60; index += 1) {
+    const response = await requestFrom('198.51.100.20');
+    assert.equal(response.status, 400);
+    await response.body?.cancel();
+  }
+  assert.equal((await requestFrom('198.51.100.20')).status, 429);
+  assert.equal((await requestFrom('198.51.100.21')).status, 400);
+
+  currentTime = 60_000;
+  assert.equal((await requestFrom('198.51.100.20')).status, 400);
 });
 
 test('forwards a translated registration to the fixed endpoint and sanitizes the response', async () => {
@@ -285,6 +415,7 @@ test('forwards a translated registration to the fixed endpoint and sanitizes the
   });
 
   assert.equal(response.status, 201);
+  assertOAuthJson(response);
   assert.equal(response.headers.get('cache-control'), 'no-store');
   assert.equal(response.headers.get('pragma'), 'no-cache');
   assert.equal(upstreamCalls.length, 1);
@@ -325,12 +456,23 @@ test('rejects invalid registration requests and parser/body limits without conta
   });
   assert.equal(invalidMethod.status, 400);
 
+  const insecureRedirect = await fetch(`${base}/oauth/register`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      ...registrationRequest(),
+      redirect_uris: ['http://client.example/callback'],
+    }),
+  });
+  assert.equal(insecureRedirect.status, 400);
+
   const malformed = await fetch(`${base}/oauth/register`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: '{"redirect_uris":',
   });
   assert.equal(malformed.status, 400);
+  assertOAuthJson(malformed);
   assert.deepEqual(await malformed.json(), {
     error: 'invalid_request',
     error_description: 'request body is invalid',
@@ -342,6 +484,7 @@ test('rejects invalid registration requests and parser/body limits without conta
     body: JSON.stringify({ ...registrationRequest(), client_name: 'x'.repeat(33 * 1024) }),
   });
   assert.equal(oversized.status, 413);
+  assertOAuthJson(oversized);
   assert.equal((await oversized.json() as { error: string }).error, 'invalid_request');
   assert.equal(upstreamCalls, 0);
 });
@@ -400,6 +543,7 @@ test('forwards authorization-code fields once and no caller headers', async () =
   });
 
   assert.equal(response.status, 200);
+  assertOAuthJson(response);
   assert.equal(response.headers.get('cache-control'), 'no-store');
   assert.equal(response.headers.get('pragma'), 'no-cache');
   assert.equal(upstreamCalls.length, 1);
@@ -445,6 +589,7 @@ test('preserves refresh rotation and client_secret_post credentials', async () =
   });
 
   assert.equal(response.status, 200);
+  assertOAuthJson(response);
   assert.deepEqual(await response.json(), {
     access_token: 'access-next',
     token_type: 'bearer',
@@ -503,6 +648,13 @@ test('rejects duplicate, unsupported, and oversized token form fields locally', 
     'grant_type=client_credentials&client_id=client-1',
     'grant_type=refresh_token&refresh_token=one&client_id=client-1&audience=https%3A%2F%2Fattacker.example',
     `grant_type=refresh_token&refresh_token=one&client_id=client-1&resource=${encodeURIComponent('https://attacker.example/mcp')}`,
+    new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: 'authorization-code',
+      code_verifier: 'v'.repeat(43),
+      redirect_uri: 'http://client.example/callback',
+      client_id: 'client-1',
+    }).toString(),
   ];
   for (const body of cases) {
     const response = await fetch(`${base}/oauth/token`, {
@@ -558,6 +710,7 @@ test('preserves validated upstream OAuth errors and strips nonstandard fields', 
       }),
     });
     assert.equal(response.status, expected.status);
+    assertOAuthJson(response);
     assert.deepEqual(await response.json(), {
       error: expected.error,
       error_description: `${expected.error} description`,

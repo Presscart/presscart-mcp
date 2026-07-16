@@ -1,3 +1,5 @@
+import { isIP } from 'node:net';
+
 import express, { type NextFunction, type Request, type Response, type Router } from 'express';
 import { z } from 'zod';
 
@@ -7,6 +9,7 @@ import {
   createProtectedResourceMetadata,
   parseCanonicalResource,
   parseFacadeScope,
+  parseRedirectUri,
   translateRegistrationRequest,
   translateRegistrationResponse,
   translateTokenResponse,
@@ -55,7 +58,7 @@ const authorizationCodeTokenRequestSchema = z.object({
   grant_type: z.literal('authorization_code'),
   code: textField,
   code_verifier: z.string().regex(/^[A-Za-z0-9._~-]{43,128}$/),
-  redirect_uri: textField.refine(isValidRedirectUri),
+  redirect_uri: textField,
   ...optionalClientFields,
 }).strict();
 const refreshTokenRequestSchema = z.object({
@@ -127,16 +130,31 @@ export function createOAuthRouter(options: OAuthRouterOptions): Router {
     res.json(protectedResourceMetadata);
   };
 
-  router.get('/.well-known/oauth-protected-resource', sendProtectedResourceMetadata);
-  router.get('/.well-known/oauth-protected-resource/mcp', sendProtectedResourceMetadata);
+  router.get(
+    '/.well-known/oauth-protected-resource',
+    enforceSecureTransport,
+    enforceRequestUrlLimit,
+    sendProtectedResourceMetadata,
+  );
+  router.get(
+    '/.well-known/oauth-protected-resource/mcp',
+    enforceSecureTransport,
+    enforceRequestUrlLimit,
+    sendProtectedResourceMetadata,
+  );
 
   if (!options.translatorEnabled) return router;
 
   const authorizationServerMetadata = createAuthorizationServerMetadata(authorizationServer);
-  router.get('/.well-known/oauth-authorization-server', (_req, res) => {
-    res.setHeader('Cache-Control', METADATA_CACHE_CONTROL);
-    res.json(authorizationServerMetadata);
-  });
+  router.get(
+    '/.well-known/oauth-authorization-server',
+    enforceSecureTransport,
+    enforceRequestUrlLimit,
+    (_req, res) => {
+      res.setHeader('Cache-Control', METADATA_CACHE_CONTROL);
+      res.json(authorizationServerMetadata);
+    },
+  );
 
   const authorizeRateLimit = createRateLimiter(RATE_LIMITS.authorize, now);
   const registerRateLimit = createRateLimiter(RATE_LIMITS.register, now);
@@ -152,7 +170,7 @@ export function createOAuthRouter(options: OAuthRouterOptions): Router {
     type: 'application/x-www-form-urlencoded',
   });
 
-  router.get('/oauth/authorize', enforceRequestUrlLimit, authorizeRateLimit, (req, res) => {
+  router.get('/oauth/authorize', enforceSecureTransport, enforceRequestUrlLimit, authorizeRateLimit, (req, res) => {
     try {
       const request = parseAuthorizationRequest(req, resource);
       const location = new URL(upstreamAuthorize.href);
@@ -174,6 +192,7 @@ export function createOAuthRouter(options: OAuthRouterOptions): Router {
 
   router.post(
     '/oauth/register',
+    enforceSecureTransport,
     enforceRequestUrlLimit,
     registerRateLimit,
     jsonParser,
@@ -203,6 +222,7 @@ export function createOAuthRouter(options: OAuthRouterOptions): Router {
 
   router.post(
     '/oauth/token',
+    enforceSecureTransport,
     enforceRequestUrlLimit,
     tokenRateLimit,
     formParser,
@@ -259,12 +279,11 @@ function parseAuthorizationRequest(req: Request, resource: URL) {
 
   const responseType = requiredParameter(searchParams, 'response_type');
   const clientId = requiredParameter(searchParams, 'client_id');
-  const redirectUri = requiredParameter(searchParams, 'redirect_uri');
+  const redirectUri = parseRedirectUri(requiredParameter(searchParams, 'redirect_uri'));
   const codeChallenge = requiredParameter(searchParams, 'code_challenge');
   const codeChallengeMethod = requiredParameter(searchParams, 'code_challenge_method');
   if (
     responseType !== 'code'
-    || !isValidRedirectUri(redirectUri)
     || !/^[A-Za-z0-9._~-]{43,128}$/.test(codeChallenge)
     || codeChallengeMethod !== 'S256'
   ) {
@@ -332,6 +351,7 @@ function parseTokenRequest(body: unknown, authorization: string | undefined, res
   }
 
   parseCanonicalResource(parsed.data.resource, resource);
+  if (parsed.data.grant_type === 'authorization_code') parseRedirectUri(parsed.data.redirect_uri);
   if (parsed.data.scope !== undefined) parseFacadeScope(parsed.data.scope);
   return parsed.data;
 }
@@ -484,6 +504,22 @@ function enforceRequestUrlLimit(req: Request, res: Response, next: NextFunction)
   next();
 }
 
+function enforceSecureTransport(req: Request, res: Response, next: NextFunction) {
+  if (req.secure || isLoopbackAddress(req.socket.remoteAddress)) {
+    next();
+    return;
+  }
+  sendOAuthError(res, 'invalid_request', 'HTTPS is required', 400);
+}
+
+function isLoopbackAddress(address: string | undefined) {
+  if (address === undefined) return false;
+  const normalized = address.toLowerCase();
+  if (normalized === '::1') return true;
+  const ipv4 = normalized.startsWith('::ffff:') ? normalized.slice('::ffff:'.length) : normalized;
+  return isIP(ipv4) === 4 && ipv4.startsWith('127.');
+}
+
 function sendOAuthSuccess(res: Response, status: number, body: unknown) {
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Pragma', 'no-cache');
@@ -547,15 +583,6 @@ function upstreamServerError() {
     'upstream authorization server response is invalid',
     502,
   );
-}
-
-function isValidRedirectUri(value: string) {
-  try {
-    const redirectUri = new URL(value);
-    return redirectUri.protocol.length > 1 && redirectUri.hash.length === 0;
-  } catch {
-    return false;
-  }
 }
 
 function ensureTrailingSlash(url: URL) {

@@ -69,6 +69,39 @@ test('translates DCR scope upstream and strips registration management fields on
   assert.equal('registration_client_uri' in response, false);
 });
 
+test('accepts HTTPS and loopback HTTP registration redirect URIs', () => {
+  for (const redirectUri of [
+    'https://client.example/callback',
+    'http://localhost/callback',
+    'http://127.0.0.42/callback',
+    'http://[::1]/callback',
+  ]) {
+    const request = translateRegistrationRequest({
+      redirect_uris: [redirectUri],
+      token_endpoint_auth_method: 'none',
+    });
+    assert.deepEqual(request.facade.redirect_uris, [redirectUri]);
+  }
+});
+
+test('rejects external HTTP, non-HTTP, credentialed, and fragment registration redirect URIs', () => {
+  for (const redirectUri of [
+    'http://client.example/callback',
+    'http://localhost.attacker.example/callback',
+    'http://127.0.0.1.attacker.example/callback',
+    'ftp://client.example/callback',
+    'javascript:alert(1)',
+    'https://user:password@client.example/callback',
+    'https://client.example/callback#fragment',
+  ]) {
+    assert.throws(() => translateRegistrationRequest({
+      redirect_uris: [redirectUri],
+      token_endpoint_auth_method: 'none',
+    }), (error: unknown) => error instanceof OAuthProtocolError
+      && error.code === 'invalid_request');
+  }
+});
+
 test('rejects unsupported registration request fields without echoing their values', () => {
   const sentinel = 'credential-must-stay-private';
   assert.throws(() => translateRegistrationRequest({
