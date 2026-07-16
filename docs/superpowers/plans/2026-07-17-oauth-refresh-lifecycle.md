@@ -31,7 +31,10 @@
 - Create `src/oauth-protocol.test.ts`: pure protocol contract tests.
 - Create `src/oauth-router.ts`: Express routes, request limits, endpoint-specific rate limits, fixed-origin upstream calls, and response/error mapping.
 - Create `src/oauth-router.test.ts`: real Express route tests with only `globalThis.fetch` stubbed.
+- Create `src/oauth-http.ts`: hosted OAuth layer assembly plus the pure MCP session-identity validator.
+- Create `src/oauth-http.test.ts`: real bearer-challenge integration and token-rotation session-binding tests.
 - Create `src/supabase-oauth.test.ts`: signed-JWT tests for canonical and transitional legacy audiences.
+- Create `src/env.test.ts`: exact boolean environment parsing tests.
 - Modify `src/supabase-oauth.ts`: accept a canonical resource plus one or more verification audiences.
 - Modify `src/env.ts`: add the translator flag, legacy audience, and upstream timeout; change the canonical audience default.
 - Modify `src/http.ts`: mount discovery/translator routes and construct the dual-audience verifier.
@@ -53,6 +56,7 @@
 - Modify: `presscart-mcp/src/env.ts`
 - Modify: `presscart-mcp/src/supabase-oauth.ts`
 - Create: `presscart-mcp/src/supabase-oauth.test.ts`
+- Create: `presscart-mcp/src/env.test.ts`
 
 **Interfaces:**
 - Consumes: Supabase issuer URL and signed JWTs with `client_id`, `grant_id`, and `sub`.
@@ -116,13 +120,13 @@ test('accepts the canonical audience and reports the canonical resource', async 
 
 test('accepts a configured legacy audience but still reports the canonical resource', async () => {
   const verifier = new SupabaseOAuthVerifier({ issuerUrl: issuer, audiences: [canonical, legacy], resource: canonical });
-  const auth = await verifier.verifyAccessToken(await token(legacy.href));
+  const auth = await verifier.verifyAccessToken(await token(legacy.href.replace(/\/$/, '')));
   assert.equal(auth.resource?.href, canonical.href);
 });
 
 test('rejects the legacy audience when compatibility is not configured', async () => {
   const verifier = new SupabaseOAuthVerifier({ issuerUrl: issuer, audiences: [canonical], resource: canonical });
-  const signed = await token(legacy.href);
+  const signed = await token(legacy.href.replace(/\/$/, ''));
   await assert.rejects(() => verifier.verifyAccessToken(signed), /Invalid or expired token/);
 });
 ```
@@ -159,12 +163,47 @@ return toAuthInfo(token, payload, this.options.resource);
 
 Keep claim validation unchanged. `toAuthInfo()` must receive `resource`, not whichever legacy audience happened to match.
 
-- [ ] **Step 4: Add validated environment configuration**
+- [ ] **Step 4: Run the verifier test to prove GREEN**
 
-Extend `src/env.ts` with these exact entries and mappings:
+Run in `presscart-mcp`:
+
+```bash
+node --import tsx --test src/supabase-oauth.test.ts
+```
+
+Expected: all 3 verifier tests pass.
+
+- [ ] **Step 5: Write explicit boolean environment parser tests**
+
+Create `src/env.test.ts`, set `PRESSCART_API_URL` before dynamically importing `env.ts`, and assert that the exported `booleanEnvSchema` maps `true`/`"true"`/`"1"` to `true`, maps `false`/`"false"`/`"0"` to `false`, and rejects every other string.
+
+- [ ] **Step 6: Run the environment test to prove RED**
+
+Run in `presscart-mcp`:
+
+```bash
+node --import tsx --test src/env.test.ts
+```
+
+Expected: FAIL because `booleanEnvSchema` is not exported and `"false"` still uses truthy boolean coercion.
+
+- [ ] **Step 7: Add validated environment configuration**
+
+Add one explicit parser to `src/env.ts` and use it for both OAuth boolean flags so the existing `MCP_OAUTH_ENABLED=false` behavior is corrected at the same boundary:
 
 ```ts
-MCP_OAUTH_TRANSLATOR_ENABLED: z.coerce.boolean().default(false),
+export const booleanEnvSchema = z.preprocess(value => {
+  if (value === true || value === 'true' || value === '1') return true;
+  if (value === false || value === 'false' || value === '0') return false;
+  return value;
+}, z.boolean());
+```
+
+Extend the environment schema with these exact entries and mappings:
+
+```ts
+MCP_OAUTH_ENABLED: booleanEnvSchema.default(false),
+MCP_OAUTH_TRANSLATOR_ENABLED: booleanEnvSchema.default(false),
 MCP_OAUTH_AUDIENCE: z.string().url().default('https://mcp.presscart.com/mcp'),
 MCP_OAUTH_LEGACY_AUDIENCE: z.string().url().optional(),
 MCP_OAUTH_UPSTREAM_TIMEOUT_MS: z.coerce.number().int().positive().max(30_000).default(10_000),
@@ -177,18 +216,19 @@ MCP_OAUTH_LEGACY_AUDIENCE: process.env.MCP_OAUTH_LEGACY_AUDIENCE,
 MCP_OAUTH_UPSTREAM_TIMEOUT_MS: process.env.MCP_OAUTH_UPSTREAM_TIMEOUT_MS,
 ```
 
-- [ ] **Step 5: Run focused and static checks to prove GREEN**
+- [ ] **Step 8: Run focused and static checks to prove GREEN**
 
 Run in `presscart-mcp`:
 
 ```bash
 node --import tsx --test src/supabase-oauth.test.ts
+node --import tsx --test src/env.test.ts
 npm run check
 ```
 
-Expected: 3 verifier tests pass and TypeScript reports no errors.
+Expected: 3 verifier tests and all boolean parser cases pass; TypeScript reports no errors.
 
-- [ ] **Step 6: Commit Task 1**
+- [ ] **Step 9: Commit Task 1**
 
 Invoke `$commit` in `presscart-mcp` with the intended message:
 
@@ -484,6 +524,7 @@ test('redirects a valid S256 request to the fixed Supabase authorize endpoint', 
   });
   const response = await fetch(`${base}/oauth/authorize?${query}`, { redirect: 'manual' });
   const location = new URL(response.headers.get('location')!);
+  assert.equal(response.headers.get('cache-control'), 'no-store');
   assert.equal(location.origin + location.pathname, 'https://project.supabase.co/auth/v1/oauth/authorize');
   assert.equal(location.searchParams.get('scope'), 'profile');
   assert.equal(location.searchParams.get('state'), 'state-1');
@@ -593,7 +634,7 @@ Mount both protected-resource metadata routes unconditionally. When the flag is 
 
 Implement a separate in-memory fixed-window limiter instance per endpoint. Key it by `req.ip`, return HTTP 429 with `temporarily_unavailable` and `Retry-After`, and prune expired entries every 100 checks so unique IPs do not grow the map indefinitely.
 
-Authorization must schema-check only `response_type`, `client_id`, `redirect_uri`, `code_challenge`, `code_challenge_method`, `state`, `resource`, and `scope`; reject arrays/duplicates and unknown parameters. Validate locally, then build a new URL against the fixed `upstreamAuthorize` value. Never fetch or follow a redirect and never use `redirect_uri` as a response target.
+Authorization must schema-check only `response_type`, `client_id`, `redirect_uri`, `code_challenge`, `code_challenge_method`, `state`, `resource`, and `scope`; reject arrays/duplicates and unknown parameters. Validate locally, then build a new URL against the fixed `upstreamAuthorize` value. Set `Cache-Control: no-store` on the successful 302 response before calling `res.redirect()`. Never fetch or follow a redirect and never use `redirect_uri` as a response target.
 
 Registration must use `express.json({ limit: JSON_BODY_LIMIT, strict: true, type: 'application/json' })`; token must use `express.urlencoded({ extended: false, limit: FORM_BODY_LIMIT, type: 'application/x-www-form-urlencoded' })`. Build new upstream request bodies from parsed/validated allowlisted fields rather than forwarding raw bytes. Set `redirect: 'manual'`, use `AbortSignal.timeout(options.upstreamTimeoutMs)`, and forward no caller headers except a syntactically valid Basic authorization header on the token endpoint.
 
@@ -635,78 +676,118 @@ feat(auth): add stateless OAuth refresh translator
 ### Task 4: Wire the translator into the hosted MCP server
 
 **Files:**
+- Create: `presscart-mcp/src/oauth-http.ts`
+- Create: `presscart-mcp/src/oauth-http.test.ts`
 - Modify: `presscart-mcp/src/http.ts`
 - Modify: `presscart-mcp/README.md`
-- Modify: `presscart-mcp/src/oauth-router.test.ts`
 
 **Interfaces:**
 - Consumes `createOAuthRouter()` from Task 3 and `SupabaseOAuthVerifier` from Task 1.
+- Produces `createOAuthHttpLayer(options)`, which returns the translator/discovery `router` and the real MCP SDK `bearerAuth` middleware.
+- Produces `validateOAuthSessionAuth(previous, next)`, which permits a new token string only for the same `clientId`, `sub`, and `oauth_grant_id`.
 - Produces the hosted route graph and documented deployment contract.
 
-- [ ] **Step 1: Add a failing integration assertion for direct versus facade discovery**
+- [ ] **Step 1: Add failing hosted-layer and session-binding tests**
 
-Extend `src/oauth-router.test.ts` to assert the complete metadata JSON for flag off and flag on, including:
+Create `src/oauth-http.test.ts`. Mount the result of `createOAuthHttpLayer()` on a real Express app with a stub `OAuthTokenVerifier`, then request `/mcp` without a bearer token and assert:
 
 ```ts
-assert.deepEqual(enabledMetadata, {
-  resource: 'https://mcp.presscart.com/mcp',
-  authorization_servers: ['https://mcp.presscart.com'],
-  scopes_supported: ['profile', 'offline_access'],
-  bearer_methods_supported: ['header'],
-  resource_name: 'Presscart MCP',
-});
+assert.equal(response.status, 401);
+assert.match(
+  response.headers.get('www-authenticate') ?? '',
+  /resource_metadata="https:\/\/mcp\.presscart\.com\/\.well-known\/oauth-protected-resource\/mcp"/
+);
 ```
 
-Also assert the canonical `WWW-Authenticate` metadata URL remains `https://mcp.presscart.com/.well-known/oauth-protected-resource/mcp` through the existing MCP bearer middleware configuration.
+In the same file, construct `AuthInfo` fixtures and assert that a rotated token is returned when `clientId`, `extra.sub`, and `extra.oauth_grant_id` match even though `token` differs. Add one rejection test for each mismatched identity field, plus a missing-request-auth test.
 
 - [ ] **Step 2: Run the focused test to prove RED against current wiring**
 
 Run in `presscart-mcp`:
 
 ```bash
-node --import tsx --test src/oauth-router.test.ts
+node --import tsx --test src/oauth-http.test.ts
 ```
 
-Expected: the new hosted-wiring assertion fails because `src/http.ts` still builds direct Supabase metadata itself.
+Expected: FAIL because `oauth-http.ts` and its exported hosted/session seams do not exist.
 
-- [ ] **Step 3: Replace manual discovery wiring in `src/http.ts`**
+- [ ] **Step 3: Implement the hosted OAuth layer without process side effects**
 
-Construct canonical and accepted audiences once:
+Create `src/oauth-http.ts` with this public assembly interface:
 
 ```ts
-const oauthResource = env.MCP_OAUTH_ENABLED ? new URL(env.MCP_OAUTH_AUDIENCE) : undefined;
-const acceptedAudiences = oauthResource
-  ? [oauthResource, ...(env.MCP_OAUTH_LEGACY_AUDIENCE ? [new URL(env.MCP_OAUTH_LEGACY_AUDIENCE)] : [])] as [URL, ...URL[]]
-  : undefined;
+import { getOAuthProtectedResourceMetadataUrl } from '@modelcontextprotocol/sdk/server/auth/router.js';
+import { requireBearerAuth } from '@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js';
+import type { OAuthTokenVerifier } from '@modelcontextprotocol/sdk/server/auth/provider.js';
+import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
+
+import { createOAuthRouter, type OAuthRouterOptions } from './oauth-router.js';
+
+export type OAuthHttpLayerOptions = OAuthRouterOptions & {
+  serverUrl: URL;
+  verifier: OAuthTokenVerifier;
+};
+
+export function createOAuthHttpLayer(options: OAuthHttpLayerOptions) {
+  return {
+    router: createOAuthRouter(options),
+    bearerAuth: requireBearerAuth({
+      verifier: options.verifier,
+      requiredScopes: [],
+      resourceMetadataUrl: getOAuthProtectedResourceMetadataUrl(options.serverUrl),
+    }),
+  };
+}
 ```
 
-Initialize the verifier as:
+Move `validateOAuthSessionAuth()` and its string-extra reader from `http.ts` into this module. Define and export `OAuthSessionAuthError` with `statusCode = 401`; preserve the current messages and comparisons. This module must not listen on a port, create timers, or read environment variables, so tests can import it safely.
+
+- [ ] **Step 4: Replace manual discovery wiring in `src/http.ts` with guarded config**
+
+Resolve all optional OAuth configuration in one narrowing function. Do not use non-null assertions:
+
+```ts
+function resolveOAuthRuntimeConfig() {
+  if (env.MCP_OAUTH_TRANSLATOR_ENABLED && !env.MCP_OAUTH_ENABLED) {
+    throw new Error('MCP_OAUTH_TRANSLATOR_ENABLED requires MCP_OAUTH_ENABLED=true.');
+  }
+  if (!env.MCP_OAUTH_ENABLED) return undefined;
+  const issuer = resolveIssuerUrl();
+  const resource = new URL(env.MCP_OAUTH_AUDIENCE);
+  const legacy = env.MCP_OAUTH_LEGACY_AUDIENCE
+    ? new URL(env.MCP_OAUTH_LEGACY_AUDIENCE)
+    : undefined;
+  const audiences: [URL, ...URL[]] = legacy ? [resource, legacy] : [resource];
+  return { issuer, resource, audiences };
+}
+```
+
+After validating that `resource` and `mcpServerUrl` differ by no more than a trailing slash, construct the verifier and layer only inside `if (oauthConfig)`, where TypeScript has narrowed every value:
 
 ```ts
 const oauthVerifier = new SupabaseOAuthVerifier({
-  issuerUrl: issuerUrl!,
-  audiences: acceptedAudiences!,
-  resource: oauthResource!,
+  issuerUrl: oauthConfig.issuer,
+  audiences: oauthConfig.audiences,
+  resource: oauthConfig.resource,
 });
-```
-
-Mount the router before `/mcp` and before the final 404 handler:
-
-```ts
-app.use(createOAuthRouter({
-  resource: oauthResource!,
+const oauthLayer = createOAuthHttpLayer({
+  serverUrl: mcpServerUrl,
+  verifier: oauthVerifier,
+  resource: oauthConfig.resource,
   authorizationServer: new URL(mcpServerUrl.origin),
-  upstreamIssuer: issuerUrl!,
+  upstreamIssuer: oauthConfig.issuer,
   translatorEnabled: env.MCP_OAUTH_TRANSLATOR_ENABLED,
   upstreamTimeoutMs: env.MCP_OAUTH_UPSTREAM_TIMEOUT_MS,
-}));
+});
+app.use(oauthLayer.router);
+bearerAuth = oauthLayer.bearerAuth;
 ```
 
-Delete the duplicated protected-resource route handlers and `createProtectedResourceMetadata()` from `http.ts`. Keep `getOAuthProtectedResourceMetadataUrl(mcpServerUrl)` unchanged so every missing/invalid bearer challenge points to the path-specific metadata route.
+Mount the layer before `/mcp` and before the final 404 handler. Delete the duplicated protected-resource route handlers, direct `requireBearerAuth()` construction, and `createProtectedResourceMetadata()` from `http.ts`. Replace the private session validator call with the exported tested function. Update `resolveErrorStatus()` to recognize `OAuthSessionAuthError` as 401.
 
-Fail startup if the translator is enabled while OAuth is disabled, or if the configured canonical resource differs from `MCP_SERVER_URL` after normalizing only a trailing slash. Do not derive upstream targets from `Host`, `Forwarded`, or request query/header values.
+Do not derive upstream targets from `Host`, `Forwarded`, or request query/header values.
 
-- [ ] **Step 4: Update operator and client documentation**
+- [ ] **Step 5: Update operator and client documentation**
 
 In `README.md`:
 
@@ -718,7 +799,7 @@ In `README.md`:
 - document deployment order: dual audience -> app hook -> wait one access-token lifetime -> translator flag -> replacement ChatGPT app -> remove legacy audience;
 - state that UI wording such as Connect/Authenticate is controlled by the client platform.
 
-- [ ] **Step 5: Run all MCP verification**
+- [ ] **Step 6: Run all MCP verification**
 
 Run in `presscart-mcp`:
 
@@ -731,15 +812,13 @@ git diff --check
 
 Expected: all tests pass, build/typecheck exit 0, and diff check is empty.
 
-- [ ] **Step 6: Commit Task 4**
+- [ ] **Step 7: Commit Task 4**
 
 Invoke `$commit` in `presscart-mcp` with:
 
 ```text
-docs(auth): document automatic MCP token refresh
+feat(auth): wire hosted OAuth refresh lifecycle
 ```
-
-If `http.ts` wiring is not already included in Task 3's commit, use `feat(auth): enable OAuth translator routing` for a separate wiring commit, then commit README changes with the docs message.
 
 ---
 
@@ -789,6 +868,22 @@ it('rebinds a refresh-shaped hook payload to the active MCP grant', async () => 
       grant_id: grantId,
     },
   });
+});
+```
+
+Add a second controller regression proving normal-session isolation:
+
+```ts
+it('returns non-OAuth claims unchanged when no client_id is present', async () => {
+  const claims = { sub: userId, iat: 1_752_710_000, exp: 1_752_713_600, role: 'authenticated' };
+  const response = await makeApp().request('/oauth/access-token-hook', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id: userId, claims }),
+  });
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({ claims });
+  expect(resolveOauthGrantForTokenHookService).not.toHaveBeenCalled();
 });
 ```
 
