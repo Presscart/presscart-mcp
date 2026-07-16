@@ -43,6 +43,9 @@ the hosted Supabase authorization server.
   permissions, and claim enrichment.
 - Preserve access-token audience binding and the current internal delegated
   request path from MCP to `apps/api`.
+- Use `https://mcp.presscart.com/mcp` as the single canonical OAuth resource
+  identifier and JWT audience across discovery, authorization, token issuance,
+  verification, and tests.
 - Make revocation effective on the next refresh and keep existing per-request
   grant enforcement in `apps/api`.
 - Provide a reversible rollout and a one-time reconnection path for published
@@ -182,9 +185,16 @@ by remote MCP clients. It must:
    `redirect_uri`, a PKCE `code_challenge`, and
    `code_challenge_method=S256`. Pass the redirect URI upstream byte-for-byte;
    Supabase owns exact registration matching.
-2. Accept `state` and `resource` and preserve them unchanged.
-3. Allow only `profile` and `offline_access`. If scope is omitted, use both as
-   the documented default. Reject other requested scopes with `invalid_scope`.
+2. Accept `state` and preserve it unchanged. If `resource` is present, require
+   the exact canonical value `https://mcp.presscart.com/mcp` and pass it
+   upstream unchanged; reject every other resource locally with
+   `invalid_target`.
+3. Treat `profile offline_access` as one indivisible facade scope set. If scope
+   is omitted, use that set as the documented default. If scope is present,
+   require both values (in any order, with no additional values); reject
+   partial or additional sets with `invalid_scope`. This deterministic rule
+   prevents the stateless translator from claiming a scope the client did not
+   request.
 4. Remove `offline_access` before redirecting to Supabase because current
    Supabase Auth rejects that scope while issuing refresh tokens for the
    authorization-code grant regardless.
@@ -196,15 +206,41 @@ by remote MCP clients. It must:
 The translator must never accept or synthesize a redirect URI outside the
 client request. It must not add a Presscart-controlled callback hop.
 
+All validation failures produced before Supabase has authenticated the client
+and exact-matched its registered redirect URI are returned directly as standard
+OAuth JSON errors. The translator must never redirect a local error to the
+caller-provided `redirect_uri`, even when `state` is present. This prevents an
+unregistered or malicious redirect URI from becoming an open redirect.
+
 ### Dynamic client registration
 
-`POST /oauth/register` forwards RFC 7591 registration JSON to Supabase's
-dynamic registration endpoint and returns the validated public response.
+`POST /oauth/register` validates RFC 7591 registration JSON, translates the
+facade scope set, forwards it to Supabase's dynamic registration endpoint, and
+returns a facade-consistent validated response.
 
 The translator does not keep a local client store. Supabase validates and
 persists clients and redirect URIs. Registration request and response bodies
 must be size-limited, schema-checked, excluded from logs, and sent with
 `Cache-Control: no-store`.
+
+Registration has the same deterministic scope rule as authorization: an
+omitted scope defaults to `profile offline_access`; an explicit scope must
+contain exactly both values. Only `profile` is sent upstream. The request must
+use `response_types=["code"]`, supported grant types only, and one of the
+advertised token endpoint authentication methods (`none`,
+`client_secret_basic`, or `client_secret_post`). Unsupported combinations fail
+locally before a client is created.
+
+The response allowlist is limited to standard client metadata plus
+`client_id`, `client_secret`, `client_id_issued_at`, and
+`client_secret_expires_at`. The translator validates that returned response
+types, grant types, redirect URIs, and `token_endpoint_auth_method` agree with
+the accepted request and advertised metadata. It translates a valid upstream
+`profile` scope back to `profile offline_access`. It removes upstream
+`registration_access_token` and `registration_client_uri` fields because the
+facade does not expose a registration-management endpoint, and it rejects
+unknown security-sensitive fields rather than returning Supabase-origin
+management capabilities accidentally.
 
 ### Token endpoint
 
@@ -213,16 +249,22 @@ must be size-limited, schema-checked, excluded from logs, and sent with
 
 1. Preserve public-client `client_id`, confidential-client authentication,
    authorization code, `code_verifier`, unchanged `redirect_uri`, refresh token,
-   and `resource` values without storing them.
-2. Remove `offline_access` from an optional upstream scope value and reject
-   unsupported scopes.
+   and an exact canonical `resource` value without storing them. Reject any
+   other resource value locally with `invalid_target`.
+2. If scope is present, require exactly `profile offline_access`; remove only
+   `offline_access` before forwarding `profile` upstream. A missing scope keeps
+   the scope from the original grant, which is deterministically the same
+   facade scope set.
 3. Forward `Authorization: Basic` only to the configured Supabase token origin,
    never to a redirect or caller-controlled URL.
 4. Disable automatic redirects for all upstream OAuth requests.
 5. Validate the upstream JSON as an OAuth token response before returning it.
-6. When the upstream response contains a refresh token, normalize the returned
-   `scope` to include `profile offline_access`. Preserve a newly rotated refresh
-   token exactly so the client replaces its stored token.
+6. Require a successful upstream scope to be absent or equivalent to the
+   translated upstream `profile` scope, then return the deterministic granted
+   scope `profile offline_access`. Preserve a newly rotated refresh token
+   exactly so the client replaces its stored token. A successful authorization
+   code response must include a refresh token; otherwise treat the upstream
+   response as `server_error` because the facade promised offline access.
 7. Set `Cache-Control: no-store` and `Pragma: no-cache`.
 
 The translator handles tokens only in request-local memory. It must not log
@@ -237,6 +279,8 @@ full upstream responses.
 - Map an upstream timeout or unavailable service to `temporarily_unavailable`.
 - Map malformed or unexpected upstream responses to `server_error`.
 - Do not turn an expected refresh rejection into a generic 500.
+- Return locally detected validation failures as direct JSON responses; never
+  redirect them to an unverified caller-provided URI.
 - Do not expose raw upstream response text, stack traces, host internals, or
   token material.
 
@@ -249,6 +293,20 @@ full upstream responses.
 - the MCP audience;
 - expiration;
 - required `client_id`, `grant_id`, and `sub` claims.
+
+The coordinated `presscart-app` change sets the Custom Access Token Hook's MCP
+audience to the canonical resource identifier
+`https://mcp.presscart.com/mcp`. The `presscart-mcp` default verifier audience,
+protected-resource metadata `resource`, accepted authorization/token
+`resource`, hook `aud`, and all protocol tests must use that exact value.
+
+For the deployment transition only, `presscart-mcp` accepts an explicitly
+configured legacy audience of `https://mcp.presscart.com` in addition to the
+canonical audience. The compatibility value is verifier-only: it is never
+advertised and new tokens are never issued with it. Deploy dual-audience
+verification before changing the hook, retain it for at least one maximum
+access-token lifetime, and remove it after migration telemetry confirms legacy
+tokens are no longer presented.
 
 The translator's authorization-server identifier is not used as the JWT
 issuer. The OAuth client treats the access token as opaque, while the resource
@@ -264,7 +322,10 @@ receives 401 and cannot take over the session.
 Add an explicit boolean feature flag for the translator, defaulting off in
 unspecified environments. Reuse the configured MCP public URL and Supabase
 issuer; derive or explicitly configure only fixed, allowlisted Supabase OAuth
-endpoints. No new secret is required.
+endpoints. Add a non-secret optional legacy-audience configuration solely for
+the bounded deployment transition. Name it `MCP_OAUTH_LEGACY_AUDIENCE`; when
+unset, only the canonical `MCP_OAUTH_AUDIENCE` is accepted. No new secret is
+required.
 
 - Flag off: retain the current direct-Supabase resource metadata.
 - Flag on: advertise the MCP-origin translator and mount its public endpoints.
@@ -299,10 +360,11 @@ The protocol is client-neutral. It targets clients supporting remote HTTP MCP
 OAuth, including ChatGPT, Claude, Cursor, and Codex. There are no user-agent,
 client-name, redirect-host, or vendor-specific code paths.
 
-Clients may omit `offline_access`; the translator's documented default grants
-`profile offline_access` when scope is absent. Clients that never implement a
-refresh grant may still require manual reauthentication. That limitation is a
-client capability, not something the server can repair.
+Clients may omit the entire `scope` parameter; the translator's documented
+default grants `profile offline_access`. An explicit scope request must contain
+both values. Clients that never implement a refresh grant may still require
+manual reauthentication. That limitation is a client capability, not something
+the server can repair.
 
 Legacy direct Presscart API-token mode remains unchanged when MCP OAuth is
 disabled.
@@ -319,9 +381,13 @@ Exercise the real Express routes and OAuth middleware.
 - `WWW-Authenticate` challenge points to the path-specific MCP resource
   metadata.
 - Authorization defaults, supported-scope translation, invalid-scope errors,
-  PKCE enforcement, state/resource preservation, and no open redirect.
+  rejection of partial scope sets, PKCE enforcement, exact canonical resource
+  handling, state preservation, direct local JSON errors, and no open redirect
+  for malicious or unregistered redirect URIs.
 - Dynamic registration request/response forwarding, size limits, malformed
-  responses, upstream OAuth errors, redirects disabled, and no local store.
+  responses, translated scope, response-field allowlisting, matching auth
+  methods/grants/redirect URIs, stripped registration-management fields,
+  upstream OAuth errors, redirects disabled, and no local store.
 - Authorization-code exchange forwards exact PKCE/client values.
 - Refresh exchange forwards the refresh token once, preserves rotation, and
   returns `offline_access` in the granted scope.
@@ -330,16 +396,21 @@ Exercise the real Express routes and OAuth middleware.
 - Timeout/unavailable/malformed upstream response mappings.
 - No-store headers and log-redaction assertions using sentinel credentials.
 - Existing access-token verification and MCP session-binding regression tests.
+- Canonical `/mcp` audience verification plus temporary legacy-audience
+  acceptance when explicitly configured.
 - Feature-flag off preserves current discovery behavior.
 
 ### `presscart-app`
 
 - Existing initial token-hook behavior remains green.
-- A refresh-shaped hook call with an existing `grant_id` resolves by that ID,
-  verifies the same user/client binding, preserves upstream `iat` and `exp`,
-  removes stale permissions, and returns the MCP audience and grant identity.
-- Revoked, deleted, user-mismatched, and client-mismatched grants reject refresh
-  issuance.
+- A route-level refresh-shaped hook call with an existing `grant_id` proves the
+  controller derives identity correctly and preserves `sub`, `iat`, and `exp`
+  while returning the canonical `/mcp` audience, `client_id`, and `grant_id`
+  and removing stale permissions.
+- An integration-style hook test runs the real controller and grant resolver
+  while stubbing only the data/network boundary. It proves revoked, deleted,
+  user-mismatched, and client-mismatched grants reject refresh issuance through
+  the hook path, not merely in isolated service tests.
 - Browser login, consent approval, and ordinary Supabase session tests remain
   unchanged and green.
 
@@ -369,18 +440,25 @@ does not replace the real client test.
 
 ## Rollout
 
-1. Deploy the translator behind its disabled feature flag.
-2. Enable and validate it in a non-production environment using public HTTPS.
-3. Verify discovery, registration, authorization-code exchange, refresh, token
+1. Deploy `presscart-mcp` behind its disabled translator flag with canonical
+   `/mcp` plus temporary legacy-origin audience verification enabled.
+2. Deploy the `presscart-app` hook change so newly issued and refreshed MCP
+   tokens use the canonical `/mcp` audience; wait at least one access-token
+   lifetime while both audiences remain accepted.
+3. Enable and validate the translator in a non-production environment using
+   public HTTPS.
+4. Verify discovery, registration, authorization-code exchange, refresh, token
    rotation, grant revocation, and safe error responses.
-4. Enable it for production discovery while retaining the flag as rollback.
-5. Create a replacement ChatGPT workspace app, authenticate, scan tools, and
+5. Enable it for production discovery while retaining the flag as rollback.
+6. Create a replacement ChatGPT workspace app, authenticate, scan tools, and
    complete the before/after-expiry validation.
-6. Publish the replacement while temporarily retaining the previous published
+7. Publish the replacement while temporarily retaining the previous published
    app so members can reconnect once.
-7. Publish reconnect instructions for ChatGPT, Claude, Cursor, and Codex.
-8. Retire the old ChatGPT app only after the replacement is verified and the
+8. Publish reconnect instructions for ChatGPT, Claude, Cursor, and Codex.
+9. Retire the old ChatGPT app only after the replacement is verified and the
    workspace migration window has completed.
+10. Remove legacy-origin audience acceptance after the migration window and
+    telemetry confirm it is unused.
 
 The rollout works for Business and Enterprise/Edu workspaces: it does not rely
 on in-place editing of a published app. Normal Presscart web sessions are not
