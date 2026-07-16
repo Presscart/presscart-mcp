@@ -5,6 +5,7 @@ dist/
 .env.local
 .env.*.local
 .tmp-*.png
+.worktrees/
 notes.md
 oauth_support.md
 task_plan.md
