@@ -13,6 +13,7 @@ import {
   createOAuthHttpLayer,
   validateOAuthSessionAuth,
 } from './oauth-http.js';
+import { resolveOAuthAudiences, validateUpstreamIssuer } from './oauth-protocol.js';
 import { createPresscartMcpServer } from './server.js';
 import { SupabaseOAuthVerifier } from './supabase-oauth.js';
 
@@ -59,6 +60,7 @@ app.set('trust proxy', 1);
 app.disable('x-powered-by');
 
 let bearerAuth: RequestHandler | undefined;
+let oauthResourceMetadataUrl: string | undefined;
 
 if (oauthConfig) {
   validateOAuthResourceUrl(oauthConfig.resource, mcpServerUrl);
@@ -80,6 +82,7 @@ if (oauthConfig) {
 
   app.use(oauthLayer.router);
   bearerAuth = oauthLayer.bearerAuth;
+  oauthResourceMetadataUrl = oauthLayer.resourceMetadataUrl;
 }
 
 app.use('/mcp', applyMcpCorsHeaders(allowedOrigins));
@@ -208,7 +211,10 @@ app.delete('/mcp', ...(bearerAuth ? [bearerAuth] : []), async (req, res, next) =
   }
 });
 
-app.use(createHttpRouteErrorHandler({ logRouteError }));
+app.use(createHttpRouteErrorHandler({
+  logRouteError,
+  resourceMetadataUrl: oauthResourceMetadataUrl,
+}));
 
 app.use((req, res) => {
   if (req.path === '/mcp') {
@@ -403,11 +409,16 @@ function resolveOAuthRuntimeConfig() {
   if (!env.MCP_OAUTH_ENABLED) return undefined;
 
   const issuer = resolveIssuerUrl();
+  validateUpstreamIssuer(issuer);
   const resource = new URL(env.MCP_OAUTH_AUDIENCE);
   const legacy = env.MCP_OAUTH_LEGACY_AUDIENCE
     ? new URL(env.MCP_OAUTH_LEGACY_AUDIENCE)
     : undefined;
-  const audiences: [URL, ...URL[]] = legacy ? [resource, legacy] : [resource];
+  const audiences = resolveOAuthAudiences({
+    resource,
+    serverUrl: mcpServerUrl,
+    legacyAudience: legacy,
+  });
   return { issuer, resource, audiences };
 }
 

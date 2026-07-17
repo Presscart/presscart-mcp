@@ -8,6 +8,8 @@ import { createOAuthRouter } from './oauth-router.js';
 
 const servers: Server[] = [];
 const canonicalResource = 'https://mcp.presscart.com/mcp';
+const publicDcrClientId = 'a7f2616f-caf6-47d6-8f46-fabf13f11397';
+const confidentialDcrClientId = '849f3adf-54e5-4fff-936c-5939fe05a666';
 
 type StartRouterOptions = {
   fetchImpl?: typeof fetch;
@@ -85,12 +87,17 @@ function registrationRequest(tokenEndpointAuthMethod = 'none') {
 
 function registrationResponse(tokenEndpointAuthMethod = 'none') {
   return {
-    ...registrationRequest(tokenEndpointAuthMethod),
-    scope: 'profile',
-    client_id: 'client-1',
+    client_id: tokenEndpointAuthMethod === 'none' ? publicDcrClientId : confidentialDcrClientId,
+    client_type: tokenEndpointAuthMethod === 'none' ? 'public' : 'confidential',
+    redirect_uris: ['https://client.example/callback'],
+    token_endpoint_auth_method: tokenEndpointAuthMethod,
+    grant_types: ['authorization_code', 'refresh_token'],
+    response_types: ['code'],
+    client_name: 'Example client',
     ...(tokenEndpointAuthMethod === 'none' ? {} : { client_secret: 'registered-secret' }),
-    registration_access_token: 'registration-token-must-not-escape',
-    registration_client_uri: 'https://project.supabase.co/auth/v1/oauth/clients/client-1',
+    registration_type: 'dynamic',
+    created_at: '2026-07-17T09:00:00Z',
+    updated_at: '2026-07-17T09:00:00Z',
   };
 }
 
@@ -411,7 +418,10 @@ test('forwards a translated registration to the fixed endpoint and sanitizes the
       authorization: 'Bearer caller-credential-must-not-forward',
       'x-caller-secret': 'must-not-forward',
     },
-    body: JSON.stringify(registrationRequest()),
+    body: JSON.stringify({
+      ...registrationRequest(),
+      contacts: ['ignored@example.com'],
+    }),
   });
 
   assert.equal(response.status, 201);
@@ -431,14 +441,74 @@ test('forwards a translated registration to the fixed endpoint and sanitizes the
   assert.equal(headers.has('x-caller-secret'), false);
   assert.deepEqual(JSON.parse(String(call.init?.body)), {
     ...registrationRequest(),
+    contacts: ['ignored@example.com'],
     scope: 'profile',
   });
 
   const body = await response.json() as Record<string, unknown>;
   assert.equal(body.scope, 'profile offline_access');
-  assert.equal(body.client_id, 'client-1');
-  assert.equal('registration_access_token' in body, false);
-  assert.equal('registration_client_uri' in body, false);
+  assert.equal(body.client_id, publicDcrClientId);
+  assert.equal('contacts' in body, false);
+  for (const field of ['client_type', 'registration_type', 'created_at', 'updated_at']) {
+    assert.equal(field in body, false);
+  }
+});
+
+test('returns the exact official confidential registration as a portable secret response', async () => {
+  const fetchImpl: typeof fetch = async () => jsonResponse(
+    registrationResponse('client_secret_post'),
+    201,
+  );
+  const base = await startRouter({ fetchImpl });
+  const response = await fetch(`${base}/oauth/register`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(registrationRequest('client_secret_post')),
+  });
+
+  assert.equal(response.status, 201);
+  assertOAuthJson(response);
+  assert.deepEqual(await response.json(), {
+    client_id: confidentialDcrClientId,
+    client_secret: 'registered-secret',
+    redirect_uris: ['https://client.example/callback'],
+    token_endpoint_auth_method: 'client_secret_post',
+    grant_types: ['authorization_code', 'refresh_token'],
+    response_types: ['code'],
+    client_name: 'Example client',
+    scope: 'profile offline_access',
+  });
+});
+
+test('registers omitted grant_types as the exact authorization-code and refresh-token pair', async () => {
+  let forwardedBody: Record<string, unknown> | undefined;
+  const fetchImpl: typeof fetch = async (_input, init) => {
+    forwardedBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    return jsonResponse({
+      ...forwardedBody,
+      client_id: publicDcrClientId,
+      client_type: 'public',
+      registration_type: 'dynamic',
+      created_at: '2026-07-17T09:00:00Z',
+      updated_at: '2026-07-17T09:00:00Z',
+    }, 201);
+  };
+  const base = await startRouter({ fetchImpl });
+  const response = await fetch(`${base}/oauth/register`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      redirect_uris: ['https://client.example/callback'],
+      token_endpoint_auth_method: 'none',
+    }),
+  });
+
+  assert.equal(response.status, 201);
+  assert.deepEqual(forwardedBody?.grant_types, ['authorization_code', 'refresh_token']);
+  assert.deepEqual(
+    (await response.json() as { grant_types: string[] }).grant_types,
+    ['authorization_code', 'refresh_token'],
+  );
 });
 
 test('rejects invalid registration requests and parser/body limits without contacting upstream', async () => {
@@ -465,6 +535,16 @@ test('rejects invalid registration requests and parser/body limits without conta
     }),
   });
   assert.equal(insecureRedirect.status, 400);
+
+  const partialGrants = await fetch(`${base}/oauth/register`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      ...registrationRequest(),
+      grant_types: ['authorization_code'],
+    }),
+  });
+  assert.equal(partialGrants.status, 400);
 
   const malformed = await fetch(`${base}/oauth/register`, {
     method: 'POST',
@@ -495,6 +575,11 @@ test('rejects malformed and oversized registration responses without exposing up
     new Response(rawSentinel, { status: 201, headers: { 'content-type': 'text/plain' } }),
     new Response('{not-json', { status: 201, headers: { 'content-type': 'application/json' } }),
     jsonResponse({ ...registrationResponse(), unexpected: rawSentinel }, 201),
+    jsonResponse({ ...registrationResponse(), client_id: 'not-a-uuid' }, 201),
+    jsonResponse({ ...registrationResponse(), client_type: undefined }, 201),
+    jsonResponse({ ...registrationResponse(), registration_type: 'manual' }, 201),
+    jsonResponse({ ...registrationResponse(), client_name: 'Different client' }, 201),
+    jsonResponse({ ...registrationResponse(), client_uri: 'https://unexpected.example' }, 201),
     jsonResponse({ ...registrationResponse(), padding: 'x'.repeat(65 * 1024) }, 201),
   ];
   const fetchImpl: typeof fetch = async () => {
@@ -504,7 +589,7 @@ test('rejects malformed and oversized registration responses without exposing up
   };
   const base = await startRouter({ fetchImpl });
 
-  for (let index = 0; index < 4; index += 1) {
+  for (let index = 0; index < 9; index += 1) {
     const response = await fetch(`${base}/oauth/register`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -624,16 +709,63 @@ test('forwards only syntactically valid Basic authorization to the token endpoin
   assert.equal(accepted.status, 200);
   assert.deepEqual(forwardedAuthorization, [validBasic]);
 
-  for (const authorization of ['Bearer caller-token', 'Digest opaque', 'Basic !!!']) {
+  const caseVariantBasic = `bAsIc ${Buffer.from('client-2:case-sensitive-upstream').toString('base64')}`;
+  const caseVariantAccepted = await fetch(`${base}/oauth/token`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/x-www-form-urlencoded',
+      authorization: caseVariantBasic,
+    },
+    body,
+  });
+  assert.equal(caseVariantAccepted.status, 200);
+  assert.deepEqual(forwardedAuthorization, [
+    validBasic,
+    `Basic ${Buffer.from('client-2:case-sensitive-upstream').toString('base64')}`,
+  ]);
+
+  for (const { authorization, expectsChallenge } of [
+    { authorization: 'Bearer caller-token', expectsChallenge: false },
+    { authorization: 'Digest opaque', expectsChallenge: false },
+    { authorization: 'Basic !!!', expectsChallenge: true },
+  ]) {
     const rejected = await fetch(`${base}/oauth/token`, {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded', authorization },
       body,
     });
     assert.equal(rejected.status, 401);
+    assert.equal(
+      rejected.headers.get('www-authenticate'),
+      expectsChallenge ? 'Basic realm="oauth/token"' : null,
+    );
     assert.equal((await rejected.json() as { error: string }).error, 'invalid_client');
   }
-  assert.deepEqual(forwardedAuthorization, [validBasic]);
+  assert.deepEqual(forwardedAuthorization, [
+    validBasic,
+    `Basic ${Buffer.from('client-2:case-sensitive-upstream').toString('base64')}`,
+  ]);
+});
+
+test('challenges a Basic-authenticated client when upstream rejects its credentials', async () => {
+  const fetchImpl: typeof fetch = async () => jsonResponse({
+    error: 'invalid_client',
+    error_description: 'client authentication failed',
+  }, 401);
+  const base = await startRouter({ fetchImpl });
+  const authorization = `Basic ${Buffer.from('client-1:wrong-secret').toString('base64')}`;
+  const response = await fetch(`${base}/oauth/token`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded', authorization },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: 'refresh-current',
+    }),
+  });
+
+  assert.equal(response.status, 401);
+  assert.equal(response.headers.get('www-authenticate'), 'Basic realm="oauth/token"');
+  assert.equal((await response.json() as { error: string }).error, 'invalid_client');
 });
 
 test('rejects duplicate, unsupported, and oversized token form fields locally', async () => {
@@ -710,6 +842,7 @@ test('preserves validated upstream OAuth errors and strips nonstandard fields', 
       }),
     });
     assert.equal(response.status, expected.status);
+    assert.equal(response.headers.get('www-authenticate'), null);
     assertOAuthJson(response);
     assert.deepEqual(await response.json(), {
       error: expected.error,

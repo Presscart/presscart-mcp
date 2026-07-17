@@ -231,16 +231,23 @@ advertised token endpoint authentication methods (`none`,
 `client_secret_basic`, or `client_secret_post`). Unsupported combinations fail
 locally before a client is created.
 
-The response allowlist is limited to standard client metadata plus
-`client_id`, `client_secret`, `client_id_issued_at`, and
-`client_secret_expires_at`. The translator validates that returned response
-types, grant types, redirect URIs, and `token_endpoint_auth_method` agree with
-the accepted request and advertised metadata. It translates a valid upstream
-`profile` scope back to `profile offline_access`. It removes upstream
-`registration_access_token` and `registration_client_uri` fields because the
-facade does not expose a registration-management endpoint, and it rejects
-unknown security-sensitive fields rather than returning Supabase-origin
-management capabilities accidentally.
+The translator accepts the exact current Supabase response contract: a UUID
+`client_id`; `client_type`; `registration_type="dynamic"`; `created_at` and
+`updated_at` timestamps; the returned redirect URIs, token-endpoint auth
+method, grant types, and response types; a `client_secret` only for
+confidential clients; optional `client_name`, `client_uri`, and `logo_uri`; and
+an optional fixed upstream `scope="profile"`. It rejects unknown fields and
+validates that the returned client type, credentials, redirect URIs, auth
+method, grant types, response types, and optional metadata agree with the
+accepted request.
+
+The portable facade response emits only `client_id`, the confidential-only
+`client_secret`, `redirect_uris`, `token_endpoint_auth_method`, `grant_types`,
+`response_types`, optional `client_name`, `client_uri`, and `logo_uri`, and the
+fixed facade `scope="profile offline_access"`. Supabase's `client_type`,
+`registration_type`, `created_at`, and `updated_at` are validation inputs, not
+portable output fields. The facade does not expose a registration-management
+endpoint or registration-management credentials.
 
 ### Token endpoint
 
@@ -378,7 +385,8 @@ Exercise the real Express routes and OAuth middleware.
 
 - Metadata contract for both protected-resource routes and the authorization
   server route.
-- `WWW-Authenticate` challenge points to the path-specific MCP resource
+- Initial bearer failures and OAuth session-identity 401 responses carry a
+  `WWW-Authenticate` challenge pointing to the path-specific MCP resource
   metadata.
 - Authorization defaults, supported-scope translation, invalid-scope errors,
   rejection of partial scope sets, PKCE enforcement, exact canonical resource

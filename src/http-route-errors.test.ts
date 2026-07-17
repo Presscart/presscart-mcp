@@ -51,6 +51,7 @@ async function requestThroughHandler(errorFactory: () => unknown) {
     }
   });
   app.use(createHttpRouteErrorHandler({
+    resourceMetadataUrl: 'https://mcp.presscart.com/.well-known/oauth-protected-resource/mcp',
     logRouteError(req, statusCode, error) {
       logged.push({ req, statusCode, error });
     },
@@ -77,6 +78,10 @@ test('production handler exposes OAuth session mismatches as JSON-RPC 401 respon
   });
 
   assert.equal(response.status, 401);
+  assert.equal(
+    response.headers.get('www-authenticate'),
+    `Bearer error="invalid_token", error_description="${sessionMismatchMessage}", resource_metadata="https://mcp.presscart.com/.well-known/oauth-protected-resource/mcp"`,
+  );
   assert.deepEqual(await response.json(), {
     jsonrpc: '2.0',
     error: { code: -32000, message: sessionMismatchMessage },

@@ -122,6 +122,20 @@ test('rejects a rotated access token from a different OAuth grant', () => {
   ));
 });
 
+test('rejects rotated access tokens when required session identity claims are equally absent', () => {
+  assertSessionMismatch(() => validateOAuthSessionAuth(
+    authInfo({ extra: {} }),
+    authInfo({ token: 'access-rotated', extra: {} })
+  ));
+});
+
+test('rejects initial access tokens without a complete OAuth session identity', () => {
+  assertSessionMismatch(() => validateOAuthSessionAuth(
+    undefined,
+    authInfo({ extra: { sub: 'user-1' } })
+  ));
+});
+
 test('rejects missing request authentication', () => {
   assert.throws(
     () => validateOAuthSessionAuth(authInfo(), undefined),
@@ -157,6 +171,7 @@ test('exposes a bearer-authenticated rotated-session mismatch through the produc
     }
   });
   app.use(createHttpRouteErrorHandler({
+    resourceMetadataUrl: layer.resourceMetadataUrl,
     logRouteError() {
       // Logging behavior is asserted in http-route-errors.test.ts.
     },
@@ -167,6 +182,10 @@ test('exposes a bearer-authenticated rotated-session mismatch through the produc
   });
 
   assert.equal(response.status, 401);
+  assert.equal(
+    response.headers.get('www-authenticate'),
+    `Bearer error="invalid_token", error_description="${sessionMismatchMessage}", resource_metadata="https://mcp.presscart.com/.well-known/oauth-protected-resource/mcp"`,
+  );
   assert.deepEqual(await response.json(), {
     jsonrpc: '2.0',
     error: { code: -32000, message: sessionMismatchMessage },

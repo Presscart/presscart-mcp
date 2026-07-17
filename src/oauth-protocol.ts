@@ -10,18 +10,21 @@ const tokenEndpointAuthMethodSchema = z.enum([
   'client_secret_basic',
   'client_secret_post',
 ]);
-const grantTypesSchema = uniqueStringArray(
+const clientTypeSchema = z.enum(['public', 'confidential']);
+const grantTypesSchema = z.array(
   z.enum(['authorization_code', 'refresh_token']),
-).refine(values => values.includes('authorization_code'));
+).length(2).refine(values => new Set(values).size === 2);
 const responseTypesSchema = z.array(z.literal('code')).length(1);
 const uriSchema = z.string().min(1).url();
 const redirectUriSchema = z.string().min(1).refine(isAllowedRedirectUri);
 const textSchema = z.string().min(1);
 const redirectUrisSchema = uniqueStringArray(redirectUriSchema, 1);
-const optionalRegistrationMetadataFields = {
+const supportedRegistrationMetadataFields = {
   client_name: textSchema.optional(),
   client_uri: uriSchema.optional(),
   logo_uri: uriSchema.optional(),
+} as const;
+const ignoredRegistrationRequestMetadataFields = {
   contacts: uniqueStringArray(z.string().email()).optional(),
   tos_uri: uriSchema.optional(),
   policy_uri: uriSchema.optional(),
@@ -34,9 +37,10 @@ const optionalRegistrationMetadataFields = {
 const registrationRequestSchema = z.object({
   redirect_uris: redirectUrisSchema,
   token_endpoint_auth_method: tokenEndpointAuthMethodSchema.default('client_secret_basic'),
-  grant_types: grantTypesSchema.default(['authorization_code']),
+  grant_types: grantTypesSchema.default(['authorization_code', 'refresh_token']),
   response_types: responseTypesSchema.default(['code']),
-  ...optionalRegistrationMetadataFields,
+  ...supportedRegistrationMetadataFields,
+  ...ignoredRegistrationRequestMetadataFields,
   scope: z.string().optional(),
 }).strict();
 
@@ -45,25 +49,34 @@ const registrationResponseSchema = z.object({
   token_endpoint_auth_method: tokenEndpointAuthMethodSchema,
   grant_types: grantTypesSchema,
   response_types: responseTypesSchema,
-  ...optionalRegistrationMetadataFields,
-  scope: z.string(),
-  client_id: z.string().min(1),
+  ...supportedRegistrationMetadataFields,
+  scope: z.string().optional(),
+  client_id: z.string().uuid(),
   client_secret: z.string().min(1).optional(),
-  client_id_issued_at: z.number().int().nonnegative().optional(),
-  client_secret_expires_at: z.number().int().nonnegative().optional(),
-  registration_access_token: z.string().min(1).optional(),
-  registration_client_uri: uriSchema.optional(),
+  client_type: clientTypeSchema,
+  registration_type: z.literal('dynamic'),
+  created_at: z.string().datetime({ offset: true }),
+  updated_at: z.string().datetime({ offset: true }),
 }).strict().superRefine((response, context) => {
   const hasClientSecret = response.client_secret !== undefined;
-  const hasSecretExpiry = response.client_secret_expires_at !== undefined;
   const credentialsMatchAuthMethod = response.token_endpoint_auth_method === 'none'
-    ? !hasClientSecret && !hasSecretExpiry
+    ? !hasClientSecret
     : hasClientSecret;
 
   if (!credentialsMatchAuthMethod) {
     context.addIssue({
       code: z.ZodIssueCode.custom,
       message: 'client credentials do not match token endpoint authentication method',
+    });
+  }
+
+  const expectedClientType = response.token_endpoint_auth_method === 'none'
+    ? 'public'
+    : 'confidential';
+  if (response.client_type !== expectedClientType) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'client type does not match token endpoint authentication method',
     });
   }
 });
@@ -91,7 +104,10 @@ export function parseFacadeScope(scope: string | undefined) {
   if (scope === undefined) return { facade: FACADE_SCOPE, upstream: UPSTREAM_SCOPE } as const;
   const values = scope.trim().split(/\s+/).filter(Boolean);
   const unique = new Set(values);
-  if (unique.size !== 2 || !unique.has('profile') || !unique.has('offline_access')) {
+  if (values.length !== 2
+    || unique.size !== 2
+    || !unique.has('profile')
+    || !unique.has('offline_access')) {
     throw new OAuthProtocolError('invalid_scope', 'scope must contain profile and offline_access');
   }
   return { facade: FACADE_SCOPE, upstream: UPSTREAM_SCOPE } as const;
@@ -110,6 +126,33 @@ export function parseRedirectUri(value: string) {
     throw new OAuthProtocolError('invalid_request', 'redirect_uri is invalid');
   }
   return value;
+}
+
+export function validateUpstreamIssuer(issuer: URL) {
+  if (issuer.protocol === 'https:') return;
+  if (issuer.protocol === 'http:' && isLoopbackHostname(issuer.hostname)) return;
+  throw new Error(
+    'MCP_OAUTH_ISSUER_URL must use HTTPS, except for loopback HTTP development issuers.'
+  );
+}
+
+export function resolveOAuthAudiences(args: {
+  resource: URL;
+  serverUrl: URL;
+  legacyAudience?: URL;
+}): [URL, ...URL[]] {
+  if (args.legacyAudience === undefined) return [args.resource];
+
+  const expectedLegacyAudience = new URL(args.serverUrl.origin);
+  const legacy = normalizeUrlForComparison(args.legacyAudience);
+  if (legacy !== normalizeUrlForComparison(expectedLegacyAudience)
+    || legacy === normalizeUrlForComparison(args.resource)) {
+    throw new Error(
+      'MCP_OAUTH_LEGACY_AUDIENCE must match the MCP server origin and differ from the canonical resource.'
+    );
+  }
+
+  return [args.resource, expectedLegacyAudience];
 }
 
 export function createAuthorizationServerMetadata(authorizationServer: URL) {
@@ -157,7 +200,8 @@ export function translateRegistrationRequest(value: unknown) {
 export function translateRegistrationResponse(args: { request: unknown; upstream: unknown }) {
   const request = translateRegistrationRequest(args.request).facade;
   const parsed = registrationResponseSchema.safeParse(args.upstream);
-  if (!parsed.success || parsed.data.scope !== UPSTREAM_SCOPE) {
+  if (!parsed.success
+    || (parsed.data.scope !== undefined && parsed.data.scope !== UPSTREAM_SCOPE)) {
     throw upstreamResponseError('registration');
   }
 
@@ -165,17 +209,26 @@ export function translateRegistrationResponse(args: { request: unknown; upstream
   const matchesRequest = sameStringSet(upstream.redirect_uris, request.redirect_uris)
     && upstream.token_endpoint_auth_method === request.token_endpoint_auth_method
     && sameStringSet(upstream.grant_types, request.grant_types)
-    && sameStringSet(upstream.response_types, request.response_types);
+    && sameStringSet(upstream.response_types, request.response_types)
+    && upstream.client_name === request.client_name
+    && upstream.client_uri === request.client_uri
+    && upstream.logo_uri === request.logo_uri;
   if (!matchesRequest) {
     throw upstreamResponseError('registration');
   }
 
-  const {
-    registration_access_token: _registrationAccessToken,
-    registration_client_uri: _registrationClientUri,
-    ...publicResponse
-  } = upstream;
-  return { ...publicResponse, scope: FACADE_SCOPE };
+  return {
+    client_id: upstream.client_id,
+    ...(upstream.client_secret === undefined ? {} : { client_secret: upstream.client_secret }),
+    redirect_uris: upstream.redirect_uris,
+    token_endpoint_auth_method: upstream.token_endpoint_auth_method,
+    grant_types: upstream.grant_types,
+    response_types: upstream.response_types,
+    ...(upstream.client_name === undefined ? {} : { client_name: upstream.client_name }),
+    ...(upstream.client_uri === undefined ? {} : { client_uri: upstream.client_uri }),
+    ...(upstream.logo_uri === undefined ? {} : { logo_uri: upstream.logo_uri }),
+    scope: FACADE_SCOPE,
+  };
 }
 
 export function translateTokenResponse(args: {
@@ -223,6 +276,10 @@ function isLoopbackHostname(hostname: string) {
   return normalized === 'localhost'
     || normalized === '[::1]'
     || (isIP(normalized) === 4 && normalized.startsWith('127.'));
+}
+
+function normalizeUrlForComparison(url: URL) {
+  return url.href.endsWith('/') ? url.href.slice(0, -1) : url.href;
 }
 
 function upstreamResponseError(operation: 'registration' | 'token') {

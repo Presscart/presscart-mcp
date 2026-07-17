@@ -16,6 +16,7 @@ export class HttpError extends Error {
 
 export type HttpRouteErrorHandlerOptions = {
   logRouteError: (req: Request, statusCode: number, error: unknown) => void;
+  resourceMetadataUrl?: string;
 };
 
 export function createHttpRouteErrorHandler(
@@ -25,6 +26,12 @@ export function createHttpRouteErrorHandler(
     const statusCode = resolveErrorStatus(error);
     options.logRouteError(req, statusCode, error);
     const exposeMessage = error instanceof HttpError || error instanceof OAuthSessionAuthError;
+    if (error instanceof OAuthSessionAuthError && options.resourceMetadataUrl !== undefined) {
+      res.setHeader(
+        'WWW-Authenticate',
+        `Bearer error="invalid_token", error_description="${error.message}", resource_metadata="${options.resourceMetadataUrl}"`,
+      );
+    }
 
     res.status(statusCode).json({
       jsonrpc: '2.0',

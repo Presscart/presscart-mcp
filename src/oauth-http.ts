@@ -20,13 +20,15 @@ export class OAuthSessionAuthError extends Error {
 }
 
 export function createOAuthHttpLayer(options: OAuthHttpLayerOptions) {
+  const resourceMetadataUrl = getOAuthProtectedResourceMetadataUrl(options.serverUrl);
   return {
     router: createOAuthRouter(options),
     bearerAuth: requireBearerAuth({
       verifier: options.verifier,
       requiredScopes: [],
-      resourceMetadataUrl: getOAuthProtectedResourceMetadataUrl(options.serverUrl),
+      resourceMetadataUrl,
     }),
+    resourceMetadataUrl,
   };
 }
 
@@ -38,25 +40,19 @@ export function validateOAuthSessionAuth(
     throw new OAuthSessionAuthError('Missing Authorization header');
   }
 
+  const requestIdentity = readOAuthSessionIdentity(requestAuthInfo);
   if (!sessionAuthInfo) {
     return requestAuthInfo;
   }
 
-  const sessionClientId = sessionAuthInfo.clientId;
-  const requestClientId = requestAuthInfo.clientId;
-  const sessionSubject = readAuthExtraValue(sessionAuthInfo, 'sub');
-  const requestSubject = readAuthExtraValue(requestAuthInfo, 'sub');
-  const sessionGrantId = readAuthExtraValue(sessionAuthInfo, 'oauth_grant_id');
-  const requestGrantId = readAuthExtraValue(requestAuthInfo, 'oauth_grant_id');
+  const sessionIdentity = readOAuthSessionIdentity(sessionAuthInfo);
 
   if (
-    sessionClientId !== requestClientId ||
-    sessionSubject !== requestSubject ||
-    sessionGrantId !== requestGrantId
+    sessionIdentity.clientId !== requestIdentity.clientId ||
+    sessionIdentity.subject !== requestIdentity.subject ||
+    sessionIdentity.grantId !== requestIdentity.grantId
   ) {
-    throw new OAuthSessionAuthError(
-      'Authorization token does not match the OAuth grant bound to the active MCP session.'
-    );
+    throw sessionIdentityError();
   }
 
   return requestAuthInfo;
@@ -64,5 +60,19 @@ export function validateOAuthSessionAuth(
 
 function readAuthExtraValue(authInfo: AuthInfo, key: string) {
   const value = authInfo.extra?.[key];
-  return typeof value === 'string' ? value : undefined;
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function readOAuthSessionIdentity(authInfo: AuthInfo) {
+  const clientId = authInfo.clientId;
+  const subject = readAuthExtraValue(authInfo, 'sub');
+  const grantId = readAuthExtraValue(authInfo, 'oauth_grant_id');
+  if (!clientId || !subject || !grantId) throw sessionIdentityError();
+  return { clientId, subject, grantId };
+}
+
+function sessionIdentityError() {
+  return new OAuthSessionAuthError(
+    'Authorization token does not match the OAuth grant bound to the active MCP session.'
+  );
 }

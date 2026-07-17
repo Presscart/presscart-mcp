@@ -58,7 +58,8 @@ Notes:
 - Tools that create orders/campaigns or read profile orders need an explicit `profile_id`. If the profile is unknown, call `list_teams`, then `list_profiles`.
 - In MCP OAuth mode, the app's Supabase OAuth Server handles authorization and consent. This MCP runtime validates the issued access token against Supabase JWKS and delegated permissions.
 - `MCP_OAUTH_TRANSLATOR_ENABLED` defaults to `false`. When enabled, the MCP origin publishes a standards-based OAuth facade while Supabase remains responsible for clients, codes, tokens, rotation, signing, and consent.
-- `MCP_OAUTH_LEGACY_AUDIENCE` is an optional verifier-only migration value. It never changes the canonical protected resource advertised to clients.
+- `MCP_OAUTH_ISSUER_URL` must use HTTPS. Loopback HTTP issuers are accepted only for local development.
+- `MCP_OAUTH_LEGACY_AUDIENCE` is an optional verifier-only migration value and must equal the configured MCP server origin (for example, `https://mcp.presscart.com`). It cannot duplicate the canonical `/mcp` resource or name another service, and it never changes the protected resource advertised to clients.
 - MCP clients store their own refresh tokens, initiate refresh automatically, and replace rotated refresh and access tokens. This server handles the refresh request statelessly and does not store refresh tokens.
 - The translator changes only MCP OAuth. It does not change ordinary Presscart browser or app sessions, and disabling MCP OAuth still preserves legacy direct-token mode.
 - In legacy direct-token mode, send `X-Presscart-API-Token: <presscart_api_token>` on `initialize` and later requests that need to confirm the active session credential.
@@ -183,7 +184,7 @@ MCP_OAUTH_LEGACY_AUDIENCE=https://mcp.presscart.com
 MCP_OAUTH_UPSTREAM_TIMEOUT_MS=10000
 ```
 
-The canonical resource and JWT audience must match `MCP_SERVER_URL`, allowing only a trailing-slash difference. `MCP_OAUTH_LEGACY_AUDIENCE` is needed only during the migration window and should otherwise be unset.
+The canonical resource and JWT audience must match `MCP_SERVER_URL`, allowing only a trailing-slash difference. `MCP_OAUTH_LEGACY_AUDIENCE` is needed only during the migration window, must match the MCP server origin exactly, and should otherwise be unset. The upstream issuer must use HTTPS except for loopback-only local development.
 
 With the translator disabled, the server exposes direct-Supabase protected-resource metadata at:
 
@@ -283,7 +284,7 @@ codex mcp add presscart --url https://mcp.presscart.com/mcp
 codex mcp login presscart
 ```
 
-Codex supports remote Streamable HTTP MCP servers with OAuth. The configured MCP URL and the `WWW-Authenticate` `resource_metadata` URL should both use the MCP public hostname, while the protected-resource metadata should advertise the Supabase/Auth issuer as its authorization server.
+Codex supports remote Streamable HTTP MCP servers with OAuth. The configured MCP URL and the `WWW-Authenticate` `resource_metadata` URL should both use the MCP public hostname. With `MCP_OAUTH_TRANSLATOR_ENABLED=true`, protected-resource metadata advertises the MCP-origin facade as its authorization server; with the translator disabled, it advertises the direct Supabase/Auth issuer.
 
 Quick verification:
 

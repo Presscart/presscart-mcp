@@ -13,6 +13,7 @@ import {
   translateRegistrationRequest,
   translateRegistrationResponse,
   translateTokenResponse,
+  validateUpstreamIssuer,
 } from './oauth-protocol.js';
 
 export type OAuthRouterOptions = {
@@ -113,6 +114,7 @@ export function createOAuthRouter(options: OAuthRouterOptions): Router {
   const resource = new URL(options.resource.href);
   const authorizationServer = new URL(options.authorizationServer.href);
   const upstreamIssuer = new URL(options.upstreamIssuer.href);
+  validateUpstreamIssuer(upstreamIssuer);
   const upstreamBase = ensureTrailingSlash(upstreamIssuer);
   const upstreamAuthorize = new URL('oauth/authorize', upstreamBase);
   const upstreamRegister = new URL('oauth/clients/register', upstreamBase);
@@ -227,6 +229,7 @@ export function createOAuthRouter(options: OAuthRouterOptions): Router {
     tokenRateLimit,
     formParser,
     async (req, res) => {
+      const basicClientAuthAttempted = isBasicClientAuthAttempt(req);
       try {
         const authorization = parseBasicAuthorization(req);
         const tokenRequest = parseTokenRequest(req.body as unknown, authorization, resource);
@@ -252,7 +255,7 @@ export function createOAuthRouter(options: OAuthRouterOptions): Router {
         });
         sendOAuthSuccess(res, upstream.status, response);
       } catch (error) {
-        handleRouteError(res, error);
+        handleRouteError(res, error, basicClientAuthAttempted);
       }
     },
   );
@@ -333,7 +336,11 @@ function parseBasicAuthorization(req: Request) {
   if (canonical !== encoded.replace(/=+$/, '') || decoded.indexOf(0x3a) <= 0) {
     throw new FacadeOAuthError('invalid_client', 'client authentication is invalid', 401);
   }
-  return authorization;
+  return `Basic ${encoded}`;
+}
+
+function isBasicClientAuthAttempt(req: Request) {
+  return /^Basic(?:\s|$)/i.test(req.get('authorization') ?? '');
 }
 
 function parseTokenRequest(body: unknown, authorization: string | undefined, resource: URL): TokenRequest {
@@ -532,18 +539,26 @@ function sendOAuthError(
   description: string | undefined,
   status: number,
   errorUri?: string,
+  basicClientAuthChallenge = false,
 ) {
   const payload: OAuthErrorPayload = {
     error,
     ...(description === undefined ? {} : { error_description: description }),
     ...(errorUri === undefined ? {} : { error_uri: errorUri }),
   };
+  if (basicClientAuthChallenge) {
+    res.setHeader('WWW-Authenticate', 'Basic realm="oauth/token"');
+  }
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Pragma', 'no-cache');
   res.status(status).json(payload);
 }
 
-function handleRouteError(res: Response, error: unknown) {
+function handleRouteError(
+  res: Response,
+  error: unknown,
+  basicClientAuthAttempted = false,
+) {
   if (res.headersSent) return;
   if (error instanceof UpstreamOAuthError) {
     sendOAuthError(
@@ -552,6 +567,9 @@ function handleRouteError(res: Response, error: unknown) {
       error.payload.error_description,
       error.status,
       error.payload.error_uri,
+      basicClientAuthAttempted
+        && error.status === 401
+        && error.payload.error === 'invalid_client',
     );
     return;
   }
@@ -560,7 +578,14 @@ function handleRouteError(res: Response, error: unknown) {
     return;
   }
   if (error instanceof FacadeOAuthError) {
-    sendOAuthError(res, error.code, error.message, error.status, error.errorUri);
+    sendOAuthError(
+      res,
+      error.code,
+      error.message,
+      error.status,
+      error.errorUri,
+      basicClientAuthAttempted && error.status === 401 && error.code === 'invalid_client',
+    );
     return;
   }
   sendOAuthError(res, 'server_error', 'the authorization server could not process the request', 500);

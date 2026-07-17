@@ -299,7 +299,7 @@ test('builds facade and direct-Supabase metadata without mixing issuers', () => 
   assert.deepEqual(createProtectedResourceMetadata({ resource, authorizationServer: upstream, translatorEnabled: false }).scopes_supported, ['openid', 'profile']);
 });
 
-test('translates DCR scope upstream and strips registration management fields on return', () => {
+test('validates a compatible Supabase DCR response and emits only portable fields', () => {
   const request = translateRegistrationRequest({
     redirect_uris: ['https://client.example/callback'],
     token_endpoint_auth_method: 'none',
@@ -313,15 +313,23 @@ test('translates DCR scope upstream and strips registration management fields on
     request: request.facade,
     upstream: {
       ...request.upstream,
-      client_id: 'client-1',
+      client_id: 'a7f2616f-caf6-47d6-8f46-fabf13f11397',
+      client_type: 'public',
+      registration_type: 'dynamic',
+      created_at: '2026-07-17T09:00:00Z',
+      updated_at: '2026-07-17T09:00:00Z',
       scope: 'profile',
-      registration_access_token: 'must-not-escape',
-      registration_client_uri: 'https://project.supabase.co/auth/v1/oauth/clients/client-1',
     },
   });
-  assert.equal(response.scope, 'profile offline_access');
-  assert.equal('registration_access_token' in response, false);
-  assert.equal('registration_client_uri' in response, false);
+  assert.deepEqual(response, {
+    client_id: 'a7f2616f-caf6-47d6-8f46-fabf13f11397',
+    redirect_uris: ['https://client.example/callback'],
+    token_endpoint_auth_method: 'none',
+    grant_types: ['authorization_code', 'refresh_token'],
+    response_types: ['code'],
+    client_name: 'Example client',
+    scope: 'profile offline_access',
+  });
 });
 
 test('normalizes a successful token response and preserves refresh rotation', () => {
@@ -430,7 +438,7 @@ export function createProtectedResourceMetadata(args: {
 }
 ```
 
-Add strict request/response schemas for the fields listed in the approved spec. `translateRegistrationRequest()` must return `{ facade, upstream }`; `translateRegistrationResponse()` must remove `registration_access_token` and `registration_client_uri`, reject unknown security-sensitive fields, compare redirect URI/auth method/grant/response sets, and restore `FACADE_SCOPE`. `translateTokenResponse()` must allow only standard token fields, accept upstream scope only when absent or `profile`, require `refresh_token` for `authorization_code`, and always return `FACADE_SCOPE`.
+Add strict request/response schemas for the fields listed in the approved spec. `translateRegistrationRequest()` must return `{ facade, upstream }`. `translateRegistrationResponse()` must require Supabase's UUID `client_id`, `client_type`, dynamic `registration_type`, timestamps, core client fields, confidential-only secret, optional supported client metadata, and optional fixed `profile` scope; reject unknown fields; compare redirect URI/auth method/grant/response sets and optional metadata; and return only the portable allowlist with `FACADE_SCOPE`. `translateTokenResponse()` must allow only standard token fields, accept upstream scope only when absent or `profile`, require `refresh_token` for `authorization_code`, and always return `FACADE_SCOPE`.
 
 - [ ] **Step 4: Run pure tests and type checking to prove GREEN**
 
@@ -565,7 +573,7 @@ const fetchImpl: typeof fetch = async (input, init) => {
 };
 ```
 
-- DCR posts only to `/auth/v1/oauth/clients/register`, translates scope to `profile`, validates the requested auth method, restores `profile offline_access`, strips management fields, and rejects malformed/oversized responses.
+- DCR posts only to `/auth/v1/oauth/clients/register`, translates scope to `profile`, validates Supabase's UUID/client type/dynamic registration/timestamp/core-field response, restores `profile offline_access`, emits only the portable client-field allowlist, and rejects malformed/oversized responses.
 - Authorization-code exchange forwards `code`, `code_verifier`, exact decoded `redirect_uri`, `client_id`, and optional exact canonical `resource` once.
 - Refresh exchange forwards `refresh_token` once and returns the rotated token unchanged.
 - `Authorization: Basic` is forwarded only to `/auth/v1/oauth/token`; bearer and arbitrary authorization schemes are rejected.
@@ -734,13 +742,15 @@ export type OAuthHttpLayerOptions = OAuthRouterOptions & {
 };
 
 export function createOAuthHttpLayer(options: OAuthHttpLayerOptions) {
+  const resourceMetadataUrl = getOAuthProtectedResourceMetadataUrl(options.serverUrl);
   return {
     router: createOAuthRouter(options),
     bearerAuth: requireBearerAuth({
       verifier: options.verifier,
       requiredScopes: [],
-      resourceMetadataUrl: getOAuthProtectedResourceMetadataUrl(options.serverUrl),
+      resourceMetadataUrl,
     }),
+    resourceMetadataUrl,
   };
 }
 ```
@@ -788,7 +798,7 @@ app.use(oauthLayer.router);
 bearerAuth = oauthLayer.bearerAuth;
 ```
 
-Mount the layer before `/mcp` and before the final 404 handler. Delete the duplicated protected-resource route handlers, direct `requireBearerAuth()` construction, and `createProtectedResourceMetadata()` from `http.ts`. Replace the private session validator call with the exported tested function. Update `resolveErrorStatus()` to recognize `OAuthSessionAuthError` as 401, and update `handleRouteError()` so `formatServerError(..., { exposeMessage })` exposes messages for both `HttpError` and `OAuthSessionAuthError`. Add an HTTP-layer assertion that a mismatched refreshed token returns 401 with the preserved grant-mismatch message instead of `Internal server error`.
+Mount the layer before `/mcp` and before the final 404 handler. Delete the duplicated protected-resource route handlers, direct `requireBearerAuth()` construction, and `createProtectedResourceMetadata()` from `http.ts`. Replace the private session validator call with the exported tested function. Update `resolveErrorStatus()` to recognize `OAuthSessionAuthError` as 401, and update `handleRouteError()` so `formatServerError(..., { exposeMessage })` exposes messages for both `HttpError` and `OAuthSessionAuthError`. Pass the layer's canonical `resourceMetadataUrl` to the centralized error handler so these 401 responses also carry a Bearer `WWW-Authenticate` challenge. Add an HTTP-layer assertion that a mismatched refreshed token returns 401 with the preserved grant-mismatch message and canonical resource-metadata challenge instead of `Internal server error`.
 
 Do not derive upstream targets from `Host`, `Forwarded`, or request query/header values.
 
@@ -979,7 +989,7 @@ In `oauth-threat-model.md`, update T4/X1 to the canonical `/mcp` audience and ad
 - facade/open-redirect prevention: local validation errors never use unverified redirect URIs;
 - fixed upstream origin and disabled redirect following for registration/token proxy calls;
 - exact `profile offline_access` facade set and no scope expansion;
-- DCR response allowlisting and stripped registration-management credentials;
+- exact current Supabase DCR response validation and a portable facade output allowlist with no registration-management credentials;
 - rotating refresh token replacement and `invalid_grant` handling;
 - temporary legacy audience is verifier-only, never advertised/issued, and removed after migration.
 
