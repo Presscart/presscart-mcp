@@ -13,7 +13,11 @@ import {
   createOAuthHttpLayer,
   validateOAuthSessionAuth,
 } from './oauth-http.js';
-import { resolveOAuthAudiences, validateUpstreamIssuer } from './oauth-protocol.js';
+import {
+  resolveOAuthAudiences,
+  validatePublicOAuthUrl,
+  validateUpstreamIssuer,
+} from './oauth-protocol.js';
 import { createPresscartMcpServer } from './server.js';
 import { SupabaseOAuthVerifier } from './supabase-oauth.js';
 
@@ -408,9 +412,11 @@ function resolveOAuthRuntimeConfig() {
 
   if (!env.MCP_OAUTH_ENABLED) return undefined;
 
+  validatePublicOAuthUrl(mcpServerUrl, 'MCP_SERVER_URL');
   const issuer = resolveIssuerUrl();
   validateUpstreamIssuer(issuer);
   const resource = new URL(env.MCP_OAUTH_AUDIENCE);
+  validatePublicOAuthUrl(resource, 'MCP_OAUTH_AUDIENCE');
   const legacy = env.MCP_OAUTH_LEGACY_AUDIENCE
     ? new URL(env.MCP_OAUTH_LEGACY_AUDIENCE)
     : undefined;

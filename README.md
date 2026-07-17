@@ -184,7 +184,7 @@ MCP_OAUTH_LEGACY_AUDIENCE=https://mcp.presscart.com
 MCP_OAUTH_UPSTREAM_TIMEOUT_MS=10000
 ```
 
-The canonical resource and JWT audience must match `MCP_SERVER_URL`, allowing only a trailing-slash difference. `MCP_OAUTH_LEGACY_AUDIENCE` is needed only during the migration window, must match the MCP server origin exactly, and should otherwise be unset. The upstream issuer must use HTTPS except for loopback-only local development.
+The canonical resource and JWT audience must match `MCP_SERVER_URL`, allowing only a trailing-slash difference. Both public OAuth URLs and the upstream issuer must use HTTPS except for loopback-only local development. `MCP_OAUTH_LEGACY_AUDIENCE` is needed only during the migration window, must match the MCP server origin exactly, and should otherwise be unset.
 
 With the translator disabled, the server exposes direct-Supabase protected-resource metadata at:
 

@@ -129,10 +129,19 @@ export function parseRedirectUri(value: string) {
 }
 
 export function validateUpstreamIssuer(issuer: URL) {
-  if (issuer.protocol === 'https:') return;
-  if (issuer.protocol === 'http:' && isLoopbackHostname(issuer.hostname)) return;
-  throw new Error(
-    'MCP_OAUTH_ISSUER_URL must use HTTPS, except for loopback HTTP development issuers.'
+  validateHttpsOrLoopbackHttp(
+    issuer,
+    'MCP_OAUTH_ISSUER_URL must use HTTPS, except for loopback HTTP development issuers.',
+  );
+}
+
+export function validatePublicOAuthUrl(
+  url: URL,
+  variableName: 'MCP_SERVER_URL' | 'MCP_OAUTH_AUDIENCE',
+) {
+  validateHttpsOrLoopbackHttp(
+    url,
+    `${variableName} must use HTTPS, except for loopback HTTP development URLs.`,
   );
 }
 
@@ -276,6 +285,12 @@ function isLoopbackHostname(hostname: string) {
   return normalized === 'localhost'
     || normalized === '[::1]'
     || (isIP(normalized) === 4 && normalized.startsWith('127.'));
+}
+
+function validateHttpsOrLoopbackHttp(url: URL, message: string) {
+  if (url.protocol === 'https:') return;
+  if (url.protocol === 'http:' && isLoopbackHostname(url.hostname)) return;
+  throw new Error(message);
 }
 
 function normalizeUrlForComparison(url: URL) {

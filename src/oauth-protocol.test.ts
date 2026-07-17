@@ -11,6 +11,7 @@ import {
   translateRegistrationRequest,
   translateRegistrationResponse,
   translateTokenResponse,
+  validatePublicOAuthUrl,
   validateUpstreamIssuer,
 } from './oauth-protocol.js';
 
@@ -94,6 +95,28 @@ test('accepts only HTTPS or loopback HTTP for the upstream OAuth issuer', () => 
     assert.throws(
       () => validateUpstreamIssuer(new URL(value)),
       /MCP_OAUTH_ISSUER_URL must use HTTPS/,
+    );
+  }
+});
+
+test('accepts only HTTPS or loopback HTTP for public OAuth URLs', () => {
+  for (const value of [
+    'https://mcp.presscart.com/mcp',
+    'http://localhost:8080/mcp',
+    'http://127.0.0.42:8080/mcp',
+    'http://[::1]:8080/mcp',
+  ]) {
+    assert.doesNotThrow(() => validatePublicOAuthUrl(new URL(value), 'MCP_SERVER_URL'));
+  }
+
+  for (const value of [
+    'http://mcp.presscart.com/mcp',
+    'http://localhost.attacker.example/mcp',
+    'ftp://mcp.presscart.com/mcp',
+  ]) {
+    assert.throws(
+      () => validatePublicOAuthUrl(new URL(value), 'MCP_SERVER_URL'),
+      /MCP_SERVER_URL must use HTTPS/,
     );
   }
 });
