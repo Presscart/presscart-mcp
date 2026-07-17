@@ -214,6 +214,59 @@ test('rejects DCR grant_types that do not contain the exact supported pair', () 
   }
 });
 
+test('mirrors Supabase DCR metadata bounds in UTF-8 bytes', () => {
+  const tenRedirectUris = Array.from(
+    { length: 10 },
+    (_, index) => `https://client.example/callback/${index}`,
+  );
+  const clientNameAtLimit = 'é'.repeat(512);
+  const uriPrefix = 'https://client.example/';
+  const uriAtLimit = `${uriPrefix}${'é'.repeat(1_012)}x`;
+
+  assert.equal(Buffer.byteLength(clientNameAtLimit, 'utf8'), 1_024);
+  assert.equal(Buffer.byteLength(uriAtLimit, 'utf8'), 2_048);
+  assert.doesNotThrow(() => translateRegistrationRequest({
+    redirect_uris: tenRedirectUris,
+    token_endpoint_auth_method: 'none',
+    client_name: clientNameAtLimit,
+    client_uri: uriAtLimit,
+    logo_uri: uriAtLimit,
+  }));
+
+  for (const registration of [
+    {
+      redirect_uris: [...tenRedirectUris, 'https://client.example/callback/10'],
+      client_name: clientNameAtLimit,
+      client_uri: uriAtLimit,
+      logo_uri: uriAtLimit,
+    },
+    {
+      redirect_uris: tenRedirectUris,
+      client_name: `${clientNameAtLimit}x`,
+      client_uri: uriAtLimit,
+      logo_uri: uriAtLimit,
+    },
+    {
+      redirect_uris: tenRedirectUris,
+      client_name: clientNameAtLimit,
+      client_uri: `${uriAtLimit}x`,
+      logo_uri: uriAtLimit,
+    },
+    {
+      redirect_uris: tenRedirectUris,
+      client_name: clientNameAtLimit,
+      client_uri: uriAtLimit,
+      logo_uri: `${uriAtLimit}x`,
+    },
+  ]) {
+    assert.throws(() => translateRegistrationRequest({
+      ...registration,
+      token_endpoint_auth_method: 'none',
+    }), (error: unknown) => error instanceof OAuthProtocolError
+      && error.code === 'invalid_request');
+  }
+});
+
 test('accepts HTTPS and loopback HTTP registration redirect URIs', () => {
   for (const redirectUri of [
     'https://client.example/callback',

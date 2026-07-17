@@ -18,11 +18,18 @@ const responseTypesSchema = z.array(z.literal('code')).length(1);
 const uriSchema = z.string().min(1).url();
 const redirectUriSchema = z.string().min(1).refine(isAllowedRedirectUri);
 const textSchema = z.string().min(1);
-const redirectUrisSchema = uniqueStringArray(redirectUriSchema, 1);
+const clientNameSchema = textSchema.refine(value => Buffer.byteLength(value, 'utf8') <= 1_024);
+const clientMetadataUriSchema = uriSchema.refine(
+  value => Buffer.byteLength(value, 'utf8') <= 2_048,
+);
+const redirectUrisSchema = z.array(redirectUriSchema)
+  .min(1)
+  .max(10)
+  .refine(values => new Set(values).size === values.length);
 const supportedRegistrationMetadataFields = {
-  client_name: textSchema.optional(),
-  client_uri: uriSchema.optional(),
-  logo_uri: uriSchema.optional(),
+  client_name: clientNameSchema.optional(),
+  client_uri: clientMetadataUriSchema.optional(),
+  logo_uri: clientMetadataUriSchema.optional(),
 } as const;
 const ignoredRegistrationRequestMetadataFields = {
   contacts: uniqueStringArray(z.string().email()).optional(),

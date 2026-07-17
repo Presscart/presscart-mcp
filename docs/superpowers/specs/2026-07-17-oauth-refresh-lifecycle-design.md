@@ -22,12 +22,13 @@ Connect/Authenticate action. Presscart cannot choose the label or render that
 control, but it can provide the OAuth discovery and challenge behavior ChatGPT
 uses to decide that authentication is available.
 
-The existing `presscart-app` OAuth implementation is already refresh-aware. Its
-Supabase Custom Access Token Hook re-resolves the active Presscart grant on
-issuance, uses an existing `grant_id` claim as the strongest refresh binding,
-and rejects missing, ambiguous, revoked, or mismatched grants. The missing
-piece is compatibility between MCP clients' OAuth discovery expectations and
-the hosted Supabase authorization server.
+The coordinated `presscart-app` OAuth implementation must be refresh-aware.
+Supabase creates a fresh standard claim set on refresh, so the Custom Access
+Token Hook cannot depend on a previously added `grant_id`. It instead uses the
+signed `session_id`, `sub`, and `client_id` claims to resolve the exact bound
+Presscart grant and rejects missing, ambiguous, revoked, or mismatched state.
+The remaining MCP-side gap is compatibility between clients' OAuth discovery
+expectations and the hosted Supabase authorization server.
 
 ## Goals
 
@@ -106,14 +107,19 @@ identifier. Presscart does not use an ID token for MCP authorization.
 - Continue creating and revoking `oauth_grants` and permission links.
 - Continue running the Custom Access Token Hook on initial issuance and
   refresh, re-resolving the active grant every time.
-- Add regression coverage for the refresh path, including an existing
-  `grant_id`, preserved lifetime claims, and revoked or mismatched grants.
+- Add a nullable unique `oauth_grants.supabase_session_id` binding. Initial
+  authorization-code issuance binds the signed Supabase `session_id`; refresh
+  resolves only that exact binding and never trusts an incoming custom
+  `grant_id`.
+- Add regression coverage for fresh refresh claims, preserved lifetime and
+  session claims, and missing, revoked, conflicting, or mismatched bindings.
 - Update the existing MCP OAuth design and threat-model documents to describe
   the translator boundary and its security assumptions.
 
-No schema migration is expected. If implementation discovers that a schema
-change is genuinely required, it must return to design review rather than add
-one opportunistically.
+The app schema migration that adds nullable unique `supabase_session_id` must
+be applied before deploying hook code that reads or writes the binding. The
+column remains nullable so existing grants and ordinary browser sessions are
+not rewritten during migration.
 
 ### MCP clients
 
@@ -230,6 +236,13 @@ use `response_types=["code"]`, supported grant types only, and one of the
 advertised token endpoint authentication methods (`none`,
 `client_secret_basic`, or `client_secret_post`). Unsupported combinations fail
 locally before a client is created.
+
+The request mirrors Supabase's DCR bounds: at most 10 `redirect_uris`, a
+`client_name` of at most 1024 UTF-8 bytes, and `client_uri`/`logo_uri` values of
+at most 2048 UTF-8 bytes. An exact Supabase HTTP 400 `validation_failed` DCR
+response maps to RFC 7591 `invalid_client_metadata` with a fixed public
+description; raw upstream validation text is never returned. Other malformed
+or non-OAuth upstream errors remain a safe `server_error` response.
 
 The translator accepts the exact current Supabase response contract: a UUID
 `client_id`; `client_type`; `registration_type="dynamic"`; `created_at` and
@@ -395,6 +408,7 @@ Exercise the real Express routes and OAuth middleware.
 - Dynamic registration request/response forwarding, size limits, malformed
   responses, translated scope, response-field allowlisting, matching auth
   methods/grants/redirect URIs, stripped registration-management fields,
+  exact Supabase metadata bounds, safe `invalid_client_metadata` translation,
   upstream OAuth errors, redirects disabled, and no local store.
 - Authorization-code exchange forwards exact PKCE/client values.
 - Refresh exchange forwards the refresh token once, preserves rotation, and
@@ -411,10 +425,11 @@ Exercise the real Express routes and OAuth middleware.
 ### `presscart-app`
 
 - Existing initial token-hook behavior remains green.
-- A route-level refresh-shaped hook call with an existing `grant_id` proves the
-  controller derives identity correctly and preserves `sub`, `iat`, and `exp`
-  while returning the canonical `/mcp` audience, `client_id`, and `grant_id`
-  and removing stale permissions.
+- A route-level `token_refresh` hook call with signed `sub`, `client_id`, and
+  `session_id` but no custom `grant_id` proves the controller resolves the exact
+  stored session binding and preserves `sub`, `session_id`, `iat`, and `exp`
+  while returning the canonical `/mcp` audience, `client_id`, and resolved
+  `grant_id` and removing stale permissions.
 - An integration-style hook test runs the real controller and grant resolver
   while stubbing only the data/network boundary. It proves revoked, deleted,
   user-mismatched, and client-mismatched grants reject refresh issuance through
@@ -450,22 +465,25 @@ does not replace the real client test.
 
 1. Deploy `presscart-mcp` behind its disabled translator flag with canonical
    `/mcp` plus temporary legacy-origin audience verification enabled.
-2. Deploy the `presscart-app` hook change so newly issued and refreshed MCP
+2. Apply the `presscart-app` migration that adds nullable unique
+   `oauth_grants.supabase_session_id` and verify it completes before the hook
+   rollout.
+3. Deploy the `presscart-app` hook change so newly issued and refreshed MCP
    tokens use the canonical `/mcp` audience; wait at least one access-token
    lifetime while both audiences remain accepted.
-3. Enable and validate the translator in a non-production environment using
+4. Enable and validate the translator in a non-production environment using
    public HTTPS.
-4. Verify discovery, registration, authorization-code exchange, refresh, token
+5. Verify discovery, registration, authorization-code exchange, refresh, token
    rotation, grant revocation, and safe error responses.
-5. Enable it for production discovery while retaining the flag as rollback.
-6. Create a replacement ChatGPT workspace app, authenticate, scan tools, and
+6. Enable it for production discovery while retaining the flag as rollback.
+7. Create a replacement ChatGPT workspace app, authenticate, scan tools, and
    complete the before/after-expiry validation.
-7. Publish the replacement while temporarily retaining the previous published
+8. Publish the replacement while temporarily retaining the previous published
    app so members can reconnect once.
-8. Publish reconnect instructions for ChatGPT, Claude, Cursor, and Codex.
-9. Retire the old ChatGPT app only after the replacement is verified and the
+9. Publish reconnect instructions for ChatGPT, Claude, Cursor, and Codex.
+10. Retire the old ChatGPT app only after the replacement is verified and the
    workspace migration window has completed.
-10. Remove legacy-origin audience acceptance after the migration window and
+11. Remove legacy-origin audience acceptance after the migration window and
     telemetry confirm it is unused.
 
 The rollout works for Business and Enterprise/Edu workspaces: it does not rely

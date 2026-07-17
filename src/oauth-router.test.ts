@@ -602,6 +602,56 @@ test('rejects malformed and oversized registration responses without exposing up
   }
 });
 
+test('translates only exact Supabase DCR validation failures without leaking upstream text', async () => {
+  const rawSentinel = 'raw-supabase-validation-detail-must-not-escape';
+  const responses = [
+    jsonResponse({
+      code: 400,
+      error_code: 'validation_failed',
+      msg: rawSentinel,
+    }, 400),
+    jsonResponse({
+      error_code: 'validation_failed',
+      msg: rawSentinel,
+    }, 400),
+    jsonResponse({
+      code: 400,
+      error_code: 'unexpected_error',
+      msg: rawSentinel,
+    }, 400),
+  ];
+  const fetchImpl: typeof fetch = async () => {
+    const response = responses.shift();
+    assert(response);
+    return response;
+  };
+  const base = await startRouter({ fetchImpl });
+
+  const translated = await fetch(`${base}/oauth/register`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(registrationRequest()),
+  });
+  assert.equal(translated.status, 400);
+  assertOAuthJson(translated);
+  assert.deepEqual(await translated.json(), {
+    error: 'invalid_client_metadata',
+    error_description: 'client registration metadata is invalid',
+  });
+
+  for (let index = 0; index < 2; index += 1) {
+    const malformed = await fetch(`${base}/oauth/register`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(registrationRequest()),
+    });
+    assert.equal(malformed.status, 502);
+    const text = await malformed.text();
+    assert.match(text, /"error":"server_error"/);
+    assert.equal(text.includes(rawSentinel), false);
+  }
+});
+
 test('forwards authorization-code fields once and no caller headers', async () => {
   const upstreamCalls: Array<{ url: string; init?: RequestInit }> = [];
   const fetchImpl: typeof fetch = async (input, init) => {

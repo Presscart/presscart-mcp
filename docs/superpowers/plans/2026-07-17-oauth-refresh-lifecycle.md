@@ -4,7 +4,7 @@
 
 **Goal:** Add a standards-based, stateless OAuth compatibility layer that lets remote MCP clients automatically refresh Presscart access while preserving Supabase as the token issuer and keeping normal Presscart sessions unchanged.
 
-**Architecture:** `presscart-mcp` will publish OAuth metadata and proxy only authorization, dynamic registration, and token operations to fixed Supabase endpoints. It will translate the facade-only `offline_access` scope without storing clients or credentials. `presscart-app` will continue enriching every initial and refreshed access token, but will move the MCP JWT audience to the canonical protected-resource URL.
+**Architecture:** `presscart-mcp` will publish OAuth metadata and proxy only authorization, dynamic registration, and token operations to fixed Supabase endpoints. It will translate the facade-only `offline_access` scope without storing clients or credentials. `presscart-app` will enrich every initial and refreshed access token, move the MCP JWT audience to the canonical protected-resource URL, and bind each signed Supabase `session_id` to one Presscart grant so refresh never depends on an incoming custom `grant_id`.
 
 **Tech Stack:** TypeScript 5.9, Node.js 22, Express 5, Zod 3, MCP TypeScript SDK, JOSE, Node test runner, pnpm/Turborepo, Hono, Vitest, Supabase Auth OAuth 2.1.
 
@@ -21,7 +21,9 @@
 - The translator feature flag defaults off. Ordinary Presscart browser/app sessions and legacy non-OAuth MCP mode remain unchanged.
 - Follow red -> green -> refactor. Mock only external network or data boundaries.
 - Use the repository `$commit` skill for every commit; do not use raw `git commit` in execution.
-- No schema migration is part of this plan.
+- Add one `presscart-app` migration for nullable unique
+  `oauth_grants.supabase_session_id`; apply it before deploying the hook code
+  that reads or writes this binding.
 
 ## File Map
 
@@ -42,9 +44,11 @@
 
 ### `presscart-app`
 
-- Modify `apps/api/src/controllers/oauth-grants/access-token-hook.ts`: emit the canonical `/mcp` audience.
-- Modify `apps/api/src/controllers/oauth-grants/access-token-hook.test.ts`: add the refresh-shaped controller regression.
-- Create `apps/api/src/controllers/oauth-grants/access-token-hook.integration.test.ts`: exercise the real controller, resolver, and active-grant service while mocking data access only.
+- Add the nullable unique `oauth_grants.supabase_session_id` migration and update generated schema types.
+- Modify `apps/api/src/controllers/oauth-grants/access-token-hook.ts`: require signed `sub`, `client_id`, and `session_id` for OAuth hook events, distinguish initial issuance from `token_refresh`, and emit the canonical `/mcp` audience plus the resolved `grant_id`.
+- Modify `apps/api/src/controllers/oauth-grants/access-token-hook.test.ts`: add fresh-claim initial and refresh regressions that do not rely on an incoming custom `grant_id`.
+- Create `apps/api/src/controllers/oauth-grants/access-token-hook.integration.test.ts`: exercise the real controller, session-bound resolver, and active-grant service while mocking data/network boundaries only.
+- Add session-binding data helpers and update the grant create/revoke/resolution services so initial issuance binds once, refresh resolves the exact session, and revocation remains fail closed.
 - Modify `docs/superpowers/specs/presscart-mcp-account-oauth.md`: document automatic refresh and the canonical audience.
 - Modify `docs/design-docs/oauth-threat-model.md`: add the translator boundary, scope translation, fixed-origin proxy, rotation, and migration checks.
 
@@ -438,7 +442,7 @@ export function createProtectedResourceMetadata(args: {
 }
 ```
 
-Add strict request/response schemas for the fields listed in the approved spec. `translateRegistrationRequest()` must return `{ facade, upstream }`. `translateRegistrationResponse()` must require Supabase's UUID `client_id`, `client_type`, dynamic `registration_type`, timestamps, core client fields, confidential-only secret, optional supported client metadata, and optional fixed `profile` scope; reject unknown fields; compare redirect URI/auth method/grant/response sets and optional metadata; and return only the portable allowlist with `FACADE_SCOPE`. `translateTokenResponse()` must allow only standard token fields, accept upstream scope only when absent or `profile`, require `refresh_token` for `authorization_code`, and always return `FACADE_SCOPE`.
+Add strict request/response schemas for the fields listed in the approved spec. `translateRegistrationRequest()` must return `{ facade, upstream }` and mirror Supabase's bounds: no more than 10 redirect URIs, `client_name` no more than 1024 UTF-8 bytes, and `client_uri`/`logo_uri` no more than 2048 UTF-8 bytes. `translateRegistrationResponse()` must require Supabase's UUID `client_id`, `client_type`, dynamic `registration_type`, timestamps, core client fields, confidential-only secret, optional supported client metadata, and optional fixed `profile` scope; reject unknown fields; compare redirect URI/auth method/grant/response sets and optional metadata; and return only the portable allowlist with `FACADE_SCOPE`. `translateTokenResponse()` must allow only standard token fields, accept upstream scope only when absent or `profile`, require `refresh_token` for `authorization_code`, and always return `FACADE_SCOPE`.
 
 - [ ] **Step 4: Run pure tests and type checking to prove GREEN**
 
@@ -573,7 +577,8 @@ const fetchImpl: typeof fetch = async (input, init) => {
 };
 ```
 
-- DCR posts only to `/auth/v1/oauth/clients/register`, translates scope to `profile`, validates Supabase's UUID/client type/dynamic registration/timestamp/core-field response, restores `profile offline_access`, emits only the portable client-field allowlist, and rejects malformed/oversized responses.
+- DCR posts only to `/auth/v1/oauth/clients/register`, translates scope to `profile`, enforces Supabase's redirect-count and UTF-8 metadata bounds locally, validates Supabase's UUID/client type/dynamic registration/timestamp/core-field response, restores `profile offline_access`, emits only the portable client-field allowlist, and rejects malformed/oversized responses.
+- An exact Supabase HTTP 400 `validation_failed` DCR body maps to RFC 7591 `invalid_client_metadata` with a fixed description; malformed variants remain safe 502 responses and never expose `msg`.
 - Authorization-code exchange forwards `code`, `code_verifier`, exact decoded `redirect_uri`, `client_id`, and optional exact canonical `resource` once.
 - Refresh exchange forwards `refresh_token` once and returns the rotated token unchanged.
 - `Authorization: Basic` is forwarded only to `/auth/v1/oauth/token`; bearer and arbitrary authorization schemes are rejected.
@@ -811,7 +816,7 @@ In `README.md`:
 - explain that clients store and rotate refresh tokens and initiate refresh automatically;
 - explain that the translator changes only MCP OAuth, not Presscart web sessions;
 - list ChatGPT, Claude, Cursor, and Codex as standards-based consumers without vendor branches;
-- document deployment order: dual audience -> app hook -> wait one access-token lifetime -> translator flag -> replacement ChatGPT app -> remove legacy audience;
+- document deployment order: dual audience -> app session-binding migration -> app hook -> wait one access-token lifetime -> translator flag -> replacement ChatGPT app -> remove legacy audience;
 - state that UI wording such as Connect/Authenticate is controlled by the client platform.
 
 - [ ] **Step 6: Run all MCP verification**
@@ -837,116 +842,52 @@ feat(auth): wire hosted OAuth refresh lifecycle
 
 ---
 
-### Task 5: Preserve grant identity through app-side refresh issuance
+### Task 5: Bind app-side refresh issuance to the signed Supabase session
 
 **Files:**
+- Create: `presscart-app/apps/api/prisma/migrations/*_add_oauth_grant_supabase_session_id/migration.sql`
+- Modify: `presscart-app/apps/api/prisma/schema.prisma`
 - Modify: `presscart-app/apps/api/src/controllers/oauth-grants/access-token-hook.ts`
-- Modify: `presscart-app/apps/api/src/controllers/oauth-grants/access-token-hook.test.ts`
-- Create: `presscart-app/apps/api/src/controllers/oauth-grants/access-token-hook.integration.test.ts`
+- Modify/Create: focused controller, resolver, data-helper, grant-lifecycle, and revocation tests.
+- Create/Modify: session binding/lookup helpers and OAuth grant create, resolve, and revoke services.
 
 **Interfaces:**
-- Consumes the existing hook body and `resolveOauthGrantForTokenHookService()`.
-- Produces refreshed claims with `aud=https://mcp.presscart.com/mcp`, the same `sub`, `client_id`, and active `grant_id`, preserved `iat`/`exp`, and no stale `permissions` claim.
+- Consumes Supabase-signed `sub`, OAuth `client_id`, and `session_id` claims plus exact hook authentication methods `oauth_provider/authorization_code` and `token_refresh`.
+- Persists `oauth_grants.supabase_session_id` as a nullable unique UUID. Initial issuance binds once under the user/client lock; refresh resolves only the exact stored session and never falls forward to another active grant.
+- Produces claims with `aud=https://mcp.presscart.com/mcp`, preserved standard subject/session/lifetime claims, resolved `grant_id`, and no stale `permissions` claim.
 
-- [ ] **Step 1: Expand the controller test with a refresh-shaped payload**
+- [ ] **Step 1: Add the session-binding migration and schema contract**
 
-Replace the existing narrow assertion with a case containing body/claim fallbacks and lifetime claims:
+Add nullable unique `supabase_session_id UUID` to `access.oauth_grants`, update Prisma/generated types, and add data tests for bind-once, unique-session lookup, conflicts, and missing rows. The migration must be applied before any hook deployment that reads or writes the column.
 
-```ts
-it('rebinds a refresh-shaped hook payload to the active MCP grant', async () => {
-  const response = await makeApp().request('/oauth/access-token-hook', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      authentication_method: 'refresh_token',
-      claims: {
-        sub: userId,
-        client_id: 'codex-cli',
-        grant_id: grantId,
-        iat: 1_752_710_000,
-        exp: 1_752_713_600,
-        permissions: ['stale.permission'],
-      },
-    }),
-  });
-  expect(response.status).toBe(200);
-  expect(resolveOauthGrantForTokenHookService).toHaveBeenCalledWith({
-    dbClient, userId, clientId: 'codex-cli', grantId,
-  });
-  expect(await response.json()).toEqual({
-    claims: {
-      sub: userId,
-      iat: 1_752_710_000,
-      exp: 1_752_713_600,
-      aud: 'https://mcp.presscart.com/mcp',
-      client_id: 'codex-cli',
-      grant_id: grantId,
-    },
-  });
-});
-```
+- [ ] **Step 2: Add controller and integration tests to prove RED**
 
-Add a second controller regression proving normal-session isolation:
+Cover both fresh Supabase claim sets:
 
-```ts
-it('returns non-OAuth claims unchanged when no client_id is present', async () => {
-  const claims = { sub: userId, iat: 1_752_710_000, exp: 1_752_713_600, role: 'authenticated' };
-  const response = await makeApp().request('/oauth/access-token-hook', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ user_id: userId, claims }),
-  });
-  expect(response.status).toBe(200);
-  expect(await response.json()).toEqual({ claims });
-  expect(resolveOauthGrantForTokenHookService).not.toHaveBeenCalled();
-});
-```
+1. `oauth_provider/authorization_code` with signed `sub`, `client_id`, and `session_id` binds an unbound active grant and returns canonical claims;
+2. `token_refresh` with the same signed identity and no incoming custom `grant_id` resolves the exact session-bound grant;
+3. missing/mismatched user, client, session, authentication method, revoked grant, deleted grant, or conflicting binding fails closed;
+4. non-OAuth claims without a client identity remain unchanged;
+5. `iat`, `exp`, `sub`, and `session_id` are preserved while stale `permissions` is stripped.
 
-- [ ] **Step 2: Add integration tests through the real resolver and active-grant service**
+Exercise the real controller and resolver, mocking only data/network boundaries.
 
-Create `access-token-hook.integration.test.ts`. Do not mock the controller, resolver, or `getActiveOauthGrantService`. Mock only:
+- [ ] **Step 3: Implement initial and refresh resolution**
 
-```ts
-vi.mock('@/env', () => ({ envConfig: { STAGE: 'dev', OAUTH_ACCESS_TOKEN_HOOK_SECRET: undefined } }));
-vi.mock('@/data/oauth-grant/get-oauth-grant');
-vi.mock('@/data/oauth-grant-permission-link/get-oauth-grant-permission-links');
-```
+Under the shared user/client advisory lock, initial issuance must bind an unbound grant once, return the same-session retry idempotently, or replace a differently bound active grant using the exact existing identity and permission links. Refresh must query by unique `supabase_session_id`, verify matching `sub` and `client_id`, and require that exact grant to remain active. Do not use an incoming custom `grant_id` as refresh input.
 
-Build a real `OpenAPIHono`, attach `errorHandlerMiddleware`, and inject the test `dbClient`. Use `makeFakeOauthGrant()` and these four cases:
+Set the canonical `/mcp` audience, retain the no-client early return for ordinary browser sessions, and accept only the exact Supabase authentication-method strings.
 
-1. active matching grant -> 200 and canonical claims;
-2. same grant ID but different `user_id` -> 401 `UnauthorizedError`;
-3. same grant ID but different `client_id` -> 401 `UnauthorizedError`;
-4. revoked grant or `getOauthGrantData()` rejecting `NotFoundError` -> 401 and no token claims returned.
+- [ ] **Step 4: Keep grant creation and revocation serialized**
 
-For every case, configure `getOauthGrantPermissionLinksData()` to return an empty non-publisher list so the real active-grant path does not invoke unrelated team capability queries.
-
-- [ ] **Step 3: Run focused app tests to prove RED**
-
-Run in `presscart-app`:
-
-```bash
-pnpm test run apps/api/src/controllers/oauth-grants/access-token-hook.test.ts apps/api/src/controllers/oauth-grants/access-token-hook.integration.test.ts
-```
-
-Expected: the refresh assertion fails because the hook still emits the legacy origin audience.
-
-- [ ] **Step 4: Change only the MCP OAuth audience**
-
-In `access-token-hook.ts`, change the constant and no other application/session behavior:
-
-```ts
-const MCP_RESOURCE_AUDIENCE = 'https://mcp.presscart.com/mcp';
-```
-
-Do not change the no-`client_id` early return. That branch is what keeps non-OAuth/browser Supabase claims unchanged.
+Explicit approval and authenticated revocation use the same user/client lock. Revocation durably denies all active exact-pair grants before retryable Supabase consent/session cleanup so losing or old session families cannot refresh into a newer grant.
 
 - [ ] **Step 5: Run focused and workspace checks to prove GREEN**
 
 Run in `presscart-app`:
 
 ```bash
-pnpm test run apps/api/src/controllers/oauth-grants/access-token-hook.test.ts apps/api/src/controllers/oauth-grants/access-token-hook.integration.test.ts apps/api/src/services/oauth-grant/resolve-oauth-grant-for-token-hook.test.ts apps/api/src/services/oauth-grant/get-active-oauth-grant.test.ts
+pnpm test run apps/api/src/controllers/oauth-grants/access-token-hook.test.ts apps/api/src/controllers/oauth-grants/access-token-hook.integration.test.ts apps/api/src/services/oauth-grant/resolve-oauth-grant-for-token-hook.test.ts apps/api/src/services/oauth-grant/revoke-oauth-grant.test.ts
 pnpm type-check
 ```
 
@@ -957,7 +898,7 @@ Expected: all focused OAuth tests pass and the monorepo typecheck exits 0.
 Invoke `$commit` in `presscart-app` with:
 
 ```text
-fix(auth): preserve MCP grant identity on token refresh
+feat(auth): bind OAuth refresh to Supabase sessions
 ```
 
 ---
@@ -979,7 +920,8 @@ Make these exact semantic changes in `presscart-mcp-account-oauth.md`:
 - audience becomes `https://mcp.presscart.com/mcp`;
 - the protected resource advertises the MCP-origin authorization server while Supabase remains the token issuer;
 - clients request `profile offline_access`, keep refresh tokens locally, and automatically call the refresh grant;
-- the access-token hook runs on initial issue and refresh and revalidates the current grant;
+- the access-token hook uses signed `session_id`, `sub`, and `client_id` on initial issue and refresh, stores the nullable unique session binding, and never depends on an incoming custom `grant_id` during refresh;
+- the session-binding migration is applied before the corresponding hook deployment;
 - normal Presscart browser sessions are outside this translator.
 
 - [ ] **Step 2: Update the threat model with translator-specific controls**
@@ -1079,9 +1021,10 @@ Present both branch names, worktree paths, commits, verification evidence, deplo
 These are deployment/administrator actions, not repository implementation steps:
 
 1. Deploy `presscart-mcp` with translator off, canonical audience configured, and `MCP_OAUTH_LEGACY_AUDIENCE=https://mcp.presscart.com` temporarily enabled.
-2. Deploy the `presscart-app` hook so new/refreshed MCP tokens use `/mcp`.
-3. Wait at least one full access-token lifetime and confirm legacy audience usage has drained.
-4. Enable the translator in non-production, then production after discovery/code/refresh/revocation smoke tests pass.
-5. Create and publish a replacement ChatGPT workspace app; keep the old app during the reconnection window.
-6. Test ChatGPT, Claude, Cursor, and Codex before and after access-token expiry.
-7. Remove the old published app and legacy audience only after the migration window and telemetry confirm they are unused.
+2. Apply the `presscart-app` migration adding nullable unique `oauth_grants.supabase_session_id` and verify it completes.
+3. Deploy the `presscart-app` hook and session-bound resolver so new/refreshed MCP tokens use `/mcp`.
+4. Wait at least one full access-token lifetime and confirm legacy audience usage has drained.
+5. Enable the translator in non-production, then production after discovery/code/refresh/revocation smoke tests pass.
+6. Create and publish a replacement ChatGPT workspace app; keep the old app during the reconnection window.
+7. Test ChatGPT, Claude, Cursor, and Codex before and after access-token expiry.
+8. Remove the old published app and legacy audience only after the migration window and telemetry confirm they are unused.

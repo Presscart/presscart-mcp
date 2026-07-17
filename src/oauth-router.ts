@@ -76,6 +76,11 @@ const upstreamOAuthErrorSchema = z.object({
   error_description: z.string().max(2_048).optional(),
   error_uri: z.string().url().max(2_048).optional(),
 }).passthrough();
+const supabaseDcrValidationErrorSchema = z.object({
+  code: z.literal(400),
+  error_code: z.literal('validation_failed'),
+  msg: z.string().min(1).max(2_048),
+}).passthrough();
 
 type OAuthErrorPayload = {
   error: string;
@@ -205,6 +210,7 @@ export function createOAuthRouter(options: OAuthRouterOptions): Router {
           fetchImpl,
           url: upstreamRegister,
           timeoutMs: options.upstreamTimeoutMs,
+          translateSupabaseDcrValidationErrors: true,
           init: {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
@@ -384,6 +390,7 @@ async function fetchUpstreamJson(args: {
   fetchImpl: typeof fetch;
   url: URL;
   timeoutMs: number;
+  translateSupabaseDcrValidationErrors?: boolean;
   init: RequestInit;
 }) {
   let response: globalThis.Response;
@@ -418,6 +425,18 @@ async function fetchUpstreamJson(args: {
 
   const body = await readLimitedJson(response);
   if (response.status >= 400) {
+    if (
+      args.translateSupabaseDcrValidationErrors === true
+      && response.status === 400
+      && supabaseDcrValidationErrorSchema.safeParse(body).success
+    ) {
+      throw new FacadeOAuthError(
+        'invalid_client_metadata',
+        'client registration metadata is invalid',
+        400,
+      );
+    }
+
     const parsed = upstreamOAuthErrorSchema.safeParse(body);
     if (!parsed.success) throw upstreamServerError();
     throw new UpstreamOAuthError(response.status, {
