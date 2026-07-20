@@ -4,7 +4,8 @@ import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 
 type SupabaseOAuthVerifierOptions = {
   issuerUrl: URL;
-  audience: URL;
+  audiences: readonly [URL, ...URL[]];
+  resource: URL;
 };
 
 export class SupabaseOAuthVerifier {
@@ -16,12 +17,13 @@ export class SupabaseOAuthVerifier {
 
   async verifyAccessToken(token: string): Promise<AuthInfo> {
     try {
+      const acceptedAudiences = this.options.audiences.map(normalizeAudience);
       const { payload } = await jwtVerify(token, this.jwks, {
         issuer: normalizeIssuer(this.options.issuerUrl),
-        audience: normalizeAudience(this.options.audience),
+        audience: acceptedAudiences,
       });
 
-      return toAuthInfo(token, payload, this.options.audience);
+      return toAuthInfo(token, payload, this.options.resource);
     } catch (error) {
       if (error instanceof InvalidTokenError) throw error;
       if (error instanceof joseErrors.JOSEError) {
@@ -33,7 +35,7 @@ export class SupabaseOAuthVerifier {
   }
 }
 
-function toAuthInfo(token: string, payload: JWTPayload, audience: URL): AuthInfo {
+function toAuthInfo(token: string, payload: JWTPayload, resource: URL): AuthInfo {
   const clientId = readStringClaim(payload, 'client_id');
   const grantId = readStringClaim(payload, 'grant_id');
   const subject = readStringClaim(payload, 'sub');
@@ -48,7 +50,7 @@ function toAuthInfo(token: string, payload: JWTPayload, audience: URL): AuthInfo
     clientId,
     scopes,
     expiresAt: payload.exp,
-    resource: audience,
+    resource,
     extra: {
       source: 'mcp',
       sub: subject,

@@ -1,5 +1,11 @@
 import { z } from 'zod';
 
+export const booleanEnvSchema = z.preprocess(value => {
+  if (value === true || value === 'true' || value === '1') return true;
+  if (value === false || value === 'false' || value === '0') return false;
+  return value;
+}, z.boolean());
+
 const envSchema = z.object({
   PRESSCART_API_URL: z.string().url(),
   PRESSCART_APP_URL: z.string().url().optional(),
@@ -8,9 +14,12 @@ const envSchema = z.object({
   MCP_SERVER_URL: z.string().url().optional(),
   MCP_ALLOWED_HOSTS: z.string().min(1).optional(),
   MCP_ALLOWED_ORIGINS: z.string().min(1).optional(),
-  MCP_OAUTH_ENABLED: z.coerce.boolean().default(false),
+  MCP_OAUTH_ENABLED: booleanEnvSchema.default(false),
+  MCP_OAUTH_TRANSLATOR_ENABLED: booleanEnvSchema.default(false),
   MCP_OAUTH_ISSUER_URL: z.string().url().optional(),
-  MCP_OAUTH_AUDIENCE: z.string().url().default('https://mcp.presscart.com'),
+  MCP_OAUTH_AUDIENCE: z.string().url().default('https://mcp.presscart.com/mcp'),
+  MCP_OAUTH_LEGACY_AUDIENCE: z.string().url().optional(),
+  MCP_OAUTH_UPSTREAM_TIMEOUT_MS: z.coerce.number().int().positive().max(30_000).default(10_000),
   MCP_INTERNAL_AUTH_TOKEN: z.string().min(1).optional(),
   MCP_SESSION_IDLE_TTL_MS: z.coerce.number().int().positive().default(12 * 60 * 60 * 1000),
   PRESSCART_API_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
@@ -26,8 +35,11 @@ export const env = envSchema.parse({
   MCP_ALLOWED_HOSTS: process.env.MCP_ALLOWED_HOSTS,
   MCP_ALLOWED_ORIGINS: process.env.MCP_ALLOWED_ORIGINS,
   MCP_OAUTH_ENABLED: process.env.MCP_OAUTH_ENABLED,
+  MCP_OAUTH_TRANSLATOR_ENABLED: process.env.MCP_OAUTH_TRANSLATOR_ENABLED,
   MCP_OAUTH_ISSUER_URL: process.env.MCP_OAUTH_ISSUER_URL,
   MCP_OAUTH_AUDIENCE: process.env.MCP_OAUTH_AUDIENCE,
+  MCP_OAUTH_LEGACY_AUDIENCE: process.env.MCP_OAUTH_LEGACY_AUDIENCE,
+  MCP_OAUTH_UPSTREAM_TIMEOUT_MS: process.env.MCP_OAUTH_UPSTREAM_TIMEOUT_MS,
   MCP_INTERNAL_AUTH_TOKEN: process.env.MCP_INTERNAL_AUTH_TOKEN,
   MCP_SESSION_IDLE_TTL_MS: process.env.MCP_SESSION_IDLE_TTL_MS,
   PRESSCART_API_TIMEOUT_MS: process.env.PRESSCART_API_TIMEOUT_MS,
