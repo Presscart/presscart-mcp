@@ -254,6 +254,20 @@ test('redirects a valid S256 request to the fixed Supabase authorize endpoint', 
   }
 });
 
+test('forwards a valid prompt parameter to the upstream authorize endpoint', async () => {
+  const base = await startRouter();
+  for (const prompt of ['consent', 'login', 'none', 'select_account', 'login consent']) {
+    const response = await fetch(
+      `${base}/oauth/authorize?${authorizationQuery({ prompt })}`,
+      { redirect: 'manual' },
+    );
+    assert.equal(response.status, 302);
+    const location = response.headers.get('location');
+    assert(location);
+    assert.equal(new URL(location).searchParams.get('prompt'), prompt);
+  }
+});
+
 test('accepts loopback HTTP authorization redirect URIs', async () => {
   const base = await startRouter();
   for (const redirectUri of [
@@ -297,6 +311,9 @@ test('returns local JSON errors without redirecting invalid authorization reques
   cases.push({ query: authorizationQuery({ redirect_uri: 'https://client.example/callback#fragment' }), error: 'invalid_request' });
   cases.push({ query: authorizationQuery({ code_challenge_method: 'plain' }), error: 'invalid_request' });
   cases.push({ query: authorizationQuery({ code_challenge: 'short' }), error: 'invalid_request' });
+  cases.push({ query: authorizationQuery({ prompt: 'evil' }), error: 'invalid_request' });
+  cases.push({ query: authorizationQuery({ prompt: '' }), error: 'invalid_request' });
+  cases.push({ query: authorizationQuery({ prompt: 'consent  login' }), error: 'invalid_request' });
   cases.push({
     query: authorizationQuery({ resource: 'https://attacker.example/mcp' }),
     error: 'invalid_target',

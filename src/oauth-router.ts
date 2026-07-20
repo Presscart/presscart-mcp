@@ -46,7 +46,11 @@ const authorizationParameters = new Set([
   'state',
   'resource',
   'scope',
+  'prompt',
 ]);
+
+// OIDC-defined prompt values; MCP clients such as Claude Code send prompt=consent
+const promptValues = new Set(['none', 'login', 'consent', 'select_account']);
 
 const textField = z.string().min(1);
 const optionalClientFields = {
@@ -189,6 +193,7 @@ export function createOAuthRouter(options: OAuthRouterOptions): Router {
       location.searchParams.set('scope', request.scope);
       if (request.state !== undefined) location.searchParams.set('state', request.state);
       if (request.resource !== undefined) location.searchParams.set('resource', request.resource);
+      if (request.prompt !== undefined) location.searchParams.set('prompt', request.prompt);
 
       res.setHeader('Cache-Control', 'no-store');
       res.redirect(302, location.href);
@@ -313,7 +318,17 @@ function parseAuthorizationRequest(req: Request, resource: URL) {
     state: optionalParameter(searchParams, 'state'),
     resource: canonicalResource,
     scope: scope.upstream,
+    prompt: parsePrompt(optionalParameter(searchParams, 'prompt')),
   };
+}
+
+function parsePrompt(value: string | undefined) {
+  if (value === undefined) return undefined;
+  const tokens = value.split(' ');
+  if (tokens.length === 0 || !tokens.every(token => promptValues.has(token))) {
+    throw invalidRequest('authorization request is invalid');
+  }
+  return value;
 }
 
 function requiredParameter(searchParams: URLSearchParams, name: string) {
