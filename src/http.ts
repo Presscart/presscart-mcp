@@ -495,7 +495,7 @@ function cleanupExpiredState() {
     if (now - session.lastSeenAtMs <= SESSION_IDLE_TTL_MS) continue;
 
     sessions.delete(sessionId);
-    logServerEvent('warn', 'Closed idle MCP session.', {
+    logServerEvent('info', 'Closed idle MCP session.', {
       sessionId,
       idleMs: now - session.lastSeenAtMs,
       ttlMs: SESSION_IDLE_TTL_MS,
@@ -521,10 +521,21 @@ function logRouteError(req: Request, statusCode: number, error: unknown) {
   });
 }
 
-function logServerEvent(level: 'warn' | 'error', message: string, context: Record<string, unknown>) {
+function logServerEvent(
+  level: 'info' | 'warn' | 'error',
+  message: string,
+  context: Record<string, unknown>
+) {
   const payload = JSON.stringify({ message, ...context });
   if (level === 'error') {
     console.error(payload);
+    return;
+  }
+
+  // console.warn writes to stderr, which log platforms render as error-level;
+  // routine events must go to stdout
+  if (level === 'info') {
+    console.info(payload);
     return;
   }
 
