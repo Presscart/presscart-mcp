@@ -1,3 +1,27 @@
+# [1.1.0](https://github.com/Presscart/presscart-mcp/compare/v1.0.4...v1.1.0) (2026-07-21)
+
+
+### Bug Fixes
+
+* **auth:** accept the OIDC application_type field on registration ([e4f1de1](https://github.com/Presscart/presscart-mcp/commit/e4f1de12a15ff44f330c3cd5d84ecbc6de966996))
+* **auth:** accept the OIDC prompt parameter on facade authorize ([0d68758](https://github.com/Presscart/presscart-mcp/commit/0d68758cf4044cde7786963b26fedc2a1e410e93))
+* **auth:** align OAuth registration contracts ([ea2e231](https://github.com/Presscart/presscart-mcp/commit/ea2e2319d02584715734163c5a0ab6785cec367f))
+* **auth:** complete portable OAuth refresh support ([699f1a0](https://github.com/Presscart/presscart-mcp/commit/699f1a0884ed27e9d495712a82e61217d7b72966))
+* **auth:** harden OAuth facade request boundaries ([90de3bb](https://github.com/Presscart/presscart-mcp/commit/90de3bb83c50eecb7e01f9d1cc6d676c931aa4b2))
+* **auth:** report canonical MCP resource ([d2d70e7](https://github.com/Presscart/presscart-mcp/commit/d2d70e7a6fa5949893fa6285a2039cb14d789b33))
+* **auth:** require secure public OAuth URLs ([02a3550](https://github.com/Presscart/presscart-mcp/commit/02a35504d0f713ce03cabef509c86c1a226123f2))
+* **auth:** share hosted OAuth route error handling ([441264c](https://github.com/Presscart/presscart-mcp/commit/441264cf5a32efc399099defb2f3932ae532a781))
+* **auth:** validate DCR client secret consistency ([da1fc4c](https://github.com/Presscart/presscart-mcp/commit/da1fc4cf74f37f3aa4eeba231ddbfaf125fc2b55))
+* **logs:** report idle MCP session cleanup at info level ([215650f](https://github.com/Presscart/presscart-mcp/commit/215650f5fa4b9d58af12e0b5f798294334b71884))
+
+
+### Features
+
+* **auth:** add stateless OAuth refresh translator ([0b5ed3e](https://github.com/Presscart/presscart-mcp/commit/0b5ed3ebcab22ee53a3d0c8da08f7f3a524cd8b1))
+* **auth:** define OAuth facade protocol contract ([9fffe7b](https://github.com/Presscart/presscart-mcp/commit/9fffe7b5afaf7ec9aadb3852e6236e3082c2d01e))
+* **auth:** support canonical and legacy MCP audiences ([7ea98d2](https://github.com/Presscart/presscart-mcp/commit/7ea98d2710f38bd5568004ba9fd87a6afaa2c710))
+* **auth:** wire hosted OAuth refresh lifecycle ([9373be0](https://github.com/Presscart/presscart-mcp/commit/9373be0be73b3d81dbcc785403049e9684f27797))
+
 ## [1.0.4](https://github.com/Presscart/presscart-mcp/compare/v1.0.3...v1.0.4) (2026-06-30)
 
 
