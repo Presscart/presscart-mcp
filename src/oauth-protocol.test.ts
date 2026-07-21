@@ -189,6 +189,33 @@ test('accepts the exact official public Supabase DCR response and emits only por
   assert.equal('contacts' in response, false);
 });
 
+test('accepts the OIDC application_type field but never forwards it upstream', () => {
+  // Codex registers with application_type: 'native'; Supabase DCR does not accept the field
+  for (const applicationType of ['native', 'web']) {
+    const request = translateRegistrationRequest({
+      redirect_uris: ['https://client.example/callback'],
+      token_endpoint_auth_method: 'none',
+      grant_types: ['authorization_code', 'refresh_token'],
+      response_types: ['code'],
+      scope: 'profile offline_access',
+      client_name: 'Codex',
+      application_type: applicationType,
+    });
+    assert.equal('application_type' in request.upstream, false);
+  }
+});
+
+test('rejects DCR application_type values outside the OIDC-defined set', () => {
+  for (const applicationType of ['evil', '', 'NATIVE']) {
+    assert.throws(() => translateRegistrationRequest({
+      redirect_uris: ['https://client.example/callback'],
+      token_endpoint_auth_method: 'none',
+      application_type: applicationType,
+    }), (error: unknown) => error instanceof OAuthProtocolError
+      && error.code === 'invalid_request');
+  }
+});
+
 test('defaults an omitted DCR grant_types field to authorization code plus refresh token', () => {
   const request = translateRegistrationRequest({
     redirect_uris: ['https://client.example/callback'],

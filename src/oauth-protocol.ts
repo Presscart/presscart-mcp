@@ -48,6 +48,9 @@ const registrationRequestSchema = z.object({
   response_types: responseTypesSchema.default(['code']),
   ...supportedRegistrationMetadataFields,
   ...ignoredRegistrationRequestMetadataFields,
+  // OIDC metadata sent by MCP clients (Codex sends application_type: 'native');
+  // Supabase DCR does not accept it, so it is stripped before forwarding upstream
+  application_type: z.enum(['native', 'web']).optional(),
   scope: z.string().optional(),
 }).strict();
 
@@ -207,9 +210,10 @@ export function translateRegistrationRequest(value: unknown) {
   }
 
   const scope = parseFacadeScope(parsed.data.scope);
+  const { application_type: _applicationType, ...upstreamFields } = parsed.data;
   return {
     facade: { ...parsed.data, scope: scope.facade },
-    upstream: { ...parsed.data, scope: scope.upstream },
+    upstream: { ...upstreamFields, scope: scope.upstream },
   };
 }
 
