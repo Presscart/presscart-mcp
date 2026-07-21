@@ -1,0 +1,11 @@
+node_modules
+dist
+.git
+.github
+.claude
+.codex
+.agents
+.superpowers
+.husky
+*.md
+.env*
