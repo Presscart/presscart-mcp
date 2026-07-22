@@ -1,3 +1,10 @@
+## [1.1.1](https://github.com/Presscart/presscart-mcp/compare/v1.1.0...v1.1.1) (2026-07-22)
+
+
+### Bug Fixes
+
+* **auth:** serve authorization server metadata on discovery aliases ([06aa189](https://github.com/Presscart/presscart-mcp/commit/06aa189871e36f26b3bda05c6d42812f407f942b))
+
 # [1.1.0](https://github.com/Presscart/presscart-mcp/compare/v1.0.4...v1.1.0) (2026-07-21)
 
 
