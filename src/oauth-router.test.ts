@@ -171,6 +171,28 @@ test('publishes facade metadata only when enabled and caches both resource route
   });
 });
 
+test('serves authorization server metadata on path-inserted and OIDC discovery aliases', async () => {
+  const enabled = await startRouter();
+  const canonical = await (await fetch(`${enabled}/.well-known/oauth-authorization-server`)).json();
+  const aliases = [
+    '/.well-known/oauth-authorization-server/mcp',
+    '/.well-known/openid-configuration',
+    '/.well-known/openid-configuration/mcp',
+  ];
+  for (const alias of aliases) {
+    const response = await fetch(`${enabled}${alias}`);
+    assert.equal(response.status, 200, alias);
+    assertOAuthJson(response);
+    assert.equal(response.headers.get('cache-control'), 'public, max-age=300');
+    assert.deepEqual(await response.json(), canonical, alias);
+  }
+
+  const disabled = await startRouter({ translatorEnabled: false });
+  for (const alias of aliases) {
+    assert.equal((await fetch(`${disabled}${alias}`)).status, 404, alias);
+  }
+});
+
 test('requires HTTPS on every owned route unless the client connection is loopback', async () => {
   let upstreamCalls = 0;
   const fetchImpl: typeof fetch = async () => {
@@ -183,6 +205,9 @@ test('requires HTTPS on every owned route unless the client connection is loopba
     fetch(`${insecureBase}/.well-known/oauth-protected-resource`, { headers: callerHeaders }),
     fetch(`${insecureBase}/.well-known/oauth-protected-resource/mcp`, { headers: callerHeaders }),
     fetch(`${insecureBase}/.well-known/oauth-authorization-server`, { headers: callerHeaders }),
+    fetch(`${insecureBase}/.well-known/oauth-authorization-server/mcp`, { headers: callerHeaders }),
+    fetch(`${insecureBase}/.well-known/openid-configuration`, { headers: callerHeaders }),
+    fetch(`${insecureBase}/.well-known/openid-configuration/mcp`, { headers: callerHeaders }),
     fetch(`${insecureBase}/oauth/authorize?${authorizationQuery()}`, {
       headers: callerHeaders,
       redirect: 'manual',
@@ -350,6 +375,9 @@ test('rejects every overlong OAuth route URL before parsing, rate limiting, or u
     fetch(`${base}/.well-known/oauth-protected-resource?${oversized}`),
     fetch(`${base}/.well-known/oauth-protected-resource/mcp?${oversized}`),
     fetch(`${base}/.well-known/oauth-authorization-server?${oversized}`),
+    fetch(`${base}/.well-known/oauth-authorization-server/mcp?${oversized}`),
+    fetch(`${base}/.well-known/openid-configuration?${oversized}`),
+    fetch(`${base}/.well-known/openid-configuration/mcp?${oversized}`),
     fetch(`${base}/oauth/authorize?${oversized}`, { redirect: 'manual' }),
     fetch(`${base}/oauth/register?${oversized}`, {
       method: 'POST',

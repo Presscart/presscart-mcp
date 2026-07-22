@@ -157,15 +157,23 @@ export function createOAuthRouter(options: OAuthRouterOptions): Router {
   if (!options.translatorEnabled) return router;
 
   const authorizationServerMetadata = createAuthorizationServerMetadata(authorizationServer);
-  router.get(
+  const sendAuthorizationServerMetadata = (_req: Request, res: Response) => {
+    res.setHeader('Cache-Control', METADATA_CACHE_CONTROL);
+    res.json(authorizationServerMetadata);
+  };
+  // RFC 8414 path-inserted and OIDC discovery aliases: strict clients (ChatGPT)
+  // resolve metadata from the resource path and do not fall back to the root.
+  // All aliases deliberately serve the one canonical document: the issuer stays
+  // the AS origin (a per-path issuer would fork the AS identity), and the OIDC
+  // paths carry OAuth-only metadata — this facade issues no ID tokens.
+  for (const metadataPath of [
     '/.well-known/oauth-authorization-server',
-    enforceSecureTransport,
-    enforceRequestUrlLimit,
-    (_req, res) => {
-      res.setHeader('Cache-Control', METADATA_CACHE_CONTROL);
-      res.json(authorizationServerMetadata);
-    },
-  );
+    '/.well-known/oauth-authorization-server/mcp',
+    '/.well-known/openid-configuration',
+    '/.well-known/openid-configuration/mcp',
+  ]) {
+    router.get(metadataPath, enforceSecureTransport, enforceRequestUrlLimit, sendAuthorizationServerMetadata);
+  }
 
   const authorizeRateLimit = createRateLimiter(RATE_LIMITS.authorize, now);
   const registerRateLimit = createRateLimiter(RATE_LIMITS.register, now);
