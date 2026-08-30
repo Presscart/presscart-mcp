@@ -1,0 +1,8 @@
+{
+  "$schema": "https://glama.ai/mcp/schemas/server.json",
+  "maintainers": ["Presscart"],
+  "name": "presscart",
+  "description": "Official MCP server for Presscart — browse 1,700+ publications, manage media placement campaigns and orders, and track article status.",
+  "homepage": "https://www.presscart.com",
+  "documentation": "https://docs.presscart.com"
+}
