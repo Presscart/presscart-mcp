@@ -1,6 +1,8 @@
 # Presscart MCP
 
-Standalone MCP server for the Presscart reseller workflow.
+The official [Model Context Protocol](https://modelcontextprotocol.io) server for [Presscart](https://www.presscart.com), a marketplace for disclosed paid editorial placements across 1,700+ publications. It lets AI assistants and agents browse the outlet catalog, manage campaigns and orders, and track article status through the [Presscart API](https://docs.presscart.com).
+
+Hosted endpoint: `https://mcp.presscart.com/mcp` — see [Client Setup](#client-setup) for connecting from Claude, Cursor, VS Code, ChatGPT, and other MCP clients. A Presscart account is required.
 
 Supports:
 - hosted Streamable HTTP mode
