@@ -1,0 +1,17 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "name": "com.presscart/presscart",
+  "description": "Browse the Presscart catalog of 1,700+ publications, manage media placement campaigns and orders, and track article status. Presscart is a marketplace for disclosed paid editorial placements.",
+  "repository": {
+    "url": "https://github.com/Presscart/presscart-mcp",
+    "source": "github"
+  },
+  "version": "1.1.1",
+  "websiteUrl": "https://www.presscart.com",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.presscart.com/mcp"
+    }
+  ]
+}
