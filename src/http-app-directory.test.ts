@@ -386,7 +386,7 @@ test('an OAuth directory session rejects API-token headers and names its own met
   );
 });
 
-const IDENTITY_MISMATCH = /Authorization does not match|does not match/i;
+const IDENTITY_MISMATCH = /Authorization token does not match the OAuth grant bound to the active MCP session/;
 
 async function readMismatch(base: string, path: string, sessionId: string, token: string) {
   return sendMcp(base, path, {
