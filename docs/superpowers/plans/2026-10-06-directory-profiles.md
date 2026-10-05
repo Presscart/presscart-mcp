@@ -6477,6 +6477,9 @@ Expected: `ℹ tests 188`, `ℹ pass 188`, `ℹ fail 0`.
 Run: `npx tsc -p tsconfig.build.json --noEmit && npx tsc -p tsconfig.build.json --listFilesOnly | grep -c 'fixtures'`
 Expected: the first command prints nothing; the count is `0`.
 
+Run: `npm run build`
+Expected: exits 0. The `prebuild` step regenerates `src/version.ts` from `package.json` (both `1.0.4`), so `git status --short src/version.ts` prints nothing afterwards. `dist/` is gitignored.
+
 Run: `git diff --stat dad1a53 -- src/tools`
 Expected: no output (legacy tool modules untouched).
 
