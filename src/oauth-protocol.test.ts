@@ -5,7 +5,7 @@ import {
   OAuthProtocolError,
   createAuthorizationServerMetadata,
   createProtectedResourceMetadata,
-  parseCanonicalResource,
+  parseAcceptedResource,
   parseFacadeScope,
   resolveOAuthAudiences,
   translateRegistrationRequest,
@@ -71,10 +71,25 @@ describe('scope translation', () => {
   }
 });
 
-test('accepts only the exact canonical resource', () => {
-  assert.equal(parseCanonicalResource(resource.href, resource), resource.href);
-  assert.throws(() => parseCanonicalResource(facade.href, resource), (error: unknown) =>
-    error instanceof OAuthProtocolError && error.code === 'invalid_target');
+test('accepts only an exact configured resource', () => {
+  const directory = new URL('https://mcp.presscart.com/mcp/openai');
+  const accepted = [resource, directory] as const;
+
+  assert.equal(parseAcceptedResource(undefined, accepted), undefined);
+  assert.equal(parseAcceptedResource(resource.href, accepted), resource.href);
+  assert.equal(parseAcceptedResource(directory.href, accepted), directory.href);
+  for (const value of [
+    facade.href,
+    'https://mcp.presscart.com/mcp/claude-directory',
+    'https://mcp.presscart.com/mcp/openai/',
+    'https://mcp.presscart.com/mcp/',
+    'https://attacker.example/mcp/openai',
+  ]) {
+    assert.throws(() => parseAcceptedResource(value, accepted), (error: unknown) =>
+      error instanceof OAuthProtocolError
+      && error.code === 'invalid_target'
+      && error.message === 'resource is not supported', value);
+  }
 });
 
 test('accepts only HTTPS or loopback HTTP for the upstream OAuth issuer', () => {

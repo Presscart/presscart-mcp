@@ -7,7 +7,7 @@ import {
   OAuthProtocolError,
   createAuthorizationServerMetadata,
   createProtectedResourceMetadata,
-  parseCanonicalResource,
+  parseAcceptedResource,
   parseFacadeScope,
   parseRedirectUri,
   translateRegistrationRequest,
@@ -17,7 +17,8 @@ import {
 } from './oauth-protocol.js';
 
 export type OAuthRouterOptions = {
-  resource: URL;
+  // Ordered list: the canonical /mcp resource first, then each enabled directory resource.
+  resources: readonly [URL, ...URL[]];
   authorizationServer: URL;
   upstreamIssuer: URL;
   translatorEnabled: boolean;
@@ -31,6 +32,8 @@ const FORM_BODY_LIMIT = '16kb';
 const JSON_BODY_LIMIT = '32kb';
 const UPSTREAM_RESPONSE_LIMIT = 64 * 1024;
 const METADATA_CACHE_CONTROL = 'public, max-age=300';
+const PROTECTED_RESOURCE_METADATA_PATH = '/.well-known/oauth-protected-resource';
+const CANONICAL_METADATA_SUFFIXES = new Set(['', '/mcp']);
 const RATE_LIMITS = {
   authorize: { max: 60, windowMs: 60_000 },
   register: { max: 20, windowMs: 60_000 },
@@ -120,7 +123,10 @@ export function createOAuthRouter(options: OAuthRouterOptions): Router {
   const router = express.Router();
   const fetchImpl = options.fetchImpl ?? globalThis.fetch;
   const now = options.now ?? Date.now;
-  const resource = new URL(options.resource.href);
+  const canonicalResource = new URL(options.resources[0].href);
+  const directoryResources = options.resources.slice(1).map(resource => new URL(resource.href));
+  const acceptedResources = [canonicalResource, ...directoryResources];
+  const directoryMetadataSuffixes = resolveDirectoryMetadataSuffixes(directoryResources);
   const authorizationServer = new URL(options.authorizationServer.href);
   const upstreamIssuer = new URL(options.upstreamIssuer.href);
   validateUpstreamIssuer(upstreamIssuer);
@@ -129,30 +135,40 @@ export function createOAuthRouter(options: OAuthRouterOptions): Router {
   const upstreamRegister = new URL('oauth/clients/register', upstreamBase);
   const upstreamToken = new URL('oauth/token', upstreamBase);
 
-  const protectedResourceMetadata = createProtectedResourceMetadata({
-    resource,
-    authorizationServer: options.translatorEnabled
-      ? authorizationServer
-      : upstreamIssuer,
-    translatorEnabled: options.translatorEnabled,
-  });
-  const sendProtectedResourceMetadata = (_req: Request, res: Response) => {
-    res.setHeader('Cache-Control', METADATA_CACHE_CONTROL);
-    res.json(protectedResourceMetadata);
+  const metadataAuthorizationServer = options.translatorEnabled
+    ? authorizationServer
+    : upstreamIssuer;
+  const sendProtectedResourceMetadataFor = (resource: URL) => {
+    const metadata = createProtectedResourceMetadata({
+      resource,
+      authorizationServer: metadataAuthorizationServer,
+      translatorEnabled: options.translatorEnabled,
+    });
+    return (_req: Request, res: Response) => {
+      res.setHeader('Cache-Control', METADATA_CACHE_CONTROL);
+      res.json(metadata);
+    };
   };
 
-  router.get(
-    '/.well-known/oauth-protected-resource',
-    enforceSecureTransport,
-    enforceRequestUrlLimit,
-    sendProtectedResourceMetadata,
-  );
-  router.get(
-    '/.well-known/oauth-protected-resource/mcp',
-    enforceSecureTransport,
-    enforceRequestUrlLimit,
-    sendProtectedResourceMetadata,
-  );
+  const sendCanonicalMetadata = sendProtectedResourceMetadataFor(canonicalResource);
+  for (const suffix of CANONICAL_METADATA_SUFFIXES) {
+    router.get(
+      `${PROTECTED_RESOURCE_METADATA_PATH}${suffix}`,
+      enforceSecureTransport,
+      enforceRequestUrlLimit,
+      sendCanonicalMetadata,
+    );
+  }
+  // RFC 9728 §3.3: each directory resource has its own path-inserted metadata
+  // document whose `resource` exactly matches the URL the client connected to.
+  directoryResources.forEach((resource, index) => {
+    router.get(
+      `${PROTECTED_RESOURCE_METADATA_PATH}${directoryMetadataSuffixes[index]}`,
+      enforceSecureTransport,
+      enforceRequestUrlLimit,
+      sendProtectedResourceMetadataFor(resource),
+    );
+  });
 
   if (!options.translatorEnabled) return router;
 
@@ -171,6 +187,10 @@ export function createOAuthRouter(options: OAuthRouterOptions): Router {
     '/.well-known/oauth-authorization-server/mcp',
     '/.well-known/openid-configuration',
     '/.well-known/openid-configuration/mcp',
+    ...directoryMetadataSuffixes.flatMap(suffix => [
+      `/.well-known/oauth-authorization-server${suffix}`,
+      `/.well-known/openid-configuration${suffix}`,
+    ]),
   ]) {
     router.get(metadataPath, enforceSecureTransport, enforceRequestUrlLimit, sendAuthorizationServerMetadata);
   }
@@ -191,7 +211,7 @@ export function createOAuthRouter(options: OAuthRouterOptions): Router {
 
   router.get('/oauth/authorize', enforceSecureTransport, enforceRequestUrlLimit, authorizeRateLimit, (req, res) => {
     try {
-      const request = parseAuthorizationRequest(req, resource);
+      const request = parseAuthorizationRequest(req, acceptedResources);
       const location = new URL(upstreamAuthorize.href);
       location.searchParams.set('response_type', request.responseType);
       location.searchParams.set('client_id', request.clientId);
@@ -251,7 +271,7 @@ export function createOAuthRouter(options: OAuthRouterOptions): Router {
       const basicClientAuthAttempted = isBasicClientAuthAttempt(req);
       try {
         const authorization = parseBasicAuthorization(req);
-        const tokenRequest = parseTokenRequest(req.body as unknown, authorization, resource);
+        const tokenRequest = parseTokenRequest(req.body as unknown, authorization, acceptedResources);
         const upstreamBody = buildUpstreamTokenBody(tokenRequest);
         const headers = new Headers({
           'content-type': 'application/x-www-form-urlencoded',
@@ -291,7 +311,19 @@ export function createOAuthRouter(options: OAuthRouterOptions): Router {
   return router;
 }
 
-function parseAuthorizationRequest(req: Request, resource: URL) {
+function resolveDirectoryMetadataSuffixes(resources: readonly URL[]) {
+  const suffixes = resources.map(resource => resource.pathname.replace(/\/+$/, ''));
+  const unique = new Set(suffixes);
+  if (
+    unique.size !== suffixes.length
+    || suffixes.some(suffix => CANONICAL_METADATA_SUFFIXES.has(suffix))
+  ) {
+    throw new Error('OAuth resources must have distinct, non-root paths.');
+  }
+  return suffixes;
+}
+
+function parseAuthorizationRequest(req: Request, resources: readonly URL[]) {
   const searchParams = new URL(req.originalUrl, 'http://oauth-router.invalid').searchParams;
   for (const name of new Set(searchParams.keys())) {
     if (!authorizationParameters.has(name) || searchParams.getAll(name).length !== 1) {
@@ -313,9 +345,9 @@ function parseAuthorizationRequest(req: Request, resource: URL) {
   }
 
   const scope = parseFacadeScope(optionalParameter(searchParams, 'scope'));
-  const canonicalResource = parseCanonicalResource(
+  const acceptedResource = parseAcceptedResource(
     optionalParameter(searchParams, 'resource'),
-    resource,
+    resources,
   );
   return {
     responseType,
@@ -324,7 +356,7 @@ function parseAuthorizationRequest(req: Request, resource: URL) {
     codeChallenge,
     codeChallengeMethod,
     state: optionalParameter(searchParams, 'state'),
-    resource: canonicalResource,
+    resource: acceptedResource,
     scope: scope.upstream,
     prompt: parsePrompt(optionalParameter(searchParams, 'prompt')),
   };
@@ -372,7 +404,11 @@ function isBasicClientAuthAttempt(req: Request) {
   return /^Basic(?:\s|$)/i.test(req.get('authorization') ?? '');
 }
 
-function parseTokenRequest(body: unknown, authorization: string | undefined, resource: URL): TokenRequest {
+function parseTokenRequest(
+  body: unknown,
+  authorization: string | undefined,
+  resources: readonly URL[],
+): TokenRequest {
   const parsed = tokenRequestSchema.safeParse(body);
   if (!parsed.success) throw invalidRequest('token request is invalid');
 
@@ -386,7 +422,7 @@ function parseTokenRequest(body: unknown, authorization: string | undefined, res
     throw invalidRequest('client_id is required with client_secret');
   }
 
-  parseCanonicalResource(parsed.data.resource, resource);
+  parseAcceptedResource(parsed.data.resource, resources);
   if (parsed.data.grant_type === 'authorization_code') parseRedirectUri(parsed.data.redirect_uri);
   if (parsed.data.scope !== undefined) parseFacadeScope(parsed.data.scope);
   return parsed.data;

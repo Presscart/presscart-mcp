@@ -89,7 +89,7 @@ export function createHttpApp(config: HttpAppConfig): HttpApp {
         resource: config.oauth.resource,
         audiences: config.oauth.audiences,
       }),
-      resource: config.oauth.resource,
+      resources: [config.oauth.resource],
       authorizationServer: new URL(config.mcpServerUrl.origin),
       upstreamIssuer: config.oauth.issuer,
       translatorEnabled: config.oauth.translatorEnabled,

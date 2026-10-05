@@ -41,7 +41,7 @@ function createLayer(verifier: OAuthTokenVerifier) {
   return createOAuthHttpLayer({
     serverUrl: canonicalResource,
     verifier,
-    resource: canonicalResource,
+    resources: [canonicalResource],
     authorizationServer: new URL('https://mcp.presscart.com'),
     upstreamIssuer: new URL('https://project.supabase.co/auth/v1'),
     translatorEnabled: false,

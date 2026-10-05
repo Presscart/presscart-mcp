@@ -123,9 +123,9 @@ export function parseFacadeScope(scope: string | undefined) {
   return { facade: FACADE_SCOPE, upstream: UPSTREAM_SCOPE } as const;
 }
 
-export function parseCanonicalResource(value: string | undefined, canonical: URL) {
+export function parseAcceptedResource(value: string | undefined, resources: readonly URL[]) {
   if (value === undefined) return undefined;
-  if (value !== canonical.href) {
+  if (!resources.some(resource => resource.href === value)) {
     throw new OAuthProtocolError('invalid_target', 'resource is not supported');
   }
   return value;
