@@ -1,3 +1,4 @@
+import { parseEnabledDirectoryProfiles } from './directory/policy.js';
 import { env } from './env.js';
 import { createHttpApp, type HttpAppOAuthConfig } from './http-app.js';
 import {
@@ -11,6 +12,7 @@ const SESSION_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
 const KNOWN_REMOTE_MCP_CLIENT_ORIGINS = ['https://claude.ai', 'https://claude.com'];
 
 const mcpServerUrl = resolveMcpServerUrl();
+const directoryProfiles = parseEnabledDirectoryProfiles(env.MCP_DIRECTORY_PROFILES);
 const oauthConfig = resolveOAuthRuntimeConfig();
 const allowedOrigins = resolveAllowedOrigins(mcpServerUrl);
 
@@ -20,6 +22,7 @@ const httpApp = createHttpApp({
   allowedHosts: env.MCP_ALLOWED_HOSTS ? resolveAllowedHostnames(mcpServerUrl) : undefined,
   allowedOrigins,
   sessionIdleTtlMs: env.MCP_SESSION_IDLE_TTL_MS,
+  directoryProfiles,
   oauth: oauthConfig,
 });
 
@@ -28,6 +31,9 @@ cleanupTimer.unref();
 
 const server = httpApp.app.listen(env.MCP_PORT, env.MCP_HOST, () => {
   console.info(`Presscart MCP server listening on http://${env.MCP_HOST}:${env.MCP_PORT}/mcp`);
+  for (const profile of directoryProfiles) {
+    console.info(`Directory profile "${profile.id}" mounted at ${profile.path}`);
+  }
 });
 
 process.on('SIGINT', () => void shutdown());
@@ -83,6 +89,7 @@ function resolveOAuthRuntimeConfig(): HttpAppOAuthConfig | undefined {
     audiences,
     translatorEnabled: env.MCP_OAUTH_TRANSLATOR_ENABLED,
     upstreamTimeoutMs: env.MCP_OAUTH_UPSTREAM_TIMEOUT_MS,
+    acceptCanonicalAudienceOnDirectoryRoutes: env.MCP_DIRECTORY_ACCEPT_CANONICAL_AUDIENCE,
     createVerifier: ({ resource: verifierResource, audiences: verifierAudiences }) =>
       new SupabaseOAuthVerifier({
         issuerUrl: issuer,
