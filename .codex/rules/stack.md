@@ -14,11 +14,13 @@
 
 ## Project layout
 
-- `src/http.ts` — Express entrypoint: transport, sessions, OAuth wiring.
+- `src/http.ts` — entrypoint: env resolution, listen, signals, cleanup timer.
+- `src/http-app.ts` — `createHttpApp`: Express app, transports, sessions (bound to their route's profile), OAuth wiring, legacy and directory MCP endpoints.
 - `src/server.ts` — MCP server assembly.
 - `src/api.ts` — `PresscartApiClient` (fetch wrapper around the Presscart backend API) and `PresscartApiError`.
 - `src/env.ts` — Zod-validated environment. Import `env` from here; never read `process.env` directly elsewhere.
 - `src/tools/` — one file per domain (`campaigns.ts`, `comments.ts`, …), each exporting `register<Domain>Tools(server, options)`, aggregated in `src/tools/index.ts`. Shared schema fragments in `schemas.ts`, shared tool annotations in `metadata.ts`.
+- `src/directory/` — directory profile policy, allowlisting result builders, strict output schemas, and Stage A directory tools.
 - `src/utils/` — cross-cutting helpers (`tool-context.ts`, `tool-result.ts`, `errors.ts`, `query-filters.ts`, `sensitive-fields.ts`, …).
 - ESM rules: relative imports carry the `.js` extension; use `import type` for type-only imports; named exports everywhere (no default exports).
 
