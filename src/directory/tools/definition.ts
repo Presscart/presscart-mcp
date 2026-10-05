@@ -74,3 +74,15 @@ export function defineDirectoryTool<
     handler: (input, extra, options) => config.handler(inputObject.parse(input), extra, options),
   });
 }
+
+// Real team slugs are a 10-char nanoid or a slugify() of the team name, so punctuation such as
+// `.`, `'` or `~` is legitimate. Reject only whitespace, control characters and URL-structural ones.
+const DIRECTORY_TEAM_SLUG_PATTERN = /^[^\s/\\?#%&=\u0000-\u001f\u007f]+$/;
+
+export const directoryTeamSlugSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(128)
+  .regex(DIRECTORY_TEAM_SLUG_PATTERN, 'team_slug must not contain whitespace, control characters, or / \\ ? # % & =')
+  .describe('Team slug from list_teams, used to scope app workflow routes.');

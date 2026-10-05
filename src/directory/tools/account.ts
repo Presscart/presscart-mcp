@@ -1,6 +1,5 @@
 import { z } from 'zod';
 
-import { teamSlugSchema } from '../../tools/schemas.js';
 import { teamBySlugRoute } from '../../utils/team-routes.js';
 import {
   createPresscartApiClient,
@@ -20,7 +19,7 @@ import {
   buildListTeamsResult,
   buildOAuthUserResult,
 } from '../results.js';
-import { defineDirectoryTool, directoryPaginationSchema } from './definition.js';
+import { defineDirectoryTool, directoryPaginationSchema, directoryTeamSlugSchema } from './definition.js';
 
 export const getUserTool = defineDirectoryTool({
   name: 'get_user',
@@ -57,7 +56,7 @@ export const getTeamTool = defineDirectoryTool({
   title: 'Get Team',
   description:
     'Get one Presscart team by team_slug: id, name, slug, type, and its profiles (id and name). Call list_teams first if team_slug is unknown.',
-  inputSchema: { team_slug: teamSlugSchema },
+  inputSchema: { team_slug: directoryTeamSlugSchema },
   outputSchema: getTeamResultSchema,
   handler: async (input, extra, options) => {
     const api = createPresscartApiClient(extra, options);

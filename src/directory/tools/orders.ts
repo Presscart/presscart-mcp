@@ -1,11 +1,10 @@
 import { z } from 'zod';
 
-import { teamSlugSchema } from '../../tools/schemas.js';
 import { teamRoute } from '../../utils/team-routes.js';
 import { createPresscartApiClient } from '../../utils/tool-context.js';
 import { getOrderResultSchema, listProfileOrdersResultSchema } from '../output-schemas.js';
 import { buildGetOrderResult, buildListProfileOrdersResult } from '../results.js';
-import { defineDirectoryTool, directoryPaginationSchema } from './definition.js';
+import { defineDirectoryTool, directoryPaginationSchema, directoryTeamSlugSchema } from './definition.js';
 
 export const listProfileOrdersTool = defineDirectoryTool({
   name: 'list_profile_orders',
@@ -13,7 +12,7 @@ export const listProfileOrdersTool = defineDirectoryTool({
   description:
     "List a profile's existing orders: order id, reference number, status, created and paid dates, and line items with publication name, website, and placement details. Requires team_slug from list_teams and profile_id from list_profiles. Use get_order for one order, including the campaign each item belongs to.",
   inputSchema: {
-    team_slug: teamSlugSchema,
+    team_slug: directoryTeamSlugSchema,
     profile_id: z.string().uuid().describe('Profile id from list_profiles or list_teams.'),
     ...directoryPaginationSchema,
     start_date: z
@@ -51,7 +50,7 @@ export const getOrderTool = defineDirectoryTool({
   description:
     'Get one existing order by order_id: reference number, status, dates, and line items, including order_items[].campaign_id for the campaign each delivered item belongs to. Requires team_slug from list_teams; order ids come from list_profile_orders. Use get_campaign or list_campaign_articles with a returned campaign_id.',
   inputSchema: {
-    team_slug: teamSlugSchema,
+    team_slug: directoryTeamSlugSchema,
     order_id: z.string().uuid().describe('Order id from list_profile_orders.'),
   },
   outputSchema: getOrderResultSchema,

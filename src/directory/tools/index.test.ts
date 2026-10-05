@@ -465,3 +465,59 @@ function assertStrictDeep(schema: z.ZodTypeAny, path: string): void {
     `${path} uses an unexpected schema type`,
   );
 }
+
+const slugTools: Array<{ name: string; args: Record<string, unknown>; response: () => unknown; path: (slug: string) => string }> = [
+  {
+    name: 'get_team',
+    args: {},
+    response: () => fixtures.teamBySlugResponse(),
+    path: slug => `/teams/slug/${encodeURIComponent(slug)}`,
+  },
+  {
+    name: 'list_campaigns',
+    args: { profile_id: ids.profileId },
+    response: () => fixtures.profileCampaignsListResponse(),
+    path: slug => `/teams/${encodeURIComponent(slug)}/profiles/${ids.profileId}/campaigns`,
+  },
+];
+
+for (const tool of slugTools) {
+  test(`${tool.name} rejects malformed team_slug values before any API call`, async () => {
+    const malformed = ['acme/../admin', 'acme?x=1', 'acme team', 'acme%2F', 'a'.repeat(129), 'a\\b', 'a#b', 'a&b', 'a=b', 'a\u0000b'];
+    for (const team_slug of malformed) {
+      await withStubbedFetch(
+        () => jsonResponse(tool.response()),
+        async requests => {
+          const { client, close } = await connectInMemoryClient(directoryServer());
+          try {
+            const result = await client.callTool({ name: tool.name, arguments: { ...tool.args, team_slug } });
+            assert.equal(result.isError, true, team_slug);
+            assert.match(readTextContent(result), /Input validation error/);
+            assert.equal(requests.length, 0, team_slug);
+          } finally {
+            await close();
+          }
+        },
+      );
+    }
+  });
+
+  test(`${tool.name} accepts real-world team slugs and encodes them in the path`, async () => {
+    for (const team_slug of ['acme-co', 'k3j9x0p2qa', "o'neil.co"]) {
+      await withStubbedFetch(
+        () => jsonResponse(tool.response()),
+        async requests => {
+          const { client, close } = await connectInMemoryClient(directoryServer());
+          try {
+            const result = await client.callTool({ name: tool.name, arguments: { ...tool.args, team_slug } });
+            assert.equal(result.isError, undefined, readTextContent(result));
+            assert.equal(requests.length, 1, team_slug);
+            assert.equal(requests[0]?.url.pathname, tool.path(team_slug));
+          } finally {
+            await close();
+          }
+        },
+      );
+    }
+  });
+}

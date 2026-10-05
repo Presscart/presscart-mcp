@@ -1,6 +1,5 @@
 import { z } from 'zod';
 
-import { teamSlugSchema } from '../../tools/schemas.js';
 import { teamRoute } from '../../utils/team-routes.js';
 import { createPresscartApiClient } from '../../utils/tool-context.js';
 import {
@@ -15,7 +14,7 @@ import {
   buildListCampaignArticlesResult,
   buildListCampaignsResult,
 } from '../results.js';
-import { defineDirectoryTool, directoryPaginationSchema } from './definition.js';
+import { defineDirectoryTool, directoryPaginationSchema, directoryTeamSlugSchema } from './definition.js';
 
 const campaignIdSchema = z
   .string()
@@ -28,7 +27,7 @@ export const listCampaignsTool = defineDirectoryTool({
   description:
     "List a profile's campaigns: id, name, reference, created and updated dates, article_count, and published_count (articles with a live URL). Requires team_slug from list_teams and profile_id from list_profiles. Next: get_campaign for details, list_campaign_articles for each article's status.",
   inputSchema: {
-    team_slug: teamSlugSchema,
+    team_slug: directoryTeamSlugSchema,
     profile_id: z.string().uuid().describe('Profile id from list_profiles or list_teams.'),
     ...directoryPaginationSchema,
     search: z
@@ -55,7 +54,7 @@ export const getCampaignTool = defineDirectoryTool({
   title: 'Get Campaign',
   description:
     'Get one campaign by campaign_id: name, reference, status, description, target date, profile (id and name), objectives, keywords, target audience, tone, and total article count. Requires team_slug from list_teams and campaign_id from list_campaigns or get_order.',
-  inputSchema: { team_slug: teamSlugSchema, campaign_id: campaignIdSchema },
+  inputSchema: { team_slug: directoryTeamSlugSchema, campaign_id: campaignIdSchema },
   outputSchema: getCampaignResultSchema,
   handler: async (input, extra, options) => {
     const api = createPresscartApiClient(extra, options);
@@ -72,7 +71,7 @@ export const listCampaignArticlesTool = defineDirectoryTool({
   description:
     "List a campaign's articles: title, current status, publication name and website, placement details, expected completion date, live_url once published, and article_page_url (the article's Presscart page, returned only when profile_id is provided). Requires team_slug from list_teams and campaign_id from list_campaigns. Use get_campaign_article_status when only counts are needed.",
   inputSchema: {
-    team_slug: teamSlugSchema,
+    team_slug: directoryTeamSlugSchema,
     campaign_id: campaignIdSchema,
     profile_id: z
       .string()
@@ -101,7 +100,7 @@ export const getCampaignArticleStatusTool = defineDirectoryTool({
   title: 'Get Campaign Article Status',
   description:
     "Count a campaign's articles by status (name, prefix, count; statuses with no articles are omitted). Requires team_slug from list_teams and campaign_id from list_campaigns. Use list_campaign_articles for per-article detail.",
-  inputSchema: { team_slug: teamSlugSchema, campaign_id: campaignIdSchema },
+  inputSchema: { team_slug: directoryTeamSlugSchema, campaign_id: campaignIdSchema },
   outputSchema: getCampaignArticleStatusResultSchema,
   handler: async (input, extra, options) => {
     const api = createPresscartApiClient(extra, options);
