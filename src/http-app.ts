@@ -106,6 +106,11 @@ export function createHttpApp(config: HttpAppConfig): HttpApp {
 
   if (config.oauth) {
     const oauth = config.oauth;
+    if (directoryProfiles.length > 0 && oauth.resource.origin !== config.mcpServerUrl.origin) {
+      throw new Error(
+        `OAuth resource origin ${oauth.resource.origin} must equal the MCP server origin ${config.mcpServerUrl.origin} when directory profiles are enabled.`,
+      );
+    }
     const canonicalVerifier = oauth.createVerifier({
       resource: oauth.resource,
       audiences: oauth.audiences,

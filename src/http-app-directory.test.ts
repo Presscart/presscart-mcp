@@ -257,11 +257,12 @@ function oauthConfig(args: {
   acceptCanonical: boolean;
   tokens: Record<string, TokenClaims>;
   verifierCalls?: Array<{ resource: string; audiences: string[] }>;
+  audiences?: OAuthConfig['audiences'];
 }): OAuthConfig {
   return {
     issuer: new URL('https://project.supabase.co/auth/v1'),
     resource: CANONICAL,
-    audiences: [CANONICAL],
+    audiences: args.audiences ?? [CANONICAL],
     translatorEnabled: true,
     upstreamTimeoutMs: 1_000,
     acceptCanonicalAudienceOnDirectoryRoutes: args.acceptCanonical,
@@ -463,21 +464,69 @@ test('legacy /mcp verifies a repeated API token once within the cache TTL', asyn
   assert.equal(api.calls.filter(call => call.url.pathname === '/auth/token').length, 1);
 });
 
-test('a directory route rejects a legacy-origin audience even while canonical audience is accepted', async () => {
-  const verifierCalls: Array<{ resource: string; audiences: string[] }> = [];
-  const { base } = await start({
-    directoryProfiles: [DIRECTORY_PROFILES.openai],
-    oauth: oauthConfig({ acceptCanonical: true, tokens: TOKENS, verifierCalls }),
-  });
+test('a directory route rejects a legacy-origin audience that /mcp still accepts', async () => {
+  // Production: oauth.audiences = [resource, origin] when the legacy audience is configured.
+  const legacyAudiences: OAuthConfig['audiences'] = [CANONICAL, new URL(ALLOWED_ORIGIN + '/')];
+  for (const acceptCanonical of [true, false]) {
+    const verifierCalls: Array<{ resource: string; audiences: string[] }> = [];
+    const { base } = await start({
+      directoryProfiles: [DIRECTORY_PROFILES.openai],
+      oauth: oauthConfig({ acceptCanonical, tokens: TOKENS, verifierCalls, audiences: legacyAudiences }),
+    });
 
-  const directoryVerifier = verifierCalls.find(call => call.resource === OPENAI);
-  assert.ok(directoryVerifier);
-  assert.ok(!directoryVerifier.audiences.includes(ALLOWED_ORIGIN + '/'));
-  assert.ok(!directoryVerifier.audiences.includes(ALLOWED_ORIGIN));
+    assert.deepEqual(verifierCalls, [
+      { resource: CANONICAL.href, audiences: [CANONICAL.href, ALLOWED_ORIGIN + '/'] },
+      { resource: OPENAI, audiences: acceptCanonical ? [OPENAI, CANONICAL.href] : [OPENAI] },
+    ]);
 
-  const rejected = await sendMcp(base, '/mcp/openai', {
-    body: initializeRequest(),
-    headers: { authorization: 'Bearer origin-aud' },
+    const legacy = await sendMcp(base, '/mcp', {
+      body: initializeRequest(),
+      headers: { authorization: 'Bearer origin-aud' },
+    });
+    assert.equal(legacy.status, 200, `positive control flag=${acceptCanonical}`);
+
+    const rejected = await sendMcp(base, '/mcp/openai', {
+      body: initializeRequest(),
+      headers: { authorization: 'Bearer origin-aud' },
+    });
+    assert.equal(rejected.status, 401, `flag=${acceptCanonical}`);
+  }
+});
+
+test('createHttpApp fails fast when the OAuth resource origin differs from the MCP server origin', () => {
+  assert.throws(
+    () =>
+      createHttpApp({
+        host: '127.0.0.1',
+        mcpServerUrl: CANONICAL,
+        allowedOrigins: [ALLOWED_ORIGIN],
+        sessionIdleTtlMs: 60_000,
+        directoryProfiles: [DIRECTORY_PROFILES.openai],
+        oauth: {
+          ...oauthConfig({ acceptCanonical: true, tokens: TOKENS }),
+          resource: new URL('https://other.presscart.test/mcp'),
+        },
+      }),
+    /OAuth resource origin https:\/\/other\.presscart\.test must equal the MCP server origin https:\/\/mcp\.presscart\.test/,
+  );
+});
+
+test('directory session without OAuth rejects reuse with a different API token', async () => {
+  stubApi();
+  const { base } = await start({ directoryProfiles: [DIRECTORY_PROFILES.openai] });
+  const sessionId = await initializeSession(base, '/mcp/openai', { 'x-presscart-api-token': 'token-one-placeholder' });
+
+  const reused = await sendMcp(base, '/mcp/openai', {
+    body: { jsonrpc: '2.0', id: 8, method: 'tools/list', params: {} },
+    headers: sessionHeaders(sessionId, { 'x-presscart-api-token': 'token-two-placeholder' }),
   });
-  assert.equal(rejected.status, 401);
+  assert.equal(reused.status, 400);
+  assert.deepEqual(reused.body, {
+    jsonrpc: '2.0',
+    error: {
+      code: -32000,
+      message: 'X-Presscart-API-Token does not match the credential bound to the active MCP session.',
+    },
+    id: null,
+  });
 });
