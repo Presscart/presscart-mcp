@@ -109,6 +109,7 @@ type DirectoryToolDefinition = {
   title: string;
   description: string;
   inputSchema: ZodRawShape;
+  outputSchema: ZodRawShape;
   annotations: ToolAnnotations;
   annotationReason: string;
   handler: (input, extra, options) => Promise<DirectoryResult>;
@@ -118,6 +119,12 @@ type DirectoryToolDefinition = {
 - Handlers are thin. They reuse `createPresscartApiClient`, `teamRoute`,
   `teamBySlugRoute`, and `getSessionAuthInfo`, call one API route, and pass the
   response to a result builder from §5.
+- `outputSchema` describes exactly the builder's output shape (§5.1). Object
+  schemas are strict, not `.passthrough()`: builders control every field, so an
+  unexpected key is a bug. The SDK advertises the schema in `tools/list` and
+  validates `structuredContent` against it on every call.
+- `registerDirectoryTools` wraps every handler in one shared error boundary
+  (§5.4). Handlers never return raw thrown messages.
 - `registerDirectoryTools(server, profile, options)` registers exactly the
   definitions named in `profile.tools`.
 - At module load, a check asserts that every name in every profile has exactly
@@ -130,8 +137,14 @@ type DirectoryToolDefinition = {
 - New `createDirectoryMcpServer(profile, options)` builds an `McpServer` with
   per-profile `instructions` (§5.3) and calls `registerDirectoryTools`.
 
-### 4.4 HTTP — `src/http.ts`
+### 4.4 HTTP — `src/http-app.ts` and `src/http.ts`
 
+- `src/http.ts` currently builds the app and calls `listen` at import time, so
+  it cannot be tested. App construction moves into a new `src/http-app.ts`
+  exporting `createHttpApp(config)`, which returns the Express app plus the
+  session store and a shutdown hook. `src/http.ts` keeps env resolution,
+  `listen`, signal handling, and the cleanup timer. Tests build the app with
+  `createHttpApp` and an injected OAuth verifier.
 - The POST/GET/DELETE handlers for `/mcp` move into a factory, for example
   `mountMcpEndpoint(app, { path, profile, bearerAuth, createServer })`. `/mcp`
   is mounted through it with `profile: 'legacy'` and `createPresscartMcpServer`;
@@ -164,7 +177,7 @@ tools allow 100).
 
 | Tool | Inputs | Output fields |
 |---|---|---|
-| `get_user` | none | `id`, `name` |
+| `get_user` | none | OAuth sessions: `id`, `name`. API-token sessions: `team_id`. All three are optional in the output schema. |
 | `list_teams` | `limit`, `page` | `id, name, slug, type, is_publisher, role, profiles[{id, name}]` |
 | `get_team` | `team_slug` | `id, name, slug, type, profiles[{id, name}]` |
 | `list_profiles` | `team_id`, `limit`, `page` | `id, name, team_id, type, website_url` |
@@ -177,8 +190,9 @@ tools allow 100).
 
 Derivations:
 
-- `get_user` uses the same identity source as legacy `toWhoamiResponse`, but
-  returns only `id` and `name`. API-token sessions return `team_id` only.
+- `get_user` uses the same identity source as legacy `toWhoamiResponse`. OAuth
+  sessions return `id` and `name` (no `email`). API-token sessions return
+  `team_id` only (no `token_type`, no `pro_pricing_enabled`).
 - `list_campaigns` derives `article_count` and `published_count` (articles
   with a non-empty `live_url`) from the embedded `articles[]`. Article records
   are not returned.
@@ -236,9 +250,17 @@ The directory server `instructions` state:
 
 - A `tools/call` for an unregistered name is rejected by the MCP SDK before
   any handler runs. A test asserts this and that no `fetch` happens.
-- Handler errors are mapped through `formatServerError`: auth failures become
-  `Unauthorized`, 404 becomes not found, 5xx becomes unavailable. Raw API error
-  bodies are never returned.
+- The MCP SDK catches handler exceptions itself and returns their `message`
+  as an `isError` result, so the Express error middleware never sees them.
+  `registerDirectoryTools` therefore wraps each handler in a shared boundary
+  that catches every error and returns
+  `{ isError: true, content: [{ type: 'text', text: formatServerError(error) }] }`.
+  Auth failures become `Unauthorized`, 404 becomes not found, 5xx becomes
+  unavailable, and unexpected non-API errors use `formatServerError`'s generic
+  message. Raw API error bodies, URLs, and status text are never returned.
+- Tests cover `PresscartApiError` 401/403/404/500/504, a thrown non-API
+  `Error` whose message contains a URL, and an output that fails
+  `outputSchema` validation.
 - Inputs are validated by the narrowed schemas. Unknown input fields are
   stripped and never forwarded to the API.
 
@@ -256,17 +278,32 @@ The directory server `instructions` state:
   challenges name the correct document.
 - Existing `/mcp` metadata routes are unchanged.
 
-### 6.2 OAuth facade resource acceptance
+### 6.2 One OAuth facade, several resources
 
-`parseCanonicalResource` currently accepts only the `/mcp` resource. It
-changes to accept the canonical resource plus each **enabled** directory
-resource, and rejects all others with `invalid_target` as today. The accepted
-value is forwarded upstream unchanged, as today.
+There is still exactly one OAuth router and one authorization server identity.
+`createOAuthRouter` changes from a single `resource` option to an ordered
+`resources: [canonical, ...enabledDirectoryResources]` list. The router:
+
+- serves protected-resource metadata at `/.well-known/oauth-protected-resource`
+  (canonical, unchanged), `/.well-known/oauth-protected-resource/mcp`
+  (canonical, unchanged), and `/.well-known/oauth-protected-resource/mcp/<profile>`
+  for each enabled profile, each with its own `resource`. Routes are registered
+  by exact path, so no route shadows another.
+- serves the same single authorization-server metadata document at the
+  existing aliases plus path-inserted aliases for each enabled profile:
+  `/.well-known/oauth-authorization-server/mcp/<profile>` and
+  `/.well-known/openid-configuration/mcp/<profile>`. The `issuer` stays the
+  authorization server origin, as today.
+- replaces `parseCanonicalResource(value, canonical)` with
+  `parseAcceptedResource(value, resources)`: `undefined` stays `undefined`, any
+  value exactly equal to one of `resources` is accepted, and anything else
+  (including a disabled profile's resource) is rejected with `invalid_target`.
+  This applies to both `/oauth/authorize` and `/oauth/token`.
+- forwards the accepted `resource` value upstream unchanged, as today.
 
 **Must verify in staging:** that Supabase OAuth accepts a forwarded `resource`
-other than `/mcp`. If it does not, the facade forwards the canonical resource
-upstream while still checking the client-supplied value locally; that fallback
-is decided during implementation from observed behavior and covered by tests.
+other than `/mcp`. If it rejects it, a follow-up change will forward the
+canonical resource upstream instead. This design does not ship that fallback.
 
 ### 6.3 Accepted audiences
 
@@ -332,19 +369,29 @@ MCP SDK, Zod, and internal utils are real.
   `order_items[].campaign_id`, `campaign.id`) are present.
 - Each handler asserts the request: method `GET`, pathname, and query params.
   No handler issues a non-GET request.
+- Every directory tool advertises its `outputSchema` in `tools/list`, and
+  every tool call's `structuredContent` validates against it.
+- Error boundary cases from §5.4 return the mapped message only.
 
 **HTTP and sessions**
 - A session initialized on `/mcp` gets `404` on `/mcp/openai`, and the reverse.
 - A session on `/mcp/openai` gets `404` on `/mcp/claude-directory`.
 - A disabled profile path returns `404`.
 - No header or body field changes the profile.
+- These run against `createHttpApp` (§4.4), not the listening entry point.
+- Legacy `/mcp` initialize, call, GET stream, and DELETE still work through
+  the refactored factory.
 
 **OAuth**
 - Each directory metadata document has the matching `resource`.
 - Unauthenticated directory requests get `WWW-Authenticate` naming that
   path's metadata.
 - The facade accepts enabled directory resources and still rejects others with
-  `invalid_target`, including a disabled profile's resource.
+  `invalid_target`, including a disabled profile's resource, on both
+  `/oauth/authorize` and `/oauth/token`.
+- Path-inserted authorization-server and OIDC aliases exist for each enabled
+  profile and return the single canonical document; none exist for disabled
+  profiles.
 - Audience acceptance follows §6.3 for both flag values.
 
 `npm run check` and `npm test` must pass.
