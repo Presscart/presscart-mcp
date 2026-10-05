@@ -290,6 +290,8 @@ function oauthConfig(args: {
 
 const TOKENS: Record<string, TokenClaims> = {
   'canonical-aud': { aud: CANONICAL.href, grant: 'grant-1' },
+  'canonical-aud-other-grant': { aud: CANONICAL.href, grant: 'grant-2' },
+  'origin-aud': { aud: ALLOWED_ORIGIN + '/', grant: 'grant-1' },
   'openai-aud': { aud: OPENAI, grant: 'grant-1' },
   'openai-aud-other-grant': { aud: OPENAI, grant: 'grant-2' },
 };
@@ -382,4 +384,100 @@ test('an OAuth directory session rejects API-token headers and names its own met
     mismatch.headers.get('www-authenticate') ?? '',
     /resource_metadata="https:\/\/mcp\.presscart\.test\/\.well-known\/oauth-protected-resource\/mcp\/openai"/,
   );
+});
+
+const IDENTITY_MISMATCH = /Authorization does not match|does not match/i;
+
+async function readMismatch(base: string, path: string, sessionId: string, token: string) {
+  return sendMcp(base, path, {
+    body: { jsonrpc: '2.0', id: 8, method: 'tools/list', params: {} },
+    headers: sessionHeaders(sessionId, { authorization: `Bearer ${token}` }),
+  });
+}
+
+test('legacy /mcp with OAuth rejects a session reused with a different grant', async () => {
+  const { base } = await start({
+    directoryProfiles: [],
+    oauth: oauthConfig({ acceptCanonical: true, tokens: TOKENS }),
+  });
+  const sessionId = await initializeSession(base, '/mcp', { authorization: 'Bearer canonical-aud' });
+
+  const reused = await readMismatch(base, '/mcp', sessionId, 'canonical-aud-other-grant');
+  assert.equal(reused.status, 401);
+  assert.match(reused.headers.get('www-authenticate') ?? '', /resource_metadata="https:\/\/mcp\.presscart\.test\/\.well-known\/oauth-protected-resource\/mcp"/);
+  const message = JSON.stringify(reused.body);
+  assert.match(message, IDENTITY_MISMATCH);
+  assert.equal(
+    (await listToolNames(base, '/mcp', sessionId, { authorization: 'Bearer canonical-aud' })).length,
+    54,
+  );
+});
+
+test('directory route with OAuth rejects a session reused with a different grant', async () => {
+  const { base } = await start({
+    directoryProfiles: [DIRECTORY_PROFILES.openai],
+    oauth: oauthConfig({ acceptCanonical: true, tokens: TOKENS }),
+  });
+  const sessionId = await initializeSession(base, '/mcp/openai', { authorization: 'Bearer openai-aud' });
+
+  const reused = await readMismatch(base, '/mcp/openai', sessionId, 'openai-aud-other-grant');
+  assert.equal(reused.status, 401);
+  assert.match(reused.headers.get('www-authenticate') ?? '', /resource_metadata="https:\/\/mcp\.presscart\.test\/\.well-known\/oauth-protected-resource\/mcp\/openai"/);
+  assert.match(JSON.stringify(reused.body), IDENTITY_MISMATCH);
+  assert.deepEqual(
+    await listToolNames(base, '/mcp/openai', sessionId, { authorization: 'Bearer openai-aud' }),
+    STAGE_A,
+  );
+});
+
+test('legacy /mcp without OAuth rejects a session reused with a different API token', async () => {
+  stubApi();
+  const { base } = await start({ directoryProfiles: [] });
+  const sessionId = await initializeSession(base, '/mcp', { 'x-presscart-api-token': 'token-one-placeholder' });
+
+  const reused = await sendMcp(base, '/mcp', {
+    body: { jsonrpc: '2.0', id: 8, method: 'tools/list', params: {} },
+    headers: sessionHeaders(sessionId, { 'x-presscart-api-token': 'token-two-placeholder' }),
+  });
+  assert.equal(reused.status, 400);
+  assert.deepEqual(reused.body, {
+    jsonrpc: '2.0',
+    error: {
+      code: -32000,
+      message: 'X-Presscart-API-Token does not match the credential bound to the active MCP session.',
+    },
+    id: null,
+  });
+});
+
+test('legacy /mcp verifies a repeated API token once within the cache TTL', async () => {
+  const api = stubApi();
+  const { base } = await start({ directoryProfiles: [] });
+  const headers = { 'x-presscart-api-token': 'cache-token-placeholder' };
+
+  const sessionId = await initializeSession(base, '/mcp', headers);
+  await listToolNames(base, '/mcp', sessionId, headers);
+  await listToolNames(base, '/mcp', sessionId, headers);
+  await initializeSession(base, '/mcp', headers);
+
+  assert.equal(api.calls.filter(call => call.url.pathname === '/auth/token').length, 1);
+});
+
+test('a directory route rejects a legacy-origin audience even while canonical audience is accepted', async () => {
+  const verifierCalls: Array<{ resource: string; audiences: string[] }> = [];
+  const { base } = await start({
+    directoryProfiles: [DIRECTORY_PROFILES.openai],
+    oauth: oauthConfig({ acceptCanonical: true, tokens: TOKENS, verifierCalls }),
+  });
+
+  const directoryVerifier = verifierCalls.find(call => call.resource === OPENAI);
+  assert.ok(directoryVerifier);
+  assert.ok(!directoryVerifier.audiences.includes(ALLOWED_ORIGIN + '/'));
+  assert.ok(!directoryVerifier.audiences.includes(ALLOWED_ORIGIN));
+
+  const rejected = await sendMcp(base, '/mcp/openai', {
+    body: initializeRequest(),
+    headers: { authorization: 'Bearer origin-aud' },
+  });
+  assert.equal(rejected.status, 401);
 });
