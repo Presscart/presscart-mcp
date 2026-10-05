@@ -327,6 +327,60 @@ test('error boundary maps API timeouts and unexpected errors to fixed messages',
   );
 });
 
+test('error boundary never returns status text for unmapped statuses', async () => {
+  await withStubbedFetch(
+    () => new Response(null, { status: 300, statusText: 'Multiple Choices Leak' }),
+    async () => {
+      const { client, close } = await connectInMemoryClient(directoryServer());
+      try {
+        const result = await client.callTool({ name: 'get_team', arguments: { team_slug: ids.teamSlug } });
+        assert.equal(result.isError, true);
+        const text = readTextContent(result);
+        assert.equal(text, 'Internal server error');
+        assert.doesNotMatch(text, /Leak|300/);
+      } finally {
+        await close();
+      }
+    },
+  );
+});
+
+test('error boundary maps an upstream HTTP 504 to the timed-out message', async () => {
+  await withStubbedFetch(
+    () => new Response('gateway detail', { status: 504, statusText: 'Gateway Leak' }),
+    async () => {
+      const { client, close } = await connectInMemoryClient(directoryServer());
+      try {
+        const result = await client.callTool({ name: 'get_team', arguments: { team_slug: ids.teamSlug } });
+        assert.equal(result.isError, true);
+        assert.equal(readTextContent(result), 'Presscart API request timed out');
+      } finally {
+        await close();
+      }
+    },
+  );
+});
+
+test('error boundary reports a session without a credential as Unauthorized', async () => {
+  await withStubbedFetch(
+    () => {
+      throw new Error('fetch must not be called without a credential');
+    },
+    async () => {
+      const server = new McpServer({ name: 'presscart-directory-test', version: '1.0.0' });
+      registerDirectoryTools(server, DIRECTORY_PROFILES.openai, { getSessionAuthInfo: () => undefined });
+      const { client, close } = await connectInMemoryClient(server);
+      try {
+        const result = await client.callTool({ name: 'get_team', arguments: { team_slug: ids.teamSlug } });
+        assert.equal(result.isError, true);
+        assert.equal(readTextContent(result), 'Unauthorized');
+      } finally {
+        await close();
+      }
+    },
+  );
+});
+
 test('an extra top-level or nested output key fails the call instead of leaking', async () => {
   const baseTeams = requireDefinition('list_teams');
   const baseTeam = requireDefinition('get_team');

@@ -110,16 +110,24 @@ export function registerDirectoryToolDefinition(
   );
 }
 
+const MISSING_CREDENTIAL_MESSAGE_PREFIX = 'No Presscart API credential is bound to the MCP session';
+
 export function formatDirectoryToolError(error: unknown) {
-  if (
-    error instanceof PresscartApiError &&
-    error.status >= 400 &&
-    error.status < 500 &&
-    error.status !== 401 &&
-    error.status !== 403 &&
-    error.status !== 404
-  ) {
-    return `Presscart API rejected the request (${error.status})`;
+  if (error instanceof PresscartApiError) {
+    if (error.status === 401 || error.status === 403) return 'Unauthorized';
+    if (error.status === 404) return 'Presscart API resource not found';
+    if (error.status === 504) return 'Presscart API request timed out';
+    if (error.status >= 500) return 'Presscart API is unavailable';
+    if (error.status >= 400 && error.status < 500) {
+      return `Presscart API rejected the request (${error.status})`;
+    }
+    return 'Internal server error';
+  }
+
+  // createPresscartApiClient throws a plain Error when no credential is bound;
+  // that is an auth failure. Matched by message prefix to leave legacy code untouched.
+  if (error instanceof Error && error.message.startsWith(MISSING_CREDENTIAL_MESSAGE_PREFIX)) {
+    return 'Unauthorized';
   }
 
   return formatServerError(error);
