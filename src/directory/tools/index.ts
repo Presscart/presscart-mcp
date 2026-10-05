@@ -49,9 +49,19 @@ export function assertDirectoryToolCoverage(
       }
     }
   }
+
+  // A Map keyed by name would silently drop a duplicate that no profile lists.
+  for (const [name, count] of counts) {
+    if (count > 1) {
+      throw new Error(
+        `Directory tool definition name "${name}" is defined ${count} times; names must be globally unique.`
+      );
+    }
+  }
 }
 
-// Fail closed at module load: every tool any profile exposes has exactly one definition.
+// Fail closed at module load: every tool any profile exposes has exactly one definition and
+// no definition name is duplicated.
 assertDirectoryToolCoverage(Object.values(DIRECTORY_PROFILES), DIRECTORY_TOOL_DEFINITION_LIST);
 
 export const DIRECTORY_TOOL_DEFINITIONS: ReadonlyMap<DirectoryToolName, DirectoryToolDefinition> =

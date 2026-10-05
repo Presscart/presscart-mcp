@@ -443,6 +443,16 @@ test('coverage check fails closed on a missing or duplicate definition', () => {
   );
 });
 
+test('coverage check rejects duplicate definition names even when no profile lists them', () => {
+  const definitions = [...DIRECTORY_TOOL_DEFINITIONS.values()];
+  const unlisted = { ...DIRECTORY_PROFILES.openai, tools: [] };
+  assert.doesNotThrow(() => assertDirectoryToolCoverage([unlisted], definitions));
+  assert.throws(
+    () => assertDirectoryToolCoverage([unlisted], [...definitions, requireDefinition('get_order')]),
+    /Directory tool definition name "get_order" is defined 2 times; names must be globally unique\./,
+  );
+});
+
 function assertStrictDeep(schema: z.ZodTypeAny, path: string): void {
   if (schema instanceof z.ZodObject) {
     assert.equal(schema._def.unknownKeys, 'strict', `${path} must be strict`);
