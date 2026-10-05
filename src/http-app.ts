@@ -10,7 +10,6 @@ import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 
 import { PresscartApiClient, PresscartApiError, type TokenSessionResponse } from './api.js';
 import type { DirectoryProfile, DirectoryProfileId } from './directory/policy.js';
-import { env } from './env.js';
 import { HttpError, createHttpRouteErrorHandler } from './http-route-errors.js';
 import {
   createOAuthHttpLayer,
@@ -43,6 +42,8 @@ export type HttpAppConfig = {
   allowedHosts?: string[];
   allowedOrigins: string[];
   sessionIdleTtlMs: number;
+  presscartApiUrl: string;
+  presscartApiTimeoutMs: number;
   directoryProfiles?: readonly DirectoryProfile[];
   oauth?: HttpAppOAuthConfig;
 };
@@ -255,11 +256,6 @@ export function createHttpApp(config: HttpAppConfig): HttpApp {
           return;
         }
 
-        if (sessionId) {
-          sendJsonRpcError(res, 404, -32001, 'Session not found');
-          return;
-        }
-
         if (!isInitializeRequest(req.body)) {
           sendJsonRpcError(res, 400, -32000, 'Bad Request: Mcp-Session-Id header is required');
           return;
@@ -379,7 +375,11 @@ export function createHttpApp(config: HttpAppConfig): HttpApp {
       return cached.authInfo;
     }
 
-    const api = new PresscartApiClient(env.PRESSCART_API_URL, token, env.PRESSCART_API_TIMEOUT_MS);
+    const api = new PresscartApiClient(
+      config.presscartApiUrl,
+      token,
+      config.presscartApiTimeoutMs,
+    );
     const session = await api.get<TokenSessionResponse>('/auth/token');
 
     if (session.source !== 'api_token') {

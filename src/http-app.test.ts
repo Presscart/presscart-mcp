@@ -18,6 +18,7 @@ const {
   sendMcp,
   sessionHeaders,
   stubPresscartApi,
+  TEST_PRESSCART_API_SETTINGS,
 } = await import('./http-app.fixtures.js');
 
 type HttpAppConfig = Parameters<typeof createHttpApp>[0];
@@ -38,6 +39,7 @@ function baseConfig(overrides: Partial<HttpAppConfig> = {}): HttpAppConfig {
     mcpServerUrl: MCP_SERVER_URL,
     allowedOrigins: [ALLOWED_ORIGIN],
     sessionIdleTtlMs: 60_000,
+    ...TEST_PRESSCART_API_SETTINGS,
     ...overrides,
   };
 }

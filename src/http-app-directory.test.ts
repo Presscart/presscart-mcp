@@ -19,6 +19,7 @@ const {
   sendMcp,
   sessionHeaders,
   stubPresscartApi,
+  TEST_PRESSCART_API_SETTINGS,
 } = await import('./http-app.fixtures.js');
 
 type HttpAppConfig = Parameters<typeof createHttpApp>[0];
@@ -42,6 +43,7 @@ async function start(overrides: Partial<HttpAppConfig> = {}) {
     mcpServerUrl: CANONICAL,
     allowedOrigins: [ALLOWED_ORIGIN],
     sessionIdleTtlMs: 60_000,
+    ...TEST_PRESSCART_API_SETTINGS,
     directoryProfiles: [DIRECTORY_PROFILES.openai, DIRECTORY_PROFILES['claude-directory']],
     ...overrides,
   });
@@ -501,6 +503,7 @@ test('createHttpApp fails fast when the OAuth resource origin differs from the M
         mcpServerUrl: CANONICAL,
         allowedOrigins: [ALLOWED_ORIGIN],
         sessionIdleTtlMs: 60_000,
+        ...TEST_PRESSCART_API_SETTINGS,
         directoryProfiles: [DIRECTORY_PROFILES.openai],
         oauth: {
           ...oauthConfig({ acceptCanonical: true, tokens: TOKENS }),

@@ -5,6 +5,12 @@ import { LATEST_PROTOCOL_VERSION } from '@modelcontextprotocol/sdk/types.js';
 
 export const TEST_API_ORIGIN = 'https://api.presscart.test';
 
+// Presscart API settings every createHttpApp test config needs.
+export const TEST_PRESSCART_API_SETTINGS = {
+  presscartApiUrl: TEST_API_ORIGIN,
+  presscartApiTimeoutMs: 5_000,
+};
+
 export type ApiCall = { url: URL; method: string; headers: Headers };
 
 // Stubs globalThis.fetch for the Presscart API origin only (the network boundary);

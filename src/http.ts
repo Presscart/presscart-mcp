@@ -22,6 +22,8 @@ const httpApp = createHttpApp({
   allowedHosts: env.MCP_ALLOWED_HOSTS ? resolveAllowedHostnames(mcpServerUrl) : undefined,
   allowedOrigins,
   sessionIdleTtlMs: env.MCP_SESSION_IDLE_TTL_MS,
+  presscartApiUrl: env.PRESSCART_API_URL,
+  presscartApiTimeoutMs: env.PRESSCART_API_TIMEOUT_MS,
   directoryProfiles,
   oauth: oauthConfig,
 });
