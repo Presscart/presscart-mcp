@@ -109,7 +109,7 @@ type DirectoryToolDefinition = {
   title: string;
   description: string;
   inputSchema: ZodRawShape;
-  outputSchema: ZodRawShape;
+  outputSchema: z.ZodObject<ZodRawShape, 'strict'>; // built with z.object(...).strict()
   annotations: ToolAnnotations;
   annotationReason: string;
   handler: (input, extra, options) => Promise<DirectoryResult>;
@@ -119,10 +119,17 @@ type DirectoryToolDefinition = {
 - Handlers are thin. They reuse `createPresscartApiClient`, `teamRoute`,
   `teamBySlugRoute`, and `getSessionAuthInfo`, call one API route, and pass the
   response to a result builder from §5.
-- `outputSchema` describes exactly the builder's output shape (§5.1). Object
-  schemas are strict, not `.passthrough()`: builders control every field, so an
-  unexpected key is a bug. The SDK advertises the schema in `tools/list` and
-  validates `structuredContent` against it on every call.
+- `outputSchema` describes exactly the builder's output shape (§5.1). It is a
+  full Zod object built with `z.object(...).strict()`, and every nested object
+  (including objects inside arrays) is also `.strict()`. A raw shape is not
+  enough: the SDK wraps raw shapes in a non-strict object, which strips unknown
+  keys during parsing but still sends the original `structuredContent`, so an
+  extra field would pass validation and leak. With strict schemas, any key a
+  builder did not intend fails the call. This deliberately overrides the
+  repo's `.passthrough()` convention for backend-shaped outputs, because these
+  outputs are builder-shaped, not backend-shaped.
+- The SDK advertises the schema in `tools/list` and validates
+  `structuredContent` against it on every call.
 - `registerDirectoryTools` wraps every handler in one shared error boundary
   (§5.4). Handlers never return raw thrown messages.
 - `registerDirectoryTools(server, profile, options)` registers exactly the
@@ -371,6 +378,11 @@ MCP SDK, Zod, and internal utils are real.
   No handler issues a non-GET request.
 - Every directory tool advertises its `outputSchema` in `tools/list`, and
   every tool call's `structuredContent` validates against it.
+- A test registers a builder that adds an extra top-level key and one that
+  adds an extra nested key, and both calls fail with the error boundary's
+  message instead of returning the extra key.
+- A test walks every directory `outputSchema` and asserts each object node is
+  strict.
 - Error boundary cases from §5.4 return the mapped message only.
 
 **HTTP and sessions**
