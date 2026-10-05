@@ -1,3 +1,4 @@
+import type { RequestHandler, Router } from 'express';
 import { getOAuthProtectedResourceMetadataUrl } from '@modelcontextprotocol/sdk/server/auth/router.js';
 import { requireBearerAuth } from '@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js';
 import type { OAuthTokenVerifier } from '@modelcontextprotocol/sdk/server/auth/provider.js';
@@ -5,9 +6,27 @@ import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 
 import { createOAuthRouter, type OAuthRouterOptions } from './oauth-router.js';
 
-export type OAuthHttpLayerOptions = OAuthRouterOptions & {
-  serverUrl: URL;
+export type OAuthProtectedResource = {
+  resource: URL;
   verifier: OAuthTokenVerifier;
+};
+
+export type OAuthHttpLayerOptions = Omit<OAuthRouterOptions, 'resources'> & {
+  // Canonical MCP server URL; its metadata URL names the canonical /mcp challenge.
+  serverUrl: URL;
+  // Canonical /mcp resource first, then each enabled directory resource.
+  protectedResources: readonly [OAuthProtectedResource, ...OAuthProtectedResource[]];
+};
+
+export type OAuthResourceGuard = {
+  resource: URL;
+  bearerAuth: RequestHandler;
+  resourceMetadataUrl: string;
+};
+
+export type OAuthHttpLayer = {
+  router: Router;
+  guards: readonly [OAuthResourceGuard, ...OAuthResourceGuard[]];
 };
 
 export class OAuthSessionAuthError extends Error {
@@ -19,12 +38,28 @@ export class OAuthSessionAuthError extends Error {
   }
 }
 
-export function createOAuthHttpLayer(options: OAuthHttpLayerOptions) {
-  const resourceMetadataUrl = getOAuthProtectedResourceMetadataUrl(options.serverUrl);
+export function createOAuthHttpLayer(options: OAuthHttpLayerOptions): OAuthHttpLayer {
+  const { serverUrl, protectedResources, ...routerOptions } = options;
+  const [canonical, ...directories] = protectedResources;
+
   return {
-    router: createOAuthRouter(options),
+    router: createOAuthRouter({
+      ...routerOptions,
+      resources: [canonical.resource, ...directories.map(entry => entry.resource)],
+    }),
+    guards: [
+      createGuard(canonical, getOAuthProtectedResourceMetadataUrl(serverUrl)),
+      ...directories.map(entry =>
+        createGuard(entry, getOAuthProtectedResourceMetadataUrl(entry.resource))),
+    ],
+  };
+}
+
+function createGuard(entry: OAuthProtectedResource, resourceMetadataUrl: string): OAuthResourceGuard {
+  return {
+    resource: entry.resource,
     bearerAuth: requireBearerAuth({
-      verifier: options.verifier,
+      verifier: entry.verifier,
       requiredScopes: [],
       resourceMetadataUrl,
     }),

@@ -174,6 +174,22 @@ export function resolveOAuthAudiences(args: {
   return [args.resource, expectedLegacyAudience];
 }
 
+export function resolveDirectoryResource(canonicalResource: URL, profilePath: string) {
+  return new URL(profilePath, canonicalResource.origin);
+}
+
+// A directory route accepts its own resource audience. While the API still stamps
+// every token with the canonical /mcp audience, it also accepts that one (spec §6.3).
+export function resolveDirectoryAudiences(args: {
+  resource: URL;
+  canonicalResource: URL;
+  acceptCanonicalAudience: boolean;
+}): [URL, ...URL[]] {
+  return args.acceptCanonicalAudience
+    ? [args.resource, args.canonicalResource]
+    : [args.resource];
+}
+
 export function createAuthorizationServerMetadata(authorizationServer: URL) {
   const issuer = authorizationServer.href.replace(/\/$/, '');
   return {

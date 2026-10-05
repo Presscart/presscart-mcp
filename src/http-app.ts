@@ -85,11 +85,15 @@ export function createHttpApp(config: HttpAppConfig): HttpApp {
   if (config.oauth) {
     const oauthLayer = createOAuthHttpLayer({
       serverUrl: config.mcpServerUrl,
-      verifier: config.oauth.createVerifier({
-        resource: config.oauth.resource,
-        audiences: config.oauth.audiences,
-      }),
-      resources: [config.oauth.resource],
+      protectedResources: [
+        {
+          resource: config.oauth.resource,
+          verifier: config.oauth.createVerifier({
+            resource: config.oauth.resource,
+            audiences: config.oauth.audiences,
+          }),
+        },
+      ],
       authorizationServer: new URL(config.mcpServerUrl.origin),
       upstreamIssuer: config.oauth.issuer,
       translatorEnabled: config.oauth.translatorEnabled,
@@ -97,8 +101,8 @@ export function createHttpApp(config: HttpAppConfig): HttpApp {
     });
 
     app.use(oauthLayer.router);
-    bearerAuth = oauthLayer.bearerAuth;
-    oauthResourceMetadataUrl = oauthLayer.resourceMetadataUrl;
+    bearerAuth = oauthLayer.guards[0].bearerAuth;
+    oauthResourceMetadataUrl = oauthLayer.guards[0].resourceMetadataUrl;
   }
 
   app.use('/mcp', applyMcpCorsHeaders(allowedOrigins));
