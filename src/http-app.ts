@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import type { Express, Request, RequestHandler, Response } from 'express';
+import express, { type Express, type Request, type RequestHandler, type Response, type Router } from 'express';
 import { createMcpExpressApp } from '@modelcontextprotocol/sdk/server/express.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -169,10 +169,22 @@ export function createHttpApp(config: HttpAppConfig): HttpApp {
   ];
   const mcpPaths = new Set(endpoints.map(endpoint => endpoint.path));
 
+  // Legacy /mcp keeps Express's default matching (case-insensitive, non-strict) for
+  // existing clients. Each directory endpoint is mounted on an exact-path router so
+  // undeclared case/slash variants fall through to the 404 handler instead of
+  // reaching the profile. Mounted in place, so middleware order is unchanged.
+  function mountEndpointRouter(endpoint: McpEndpoint): Router {
+    const router = endpoint.profile === 'legacy'
+      ? express.Router()
+      : express.Router({ caseSensitive: true, strict: true });
+    app.use(router);
+    return router;
+  }
+
   // app.use('/mcp') also matches every /mcp/<profile> path.
   app.use('/mcp', applyMcpCorsHeaders(allowedOrigins));
   for (const endpoint of endpoints) {
-    app.options(endpoint.path, validateOriginHeader(allowedOrigins), handleMcpPreflight);
+    mountEndpointRouter(endpoint).options(endpoint.path, validateOriginHeader(allowedOrigins), handleMcpPreflight);
   }
   app.use('/mcp', validateOriginHeader(allowedOrigins));
 
@@ -298,9 +310,10 @@ export function createHttpApp(config: HttpAppConfig): HttpApp {
       }
     };
 
-    app.post(endpoint.path, ...auth, handlePost, routeErrorHandler);
-    app.get(endpoint.path, ...auth, handleSessionRequest, routeErrorHandler);
-    app.delete(endpoint.path, ...auth, handleSessionRequest, routeErrorHandler);
+    const router = mountEndpointRouter(endpoint);
+    router.post(endpoint.path, ...auth, handlePost, routeErrorHandler);
+    router.get(endpoint.path, ...auth, handleSessionRequest, routeErrorHandler);
+    router.delete(endpoint.path, ...auth, handleSessionRequest, routeErrorHandler);
   }
 
   function createTransport(authInfo: AuthInfo | undefined, profile: SessionProfile) {

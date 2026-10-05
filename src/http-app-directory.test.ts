@@ -530,3 +530,70 @@ test('directory session without OAuth rejects reuse with a different API token',
     id: null,
   });
 });
+
+test('directory MCP paths match exactly: case and trailing-slash variants 404 without creating sessions', async () => {
+  stubApi();
+  const { base, httpApp } = await start({ directoryProfiles: [DIRECTORY_PROFILES.openai] });
+  assert.equal((await sendMcp(base, '/mcp/openai', { body: initializeRequest(), headers: tokenHeader })).status, 200);
+  const before = httpApp.sessions.size;
+
+  for (const path of ['/mcp/OpenAI', '/mcp/openai/', '/mcp/OPENAI']) {
+    const post = await sendMcp(base, path, { body: initializeRequest(), headers: tokenHeader });
+    assert.equal(post.status, 404, `POST ${path}`);
+    assert.deepEqual(post.body, { error: 'Not found' }, `POST ${path}`);
+    assert.equal((await sendMcp(base, path, { method: 'GET' })).status, 404, `GET ${path}`);
+    assert.equal((await sendMcp(base, path, { method: 'DELETE' })).status, 404, `DELETE ${path}`);
+    assert.equal((await sendMcp(base, path, { method: 'PUT', body: {} })).status, 404, `PUT ${path}`);
+    const preflight = await fetch(`${base}${path}`, {
+      method: 'OPTIONS',
+      headers: { origin: ALLOWED_ORIGIN, 'access-control-request-method': 'POST' },
+    });
+    assert.equal(preflight.status, 404, `OPTIONS ${path}`);
+  }
+  assert.equal(httpApp.sessions.size, before);
+});
+
+test('directory metadata and path-inserted AS/OIDC aliases match exactly', async () => {
+  const { base } = await start({
+    directoryProfiles: [DIRECTORY_PROFILES.openai],
+    oauth: oauthConfig({ acceptCanonical: true, tokens: TOKENS }),
+  });
+
+  for (const path of [
+    '/.well-known/oauth-protected-resource/mcp/openai',
+    '/.well-known/oauth-authorization-server/mcp/openai',
+    '/.well-known/openid-configuration/mcp/openai',
+  ]) {
+    assert.equal((await fetch(`${base}${path}`)).status, 200, path);
+    for (const variant of [path.replace('openai', 'OpenAI'), path.replace('openai', 'OPENAI'), `${path}/`]) {
+      const response = await fetch(`${base}${variant}`);
+      assert.equal(response.status, 404, variant);
+      assert.deepEqual(await response.json(), { error: 'Not found' }, variant);
+    }
+  }
+});
+
+test('legacy and canonical routes keep their existing case-insensitive, slash-tolerant matching', async () => {
+  stubApi();
+  const { base } = await start({
+    directoryProfiles: [DIRECTORY_PROFILES.openai],
+    oauth: oauthConfig({ acceptCanonical: true, tokens: TOKENS }),
+  });
+
+  // Pinned from the behavior at 8cd9d33, before directory routes became exact.
+  for (const path of ['/mcp/', '/MCP']) {
+    const response = await sendMcp(base, path, { body: initializeRequest() });
+    assert.equal(response.status, 401, `POST ${path}`);
+  }
+  for (const path of [
+    '/.well-known/oauth-protected-resource',
+    '/.well-known/oauth-protected-resource/',
+    '/.well-known/oauth-protected-resource/mcp',
+    '/.well-known/oauth-protected-resource/mcp/',
+    '/.well-known/oauth-protected-resource/MCP',
+    '/.well-known/oauth-authorization-server/mcp/',
+    '/.well-known/oauth-authorization-server/MCP',
+  ]) {
+    assert.equal((await fetch(`${base}${path}`)).status, 200, path);
+  }
+});

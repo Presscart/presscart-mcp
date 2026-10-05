@@ -121,6 +121,10 @@ class UpstreamOAuthError extends Error {
 
 export function createOAuthRouter(options: OAuthRouterOptions): Router {
   const router = express.Router();
+  // Directory documents are exact-path: Express's default case-insensitive,
+  // non-strict matching would serve undeclared variants. Canonical routes keep it.
+  const directoryRouter = express.Router({ caseSensitive: true, strict: true });
+  router.use(directoryRouter);
   const fetchImpl = options.fetchImpl ?? globalThis.fetch;
   const now = options.now ?? Date.now;
   const canonicalResource = new URL(options.resources[0].href);
@@ -162,7 +166,7 @@ export function createOAuthRouter(options: OAuthRouterOptions): Router {
   // RFC 9728 §3.3: each directory resource has its own path-inserted metadata
   // document whose `resource` exactly matches the URL the client connected to.
   directoryResources.forEach((resource, index) => {
-    router.get(
+    directoryRouter.get(
       `${PROTECTED_RESOURCE_METADATA_PATH}${directoryMetadataSuffixes[index]}`,
       enforceSecureTransport,
       enforceRequestUrlLimit,
@@ -187,12 +191,18 @@ export function createOAuthRouter(options: OAuthRouterOptions): Router {
     '/.well-known/oauth-authorization-server/mcp',
     '/.well-known/openid-configuration',
     '/.well-known/openid-configuration/mcp',
-    ...directoryMetadataSuffixes.flatMap(suffix => [
-      `/.well-known/oauth-authorization-server${suffix}`,
-      `/.well-known/openid-configuration${suffix}`,
-    ]),
   ]) {
     router.get(metadataPath, enforceSecureTransport, enforceRequestUrlLimit, sendAuthorizationServerMetadata);
+  }
+  for (const suffix of directoryMetadataSuffixes) {
+    for (const prefix of ['/.well-known/oauth-authorization-server', '/.well-known/openid-configuration']) {
+      directoryRouter.get(
+        `${prefix}${suffix}`,
+        enforceSecureTransport,
+        enforceRequestUrlLimit,
+        sendAuthorizationServerMetadata,
+      );
+    }
   }
 
   const authorizeRateLimit = createRateLimiter(RATE_LIMITS.authorize, now);
