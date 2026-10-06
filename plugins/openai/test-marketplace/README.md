@@ -6,7 +6,7 @@ The descriptor is `.agents/plugins/marketplace.json` under this directory. Its m
 
 The initial CLI baseline for this task found no registered marketplace named `personal`. Before reusing the fixture later, check existing registrations: if `personal` already belongs to another marketplace, do not overwrite it or later remove it. Create a distinct repository-local fixture name in that case and update the evaluation configuration to match. Actual installation, evaluation, errors, and cleanup are recorded in [TEST-RESULTS.md](../TEST-RESULTS.md).
 
-From the repository root, the requested local test flow is:
+From the plugin root (`plugins/openai/` in presscart-mcp), the requested local test flow is:
 
 ```sh
 codex plugin marketplace add ./test-marketplace

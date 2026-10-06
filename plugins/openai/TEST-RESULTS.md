@@ -6,7 +6,7 @@
 
 **Current result: 17/17 Node tests pass; isolated behavioral eval 11/13 PASS, 2/13 FAIL.** Reviewer cases: 6/8 (4/5 positive, 2/3 negative). Unprompted triggers: 3/3 correct; controls: 2/2 clean. Negative 3 still repeats the supplied publication price after reading the updated installed skill. Positive 5 omits the required search-ranking caveat. Neither is counted as a pass just because its CLI process exited 0. All 13 cases ran once; no model case was retried or package wording changed after installation.
 
-The [post-fix 2026-09-30 isolated evaluation](results/fix-2026-09-30/EVAL-REPORT.md) is the primary behavioral evidence for 0.1.1. It includes manual grades, prompt/response/trace links, exact commands, and limitations. The [original 0.1.0 isolated evaluation](results/eval-2026-09-30/EVAL-REPORT.md) found 12/13 passes and the price-repetition offer; its outputs remain unchanged. The historical wrapped smoke results below are consistent with skill behavior but cannot isolate it.
+The [post-fix 2026-09-30 isolated evaluation](results/fix-2026-09-30/EVAL-REPORT.md) is the primary behavioral evidence for 0.1.1. It includes manual grades, exact commands, and limitations; its prompt/response/trace links point to raw evidence that was not imported (see the note above). The [original 0.1.0 isolated evaluation](results/eval-2026-09-30/EVAL-REPORT.md) found 12/13 passes and the price-repetition offer; its outputs remain unchanged. The historical wrapped smoke results below are consistent with skill behavior but cannot isolate it.
 
 | Verification | Actual result | Evidence |
 | --- | --- | --- |
