@@ -1,0 +1,4 @@
+interface:
+  display_name: "Evaluate publication fit"
+  short_description: "Assess qualitative outlet fit"
+  default_prompt: "Use $evaluate-publication-fit to assess these publications against my press brief."
