@@ -1,6 +1,6 @@
 # Presscart OpenAI plugin deliverables
 
-Location: this package now lives at `plugins/openai/` in presscart-mcp. `dist/` is gitignored and rebuilt with `npm run package`.
+Location: this package now lives at `plugins/openai/` in presscart-mcp. `dist/` is gitignored and rebuilt with `rm -rf dist && npm run package` (run from `plugins/openai/`; the packager intentionally refuses to overwrite an existing archive).
 
 > Raw evidence (prompts, stdout/stderr, traces, snapshots) was not imported into this repository; it remains in the original Abba workspace export at commit aef10eb.
 
@@ -35,6 +35,8 @@ Verification: **17/17 static tests pass; isolated eval 11/13 passes**. Negative 
 | Marketplace usage and cleanup instructions | [test-marketplace/README.md](test-marketplace/README.md) |
 
 The marketplace source `test-marketplace/plugins/presscart-placement-advisor` is a symlink to `plugin/`. It is outside the ZIP. The root manifest contains portable identity and `extensions.com.openai` presentation. The redundant compatibility overlay was removed: actual `codex-cli 0.159.2` installation succeeded using the root manifest alone. This agrees with the [official packaging guidance](https://developers.openai.com/plugins/build/plugins).
+
+Evidence-only scripts: `scripts/audit-eval.mjs`, `scripts/verify-cleanup.mjs`, and `scripts/config-fingerprint.mjs` read raw evidence under `results/`, which was not imported. They only work against a restored evidence export or a fresh run's results directory (set `PRESSCART_RESULTS_DIR`). `scripts/run-eval.mjs` and `scripts/run-smoke.mjs` write fresh results and are unaffected.
 
 Development checks: `node --test tests/`, `./scripts/package.sh`, ZIP content/byte verification, and the isolated eval procedure in the marketplace guide. `npm run check:release` is a separate release asset gate: it must fail until the approved production logo and composer icon exist and are referenced in the manifest. Drop them at `plugin/assets/logo.png` and `plugin/assets/icon.png`; exact requirements and manifest additions are in [SUBMISSION.md](SUBMISSION.md#resolving-the-two-asset-blockers).
 

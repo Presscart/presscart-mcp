@@ -28,7 +28,7 @@ The release asset gate intentionally fails without approved square PNGs for both
 
 The documentation and active package/tooling identify version 0.1.1. Historical logs, original ZIP, review quotations, and the following 0.1.0 report retain their actual versions. The old smoke-report generator is retired to prevent overwriting this manually graded report.
 
-Final report validation passed: local documentation links, manifest listing text, reviewer fixture/result/reason fields, and the two manually graded failure facts. Prior-evidence check and whitespace check exited 0. The local commit record is saved in `results/fix-2026-09-30/git-commit.*`; that record describes the initial commit, subsequently amended only to include its own captured command evidence. Use `git log -1` for the final commit ID. No push was performed.
+Final report validation passed: local documentation links, manifest listing text, reviewer fixture/result/reason fields, and the two manually graded failure facts. Prior-evidence check and whitespace check exited 0. The local commit record (`results/fix-2026-09-30/git-commit.*`, not imported into this repository); that record describes the initial commit, subsequently amended only to include its own captured command evidence. Use `git log -1` for the final commit ID. No push was performed.
 
 ## Historical 0.1.0 verification
 
