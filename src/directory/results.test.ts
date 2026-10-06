@@ -453,3 +453,24 @@ function assertStrictDeep(schema: z.ZodTypeAny, path: string): void {
     `${path} uses an unexpected schema type`,
   );
 }
+
+test('list_campaign_articles percent-encodes the team slug in article_page_url', () => {
+  const slug = "o'neil.co:team@café";
+  const result = results.buildListCampaignArticlesResult(fixtures.campaignArticlesResponse(), {
+    teamSlug: slug,
+    campaignId: ids.campaignId,
+    profileId: ids.profileId,
+  });
+  const pageUrl = result.records[0]?.article_page_url;
+  assert.ok(pageUrl);
+  const parsed = new URL(pageUrl);
+  assert.equal(parsed.protocol, 'https:');
+  assert.equal(parsed.origin, 'https://app.presscart.test');
+  assert.equal(
+    parsed.pathname,
+    `/${encodeURIComponent(slug)}/profiles/${ids.profileId}/campaigns/${ids.campaignId}/articles/${ids.articleId}`,
+  );
+  assert.equal(parsed.pathname.split('/')[1], "o'neil.co%3Ateam%40caf%C3%A9");
+  assert.equal(parsed.search, '');
+  assert.equal(parsed.hash, '');
+});

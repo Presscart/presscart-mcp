@@ -182,7 +182,7 @@ export function buildListCampaignArticlesResult(
         article_page_url:
           context.profileId !== undefined && articleId !== null
             ? buildCampaignArticlePageUrl({
-                teamSlug: context.teamSlug,
+                teamSlug: encodeURIComponent(context.teamSlug),
                 profileId: context.profileId,
                 campaignId: context.campaignId,
                 articleId,
