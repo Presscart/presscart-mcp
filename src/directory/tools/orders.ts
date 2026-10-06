@@ -57,7 +57,10 @@ export const getOrderTool = defineDirectoryTool({
   handler: async (input, extra, options) => {
     const api = createPresscartApiClient(extra, options);
     const response = await api.get<unknown>(
-      teamRoute(input.team_slug, `/orders/${encodeURIComponent(input.order_id)}`)
+      teamRoute(input.team_slug, `/orders/${encodeURIComponent(input.order_id)}`),
+      // Required for line_items[].outlet; the API also adds requirements and a signed
+      // logo, which buildGetOrderResult discards.
+      { include_outlets_data: true }
     );
     return buildGetOrderResult(response);
   },

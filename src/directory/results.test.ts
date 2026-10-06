@@ -218,7 +218,7 @@ test('get_order adds campaign links per line item and drops checkout and Stripe 
         name: 'Digital Music News Feature',
         product_type_name: 'Article',
         quantity: 1,
-        outlet: null,
+        outlet: { name: 'Digital Music News', website_url: 'https://digitalmusicnews.example.com' },
         includes: [{ channel_type: 'website', placement_type: 'article' }],
         order_items: [{ id: ids.orderItemId, campaign_id: ids.campaignId }],
       },

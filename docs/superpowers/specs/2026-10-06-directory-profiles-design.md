@@ -207,8 +207,10 @@ Derivations:
   `buildCampaignArticlePageUrl` when `profile_id` is provided; otherwise `null`.
   `live_url` uses `getArticleLiveUrl`.
 - `status` is the first entry of the API's `status[]` array, or `null`.
-- `get_order` calls the API without `include_outlets_data`, and drops the
-  legacy `include_order_items_data` parameter, which the API ignores.
+- `get_order` sends `include_outlets_data=true` so `outlet{name, website_url}` is
+  populated; the API's extra `requirements` and signed logos are discarded by the
+  builder. It drops the legacy `include_order_items_data` parameter, which the API
+  ignores.
 
 Explicitly excluded, with the reason:
 

@@ -115,7 +115,7 @@ const handlerCases: HandlerCase[] = [
     args: { team_slug: ids.teamSlug, order_id: ids.orderId },
     response: fixtures.orderDetailResponse(),
     pathname: `/teams/${ids.teamSlug}/orders/${ids.orderId}`,
-    query: [],
+    query: [['include_outlets_data', 'true']],
     expected: results.buildGetOrderResult(fixtures.orderDetailResponse()),
   },
   {

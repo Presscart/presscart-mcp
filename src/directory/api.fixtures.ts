@@ -240,6 +240,15 @@ export function orderDetailResponse() {
         stripe_product_id: 'prod_placeholder',
         stripe_price_id: 'price_placeholder',
         lifespan_guaranteed: true,
+        // The API adds outlet (with requirements and a signed logo) only when the request
+        // sends include_outlets_data=true.
+        outlet: {
+          id: FIXTURE_IDS.outletId,
+          name: 'Digital Music News',
+          website_url: 'https://digitalmusicnews.example.com',
+          logo: SIGNED_LOGO_URL,
+          requirements: { guidelines: 'must-not-leak' },
+        },
         includes: [{ channel_type: 'website', placement_type: 'article' }],
         order_items: [
           {
