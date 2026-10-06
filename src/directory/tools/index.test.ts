@@ -531,3 +531,47 @@ for (const tool of slugTools) {
     }
   });
 }
+
+for (const [tool, extra] of [
+  ['get_team', {}],
+  ['get_order', { order_id: ids.orderId }],
+  ['get_campaign', { campaign_id: ids.campaignId }],
+] as const) {
+  test(`${tool} rejects dot-only team slugs before any API call`, async () => {
+    await withStubbedFetch(
+      () => jsonResponse({}),
+      async requests => {
+        const { client, close } = await connectInMemoryClient(directoryServer());
+        try {
+          for (const slug of ['.', '..', '...']) {
+            const result = await client.callTool({ name: tool, arguments: { team_slug: slug, ...extra } });
+            assert.equal(result.isError, true, `${tool} accepted ${slug}`);
+            assert.match(readTextContent(result), /Input validation error/);
+            assert.match(readTextContent(result), /only of dots/);
+          }
+          assert.equal(requests.length, 0);
+        } finally {
+          await close();
+        }
+      },
+    );
+  });
+}
+
+test('team slugs with internal dots still pass validation', async () => {
+  await withStubbedFetch(
+    () => jsonResponse(fixtures.teamBySlugResponse()),
+    async requests => {
+      const { client, close } = await connectInMemoryClient(directoryServer());
+      try {
+        for (const slug of ["o'neil.co", 'acme.co']) {
+          const result = await client.callTool({ name: 'get_team', arguments: { team_slug: slug } });
+          assert.equal(result.isError, undefined, readTextContent(result));
+        }
+        assert.equal(requests.length, 2);
+      } finally {
+        await close();
+      }
+    },
+  );
+});

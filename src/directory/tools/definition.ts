@@ -85,4 +85,7 @@ export const directoryTeamSlugSchema = z
   .min(1)
   .max(128)
   .regex(DIRECTORY_TEAM_SLUG_PATTERN, 'team_slug must not contain whitespace, control characters, or / \\ ? # % & =')
+  .refine(slug => !/^\.+$/.test(slug), {
+    message: 'team_slug must not consist only of dots (path traversal)',
+  })
   .describe('Team slug from list_teams, used to scope app workflow routes.');
