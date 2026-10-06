@@ -1,4 +1,4 @@
-import { buildCampaignArticlePageUrl, getArticleLiveUrl } from '../utils/article-urls.js';
+import { buildCampaignArticlePageUrl } from '../utils/article-urls.js';
 import type { AuthInfoLike } from '../utils/tool-context.js';
 import type {
   GetCampaignArticleStatusResult,
@@ -86,7 +86,7 @@ export function buildListProfilesResult(response: unknown): ListProfilesResult {
       name: readString(profile, 'name'),
       team_id: readString(profile, 'team_id'),
       type: readString(profile, 'type'),
-      website_url: readString(profile, 'website_url'),
+      website_url: readHttpUrl(profile, 'website_url'),
     })),
     ...readPagination(envelope),
   };
@@ -135,7 +135,7 @@ export function buildListCampaignsResult(response: unknown): ListCampaignsResult
         published_count:
           articles === null
             ? null
-            : articles.filter(article => getArticleLiveUrl(article) !== null).length,
+            : articles.filter(article => readHttpUrl(article, 'live_url') !== null).length,
       };
     }),
     ...readPagination(envelope),
@@ -178,7 +178,7 @@ export function buildListCampaignArticlesResult(
       return {
         id: articleId,
         name: readString(article, 'name'),
-        live_url: getArticleLiveUrl(article),
+        live_url: readHttpUrl(article, 'live_url'),
         article_page_url:
           context.profileId !== undefined && articleId !== null
             ? buildCampaignArticlePageUrl({
@@ -199,7 +199,7 @@ export function buildListCampaignArticlesResult(
         outlet:
           outlet === undefined
             ? null
-            : { name: readString(outlet, 'name'), website_url: readString(outlet, 'website_url') },
+            : { name: readString(outlet, 'name'), website_url: readHttpUrl(outlet, 'website_url') },
         includes: readIncludes(orderItem),
         expected_completion_date: readString(article, 'expected_completion_date'),
       };
@@ -245,7 +245,7 @@ function readOrderLineItem(lineItem: ApiRecord) {
     outlet:
       outlet === undefined
         ? null
-        : { name: readString(outlet, 'name'), website_url: readString(outlet, 'website_url') },
+        : { name: readString(outlet, 'name'), website_url: readHttpUrl(outlet, 'website_url') },
     includes: readIncludes(lineItem),
   };
 }
@@ -303,6 +303,19 @@ function readOptionalRecords(owner: ApiRecord | undefined, key: string): ApiReco
 function readString(owner: ApiRecord | undefined, key: string) {
   const value = owner?.[key];
   return typeof value === 'string' ? value : null;
+}
+
+// URL-valued output fields are returned only when they are absolute http(s) URLs, so a
+// javascript:, data: or relative value from the API never reaches an MCP client.
+function readHttpUrl(owner: ApiRecord | undefined, key: string) {
+  const value = readString(owner, key)?.trim();
+  if (value === undefined || value === '') return null;
+  try {
+    const { protocol } = new URL(value);
+    return protocol === 'http:' || protocol === 'https:' ? value : null;
+  } catch {
+    return null;
+  }
 }
 
 function readNumber(owner: ApiRecord | undefined, key: string) {

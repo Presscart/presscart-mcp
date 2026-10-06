@@ -474,3 +474,65 @@ test('list_campaign_articles percent-encodes the team slug in article_page_url',
   assert.equal(parsed.search, '');
   assert.equal(parsed.hash, '');
 });
+
+const UNSAFE_URLS = [
+  'javascript:alert(1)',
+  'data:text/html,<script>alert(1)</script>',
+  'ftp://files.example.com/x',
+  '/relative/path',
+  '//no-scheme.example.com',
+  'not a url',
+  'https://',
+];
+
+test('URL fields return only absolute http(s) URLs and null otherwise', () => {
+  const articles = (url: unknown) => ({
+    records: [{ id: ids.articleId, live_url: url, order_item: { outlet: { website_url: url } } }],
+  });
+  const profiles = (url: unknown) => ({ records: [{ id: ids.profileId, website_url: url }] });
+  const orders = (url: unknown) => ({
+    records: [{ id: ids.orderId, line_items: [{ id: ids.lineItemId, outlet: { website_url: url } }] }],
+  });
+  const order = (url: unknown) => ({
+    id: ids.orderId,
+    line_items: [{ id: ids.lineItemId, outlet: { website_url: url } }],
+  });
+  const context = { teamSlug: ids.teamSlug, campaignId: ids.campaignId };
+  const readAll = (url: unknown) => {
+    const article = results.buildListCampaignArticlesResult(articles(url), context).records[0];
+    return [
+      article?.live_url,
+      article?.outlet?.website_url,
+      results.buildListProfilesResult(profiles(url)).records[0]?.website_url,
+      results.buildListProfileOrdersResult(orders(url)).records[0]?.line_items?.[0]?.outlet?.website_url,
+      results.buildGetOrderResult(order(url)).line_items?.[0]?.outlet?.website_url,
+    ];
+  };
+
+  for (const url of UNSAFE_URLS) {
+    assert.deepEqual(readAll(url), [null, null, null, null, null], `kept ${url}`);
+  }
+  for (const url of ['https://example.com/a?b=1', 'http://example.com']) {
+    assert.deepEqual(readAll(url), [url, url, url, url, url]);
+  }
+});
+
+test('list_campaigns published_count only counts articles with an http(s) live_url', () => {
+  const article = (live_url: unknown) => ({ id: 'a', live_url });
+  const result = results.buildListCampaignsResult({
+    records: [
+      {
+        id: ids.campaignId,
+        articles: [
+          article('https://example.com/a'),
+          article('javascript:alert(1)'),
+          article('ftp://example.com/a'),
+          article('   '),
+          article(null),
+        ],
+      },
+    ],
+  });
+  assert.equal(result.records[0]?.article_count, 5);
+  assert.equal(result.records[0]?.published_count, 1);
+});
