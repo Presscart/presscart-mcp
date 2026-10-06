@@ -475,6 +475,39 @@ test('list_campaign_articles percent-encodes the team slug in article_page_url',
   assert.equal(parsed.hash, '');
 });
 
+function articleUrlWithId(articleId: string, profileId: string = ids.profileId, campaignId: string = ids.campaignId) {
+  const response = fixtures.campaignArticlesResponse();
+  (response.records[0] as { id: string }).id = articleId;
+  const result = results.buildListCampaignArticlesResult(response, {
+    teamSlug: ids.teamSlug,
+    campaignId,
+    profileId,
+  });
+  return result.records[0]?.article_page_url;
+}
+
+test('list_campaign_articles keeps hostile article ids inside the article path', () => {
+  const prefix = `/${ids.teamSlug}/profiles/${ids.profileId}/campaigns/${ids.campaignId}/articles/`;
+  for (const id of ['../settings', 'a/b', 'a?x=1#h']) {
+    const url = articleUrlWithId(id);
+    assert.ok(url, id);
+    const parsed = new URL(url);
+    assert.equal(parsed.origin, 'https://app.presscart.test');
+    assert.ok(parsed.pathname.startsWith(prefix), parsed.pathname);
+    assert.ok(parsed.pathname.endsWith(encodeURIComponent(id)), parsed.pathname);
+    assert.equal(parsed.search, '');
+    assert.equal(parsed.hash, '');
+  }
+});
+
+test('list_campaign_articles returns null article_page_url for dot-only segments', () => {
+  assert.equal(articleUrlWithId('..'), null);
+  assert.equal(articleUrlWithId('.'), null);
+  assert.equal(articleUrlWithId('...'), null);
+  assert.equal(articleUrlWithId(ids.articleId, '..'), null);
+  assert.equal(articleUrlWithId(ids.articleId, ids.profileId, '.'), null);
+});
+
 const UNSAFE_URLS = [
   'javascript:alert(1)',
   'data:text/html,<script>alert(1)</script>',

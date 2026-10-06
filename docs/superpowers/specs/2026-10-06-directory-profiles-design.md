@@ -201,11 +201,17 @@ Derivations:
   sessions return `id` and `name` (no `email`). API-token sessions return
   `team_id` only (no `token_type`, no `pro_pricing_enabled`).
 - `list_campaigns` derives `article_count` and `published_count` (articles
-  with a non-empty `live_url`) from the embedded `articles[]`. Article records
-  are not returned.
+  whose `live_url` is an absolute http(s) URL, per `readHttpUrl`) from the
+  embedded `articles[]`. Article records are not returned.
+- URL-valued output fields (`live_url`, `website_url` on profiles and outlets)
+  are returned only when they are absolute http(s) URLs (`readHttpUrl`);
+  otherwise `null`.
 - `list_campaign_articles` builds `article_page_url` with the existing
   `buildCampaignArticlePageUrl` when `profile_id` is provided; otherwise `null`.
-  `live_url` uses `getArticleLiveUrl`.
+  Every path segment (team slug, profile id, campaign id, article id) is
+  percent-encoded with `encodeURIComponent`, and `article_page_url` is `null`
+  when any segment is empty or dot-only (`.`, `..`), since `new URL()` would
+  normalize it into a different path.
 - `status` is the first entry of the API's `status[]` array, or `null`.
 - `get_order` sends `include_outlets_data=true` so `outlet{name, website_url}` is
   populated; the API's extra `requirements` and signed logos are discarded by the

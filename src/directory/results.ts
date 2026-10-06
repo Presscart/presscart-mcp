@@ -179,15 +179,7 @@ export function buildListCampaignArticlesResult(
         id: articleId,
         name: readString(article, 'name'),
         live_url: readHttpUrl(article, 'live_url'),
-        article_page_url:
-          context.profileId !== undefined && articleId !== null
-            ? buildCampaignArticlePageUrl({
-                teamSlug: encodeURIComponent(context.teamSlug),
-                profileId: context.profileId,
-                campaignId: context.campaignId,
-                articleId,
-              })
-            : null,
+        article_page_url: buildArticlePageUrl(context, articleId),
         status:
           firstStatus === undefined
             ? null
@@ -297,6 +289,20 @@ function readOptionalRecords(owner: ApiRecord | undefined, key: string): ApiReco
   return value.flatMap(entry => {
     const record = asRecord(entry);
     return record === undefined ? [] : [record];
+  });
+}
+
+function buildArticlePageUrl(context: CampaignArticleUrlContext, articleId: string | null) {
+  if (context.profileId === undefined || articleId === null) return null;
+  const segments = [context.teamSlug, context.profileId, context.campaignId, articleId];
+  // encodeURIComponent leaves dots intact and new URL() collapses '.'/'..' segments.
+  if (segments.some(segment => /^\.*$/.test(segment))) return null;
+  const [teamSlug, profileId, campaignId, encodedArticleId] = segments.map(encodeURIComponent);
+  return buildCampaignArticlePageUrl({
+    teamSlug: teamSlug!,
+    profileId: profileId!,
+    campaignId: campaignId!,
+    articleId: encodedArticleId!,
   });
 }
 
