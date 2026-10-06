@@ -212,6 +212,10 @@ export function createHttpApp(config: HttpAppConfig): HttpApp {
   });
 
   function mountMcpEndpoint(endpoint: McpEndpoint) {
+    // Fail closed: with OAuth on, an endpoint without a bearer guard would be served unauthenticated.
+    if (oauthEnabled && endpoint.guard === undefined) {
+      throw new Error(`Missing OAuth bearer guard for MCP endpoint "${endpoint.path}".`);
+    }
     const auth = endpoint.guard ? [endpoint.guard.bearerAuth] : [];
     // Route-level error handler so OAuth session errors name this route's metadata.
     const routeErrorHandler = createHttpRouteErrorHandler({
