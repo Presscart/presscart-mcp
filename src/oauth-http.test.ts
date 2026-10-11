@@ -3,6 +3,7 @@ import { createServer, type Server } from 'node:http';
 import { afterEach, test } from 'node:test';
 
 import express from 'express';
+import { InvalidTokenError } from '@modelcontextprotocol/sdk/server/auth/errors.js';
 import type { OAuthTokenVerifier } from '@modelcontextprotocol/sdk/server/auth/provider.js';
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 
@@ -15,6 +16,7 @@ import {
 
 const servers: Server[] = [];
 const canonicalResource = new URL('https://mcp.presscart.com/mcp');
+const openaiResource = new URL('https://mcp.presscart.com/mcp/openai');
 const sessionMismatchMessage =
   'Authorization token does not match the OAuth grant bound to the active MCP session.';
 
@@ -37,11 +39,13 @@ function authInfo(overrides: Partial<AuthInfo> = {}): AuthInfo {
   };
 }
 
-function createLayer(verifier: OAuthTokenVerifier) {
+function createLayer(verifier: OAuthTokenVerifier, directoryVerifier?: OAuthTokenVerifier) {
   return createOAuthHttpLayer({
     serverUrl: canonicalResource,
-    verifier,
-    resource: canonicalResource,
+    protectedResources: [
+      { resource: canonicalResource, verifier },
+      ...(directoryVerifier === undefined ? [] : [{ resource: openaiResource, verifier: directoryVerifier }]),
+    ],
     authorizationServer: new URL('https://mcp.presscart.com'),
     upstreamIssuer: new URL('https://project.supabase.co/auth/v1'),
     translatorEnabled: false,
@@ -77,7 +81,7 @@ test('challenges unauthenticated MCP requests with canonical resource metadata',
   const app = express();
   app.set('trust proxy', 1);
   app.use(layer.router);
-  app.get('/mcp', layer.bearerAuth, (_req, res) => res.json({ ok: true }));
+  app.get('/mcp', layer.guards[0].bearerAuth, (_req, res) => res.json({ ok: true }));
 
   const response = await fetch(`${await listen(app)}/mcp`);
 
@@ -162,7 +166,7 @@ test('exposes a bearer-authenticated rotated-session mismatch through the produc
   const app = express();
   app.set('trust proxy', 1);
   app.use(layer.router);
-  app.get('/mcp', layer.bearerAuth, (req, res, next) => {
+  app.get('/mcp', layer.guards[0].bearerAuth, (req, res, next) => {
     try {
       validateOAuthSessionAuth(previous, req.auth);
       res.json({ ok: true });
@@ -171,7 +175,7 @@ test('exposes a bearer-authenticated rotated-session mismatch through the produc
     }
   });
   app.use(createHttpRouteErrorHandler({
-    resourceMetadataUrl: layer.resourceMetadataUrl,
+    resourceMetadataUrl: layer.guards[0].resourceMetadataUrl,
     logRouteError() {
       // Logging behavior is asserted in http-route-errors.test.ts.
     },
@@ -191,4 +195,50 @@ test('exposes a bearer-authenticated rotated-session mismatch through the produc
     error: { code: -32000, message: sessionMismatchMessage },
     id: null,
   });
+});
+
+function verifierAccepting(acceptedToken: string): OAuthTokenVerifier {
+  return {
+    async verifyAccessToken(token) {
+      if (token !== acceptedToken) throw new InvalidTokenError('Invalid or expired token');
+      return authInfo({ token });
+    },
+  };
+}
+
+test('each protected resource challenges with its own metadata and uses its own verifier', async () => {
+  const layer = createLayer(verifierAccepting('canonical-token'), verifierAccepting('openai-token'));
+  assert.equal(layer.guards.length, 2);
+  const [canonicalGuard, openaiGuard] = layer.guards;
+  assert(openaiGuard);
+  assert.equal(canonicalGuard.resource.href, canonicalResource.href);
+  assert.equal(openaiGuard.resource.href, openaiResource.href);
+  assert.equal(
+    openaiGuard.resourceMetadataUrl,
+    'https://mcp.presscart.com/.well-known/oauth-protected-resource/mcp/openai',
+  );
+
+  const app = express();
+  app.set('trust proxy', 1);
+  app.use(layer.router);
+  app.get('/mcp', canonicalGuard.bearerAuth, (_req, res) => res.json({ route: 'mcp' }));
+  app.get('/mcp/openai', openaiGuard.bearerAuth, (_req, res) => res.json({ route: 'openai' }));
+  const base = await listen(app);
+
+  const challenge = await fetch(`${base}/mcp/openai`);
+  assert.equal(challenge.status, 401);
+  assert.match(
+    challenge.headers.get('www-authenticate') ?? '',
+    /resource_metadata="https:\/\/mcp\.presscart\.com\/\.well-known\/oauth-protected-resource\/mcp\/openai"/,
+  );
+
+  const ok = await fetch(`${base}/mcp/openai`, { headers: { authorization: 'Bearer openai-token' } });
+  assert.deepEqual(await ok.json(), { route: 'openai' });
+  const crossed = await fetch(`${base}/mcp`, { headers: { authorization: 'Bearer openai-token' } });
+  assert.equal(crossed.status, 401);
+  const crossedBack = await fetch(`${base}/mcp/openai`, { headers: { authorization: 'Bearer canonical-token' } });
+  assert.equal(crossedBack.status, 401);
+
+  const metadata = await fetch(`${base}/.well-known/oauth-protected-resource/mcp/openai`);
+  assert.equal(((await metadata.json()) as { resource: string }).resource, openaiResource.href);
 });

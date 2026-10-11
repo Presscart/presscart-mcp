@@ -123,9 +123,9 @@ export function parseFacadeScope(scope: string | undefined) {
   return { facade: FACADE_SCOPE, upstream: UPSTREAM_SCOPE } as const;
 }
 
-export function parseCanonicalResource(value: string | undefined, canonical: URL) {
+export function parseAcceptedResource(value: string | undefined, resources: readonly URL[]) {
   if (value === undefined) return undefined;
-  if (value !== canonical.href) {
+  if (!resources.some(resource => resource.href === value)) {
     throw new OAuthProtocolError('invalid_target', 'resource is not supported');
   }
   return value;
@@ -172,6 +172,22 @@ export function resolveOAuthAudiences(args: {
   }
 
   return [args.resource, expectedLegacyAudience];
+}
+
+export function resolveDirectoryResource(canonicalResource: URL, profilePath: string) {
+  return new URL(profilePath, canonicalResource.origin);
+}
+
+// A directory route accepts its own resource audience. While the API still stamps
+// every token with the canonical /mcp audience, it also accepts that one (spec §6.3).
+export function resolveDirectoryAudiences(args: {
+  resource: URL;
+  canonicalResource: URL;
+  acceptCanonicalAudience: boolean;
+}): [URL, ...URL[]] {
+  return args.acceptCanonicalAudience
+    ? [args.resource, args.canonicalResource]
+    : [args.resource];
 }
 
 export function createAuthorizationServerMetadata(authorizationServer: URL) {

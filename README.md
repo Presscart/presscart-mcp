@@ -52,6 +52,13 @@ export MCP_OAUTH_LEGACY_AUDIENCE="https://mcp.presscart.com"
 export MCP_OAUTH_UPSTREAM_TIMEOUT_MS="10000"
 ```
 
+Optional directory integration settings:
+
+```bash
+export MCP_DIRECTORY_PROFILES="openai,claude-directory"
+export MCP_DIRECTORY_ACCEPT_CANONICAL_AUDIENCE="true"
+```
+
 Notes:
 - `PRESSCART_API_URL` must point at the app API base that exposes `/teams/*` routes, not a public-api-only base.
 - `PRESSCART_APP_URL` controls direct application links returned by tools such as `list_publisher_articles`. Set it per environment so staging MCP links open staging.
@@ -163,6 +170,29 @@ git push origin v0.2.0
 - `replace_article_file`
 - `submit_article`
 - `request_article_writing`
+
+## Directory routes
+
+`/mcp` keeps the full tool set. The OpenAI and Claude directory integrations connect to separate URLs whose tool exposure is fixed by server configuration:
+
+| Profile | MCP path | Protected-resource metadata |
+|---|---|---|
+| `openai` | `/mcp/openai` | `/.well-known/oauth-protected-resource/mcp/openai` |
+| `claude-directory` | `/mcp/claude-directory` | `/.well-known/oauth-protected-resource/mcp/claude-directory` |
+
+- A route is mounted only when its id is listed in `MCP_DIRECTORY_PROFILES` (comma-separated, default empty). An unknown or duplicate id stops startup. Unlisted profile paths return `404`.
+- Both profiles expose the same ten read-only tools: `get_user`, `list_teams`, `get_team`, `list_profiles`, `list_profile_orders`, `get_order`, `list_campaigns`, `get_campaign`, `list_campaign_articles`, `get_campaign_article_status`. Every other tool is not registered on these routes, so calling it fails before any Presscart API request.
+- Directory tools return explicit field allowlists (no prices, payment or checkout fields, emails, writer names, internal document links, or add-ons), advertise strict output schemas, and cap `limit` at 25.
+- A session belongs to the route it was initialized on. Sending its `Mcp-Session-Id` to any other MCP route returns `404 Session not found`.
+- Exposure is not authorization: the Presscart API still authorizes every request.
+- With `MCP_OAUTH_ENABLED=true`, each directory route has its own protected-resource metadata and `WWW-Authenticate` challenge, the OAuth facade accepts its resource on `/oauth/authorize` and `/oauth/token`, and its verifier accepts that resource as the token audience. While `MCP_DIRECTORY_ACCEPT_CANONICAL_AUDIENCE=true` (default), it also accepts the canonical `/mcp` audience, which the Presscart API currently sets on every MCP token.
+- With `MCP_OAUTH_ENABLED=false`, directory routes use `X-Presscart-API-Token` like `/mcp`. Use this only for local and staging testing.
+- Rollback: remove the profile from `MCP_DIRECTORY_PROFILES` and redeploy. `/mcp` is unaffected.
+
+Before submitting to a directory:
+
+1. Verify in staging that Supabase OAuth accepts the forwarded directory `resource` value.
+2. Ship the Presscart API change that issues directory grants a directory audience (or equivalent grant binding), then set `MCP_DIRECTORY_ACCEPT_CANONICAL_AUDIENCE=false`. Until then, a token issued through a directory route can also call `/mcp`.
 
 ## Hosted deployment shape
 
