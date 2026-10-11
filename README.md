@@ -378,3 +378,9 @@ https://mcp.presscart.com/mcp
 Notes:
 - ChatGPT currently supports remote servers only, not local MCP servers.
 - Business and Enterprise/Edu have the fullest MCP app support; availability differs by plan.
+
+## OpenAI plugin
+
+`plugins/openai/` holds the skills-only Presscart Placement Advisor 0.1.1 package for the OpenAI plugin directory. It has no MCP connection yet.
+Test and package it with `cd plugins/openai && npm test && npm run package` (output goes to the gitignored `dist/`). To rebuild, run `rm -rf dist && npm run package`; the packager intentionally refuses to overwrite an existing archive.
+Release blockers and portal submission notes are in `plugins/openai/SUBMISSION.md`.

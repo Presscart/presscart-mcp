@@ -1,0 +1,71 @@
+{
+  "qualify-press-needs": [
+    {
+      "reason": "S3: narrow media triggers and remove Works offline; S1: permanent planning scope.",
+      "before": "description: Qualify a press or media-placement request before anyone looks at publications. Use when someone wants press coverage, a feature, a paid editorial placement, or PR for a person, product, or company and the goal, budget, timeline, stakeholders, audience, content readiness, or constraints are not yet clear. Works offline; asks only for the fields that are missing.",
+      "after": "description: Qualify a request for press coverage, a media feature or profile article, a paid editorial placement, or PR placement in news or trade media for a person, product, or company. Use when the goal, budget, timeline, stakeholders, audience, content readiness, or constraints are not yet clear. Ask only for missing fields. Informational planning only; no publication-price quotes or transactions."
+    },
+    {
+      "reason": "S2: provider-neutral connection boundary; S1: prominent unconditional no-price rule.",
+      "before": "It does not connect to Presscart, does not need an account, and does not look anything up.",
+      "after": "It does not connect to a provider, does not need an account, and does not look anything up.\n\nThis advisor's permanent scope is informational planning only. Never quote, repeat, summarize numerically, or offer to repeat publication prices, including user-supplied prices labelled unverified. You may record the user's own planning budget."
+    },
+    {
+      "reason": "S1/eval Negative 3: replace conflicting quote exception; S2: remove account instruction.",
+      "before": "Record them as \"feasibility unknown — confirm against current catalog data in your own Presscart account\", unless the user supplied specific evidence (such as a quote), in which case label it user-provided and not verified.",
+      "after": "Record them as \"feasibility unknown — confirm directly with the publication or the provider you are working with\", unless the user supplied specific non-price evidence (for example a stated delivery date), in which case label it user-provided and not verified. Never restate or offer to restate any supplied publication price. A user's own planning budget may be recorded."
+    },
+    {
+      "reason": "S2: remove account/purchasing direction while preserving user-only actions.",
+      "before": "Signing up, logging in, accepting catalog or marketplace terms, placing orders, checkout, and contacting publishers are actions the user takes themselves in their own Presscart account. This skill never initiates them.",
+      "after": "Signing up, logging in, accepting catalog or marketplace terms, placing orders, checkout, and contacting publishers are actions the user takes themselves. This skill never initiates them."
+    }
+  ],
+  "evaluate-publication-fit": [
+    {
+      "reason": "S3: exclude academic journals and software features; S1: permanent planning scope.",
+      "before": "description: Evaluate whether specific publications or placement options fit a press goal - goal alignment, audience, editorial quality, paid-placement disclosure, and constraints. Use when someone asks whether an outlet is a good fit, wants to compare publications, or shares a media kit or listing. Separates qualitative judgment from live catalog facts (price, availability, turnaround, link attributes, labels), which this plugin cannot verify.",
+      "after": "description: Evaluate news or trade media outlets (not academic journals or software features) for a press goal, covering goal alignment, audience, editorial quality, paid-placement disclosure, and constraints. Use when someone asks whether such an outlet is a good fit, wants to compare these outlets, or shares a media kit or placement listing. Separate qualitative judgment from unverified catalog facts. Informational planning only; no publication-price quotes or transactions."
+    },
+    {
+      "reason": "S2: provider-neutral connection boundary; S1: permanent no-price scope.",
+      "before": "This plugin has **no connection to Presscart or any live catalog**. It cannot see the user's account, current listings, prices, or terms. Every catalog fact is therefore unverified in this version, no matter where it came from.",
+      "after": "This plugin has **no connection to a provider or any live catalog**. It cannot see the user's account, current listings, prices, or terms. Every catalog fact is therefore unverified, no matter where it came from.\n\nThis advisor's permanent scope is informational planning only. Never quote, repeat, summarize numerically, or offer to repeat publication prices, including user-supplied prices labelled unverified. You may record the user's own planning budget."
+    },
+    {
+      "reason": "S3/N5: provider-neutral workflow chaining.",
+      "before": "run the `qualify-press-needs` skill first (or ask for the missing items briefly)",
+      "after": "use the qualify-press-needs workflow, or ask for the missing items"
+    },
+    {
+      "reason": "S2: replace account prerequisite with neutral confirmation.",
+      "before": "These facts change and are only trustworthy from a live source that the user's own Presscart account is authorized to see:",
+      "after": "These facts change; confirm directly with the publication or the provider you are working with:"
+    },
+    {
+      "reason": "S1/eval Negative 3: non-price-only supplied evidence, no offers to repeat prices.",
+      "before": "- If the user supplies a value (from a screenshot, email, old quote, or media kit), you may repeat it only as **\"user-provided, not verified by this plugin\"**, with its date if known. Treat undated or older values as possibly stale.",
+      "after": "- If the user supplies a non-price value (from a screenshot, email, or media kit), you may repeat it only as **\"user-provided, not verified by this plugin\"**, with its date if known. Treat undated or older values as possibly stale. Never restate or offer to restate any supplied publication price. A user's own planning budget may be recorded."
+    },
+    {
+      "reason": "S2: make connector prohibition and confirmation provider-neutral.",
+      "before": "- Do not call any Presscart connector, MCP tool, API, or website to fill these gaps, even if one appears to be available. Tell the user to confirm the facts in their own Presscart account.",
+      "after": "- Do not call any connector, MCP tool, API, or website to fill these gaps, even if one appears to be available. Tell the user to confirm directly with the publication or the provider you are working with."
+    },
+    {
+      "reason": "S1: output format cannot invite publication-price repetition.",
+      "before": "- Price: not verified | user-provided, not verified (<date or \"undated\">): …",
+      "after": "- Price: not verified (pricing quotes are not provided)"
+    },
+    {
+      "reason": "S2: neutral confirmation, no account CTA.",
+      "before": "- **\"Confirm before deciding\"**: the specific catalog facts the user should check in their own Presscart account, plus any open questions for the publication.",
+      "after": "- **\"Confirm before deciding\"**: the specific catalog facts to confirm directly with the publication or the provider you are working with, plus any open questions for the publication."
+    },
+    {
+      "reason": "S1/S2: permanent refusal scope and remove purchasing/account direction.",
+      "before": "Catalog terms acceptance and purchasing are decisions the account holder makes in their own Presscart account. If asked to do any of these, explain that it has to be done by the user directly, then continue with the evaluation.",
+      "after": "These are actions the user takes themselves. If asked to do any of these, explain that this plugin's permanent scope is planning only, then continue with the evaluation."
+    }
+  ]
+}
