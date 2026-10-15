@@ -4,11 +4,11 @@
 
 Date: 2026-10-16. Package: `presscart` 0.2.0, the first version that declares the remote MCP server. It was named `presscart-placement-advisor` in runs 1 and 2 and renamed before any upload (Renz, 2026-10-16).
 
-Raw evidence for 0.2.0 is in this repository under `results/eval-2026-10-16/`, `results/eval-2026-10-16-r2/`, and `results/eval-2026-10-16-r3/`. Process snapshots and plugin/marketplace listings stay local because they inventory the machine.
+Raw evidence for 0.2.0 is in this repository under `results/eval-2026-10-16/`, `results/eval-2026-10-16-r2/`, `results/eval-2026-10-16-r3/`, and `results/eval-2026-10-16-r4/`. Process snapshots and plugin/marketplace listings stay local because they inventory the machine.
 
 | Verification | Result | Evidence |
 | --- | --- | --- |
-| `node --test tests/` | 21 passed, 0 failed | package contents, manifest and listing limits, MCP template, build and URL validation, release gate, skill rules, account-scoped description triggers, reviewer case format, tool coverage against `src/directory/policy.ts` |
+| `node --test tests/` | 21 passed, 0 failed | package contents, manifest and listing limits, MCP template, build and URL validation, release gate, skill rules, account-scoped description triggers, connect-first and no-checkout-pointer rules, reviewer case format, tool coverage against `src/directory/policy.ts` |
 | `npm test`, `npm run check`, `npm run build` (repo) | 227 passed; typecheck and build clean | server unchanged by this release |
 | `npm run check:release` | **exit 1, expected:** logo, composerIcon, supportURL, privacyPolicyURL, termsOfServiceURL missing | release blockers in [SUBMISSION.md](SUBMISSION.md#release-blockers) |
 | Build with `--mcp-url https://mcp.example.invalid/mcp/openai` | 7 files including generated `mcp.json`; ZIP, `plugin/`, and installed cache byte-identical | `verify-artifacts*.stdout.txt` in each results directory |
@@ -16,6 +16,7 @@ Raw evidence for 0.2.0 is in this repository under `results/eval-2026-10-16/`, `
 | Offline eval, run 1 (before description fix) | **5/10 PASS** — skills followed their rules when loaded, but guarantee, price, and pasted-content prompts loaded no skill | [report](results/eval-2026-10-16/EVAL-REPORT.md) |
 | Offline eval, run 2 (after one description fix) | **8/10 PASS** — search-ranking caveat fixed when a skill loads; **price repetition persists** (x2, x4; the rule was later dropped, see the decisions below); skills also fired on two prompts without Presscart context | [report](results/eval-2026-10-16-r2/EVAL-REPORT.md) |
 | Offline eval, run 3 (after Renz's decisions) | **4/10 PASS** — generic guarantee and price prompts no longer load a skill (x1, x2); account lookups load the right skill but never ask the user to connect Presscart (u1, u2 graded FAIL; runs 1 and 2 had passed the same behavior); Presscart purchase, outcome, and pasted-content prompts loaded no skill (x3, x4, r1, r3), and without it x4 pointed the user to Presscart's checkout; remote plugins excluded | [report](results/eval-2026-10-16-r3/EVAL-REPORT.md) |
+| Offline eval, run 4 (after Renz's second decisions) | **4/10 PASS**, graded strictly — triggering is right in all ten cases (Presscart purchase, outcome, pasted-content, and account requests load a skill; generic prompts and controls don't); no checkout pointer; the other skill rules held. All six skill-loading cases miss the new connect prompt and say connector access is disabled, as the harness instructs; the developer-mode run must test it | [report](results/eval-2026-10-16-r4/EVAL-REPORT.md) |
 | Cleanup after each run | normal Codex `config.toml` bytes and SHA256 unchanged, lists byte-identical, test cache removed | `verify-cleanup.stdout.txt` |
 | Reviewer cases (5 positive, 3 negative) | **not yet run**; need the signed-in test account in ChatGPT developer mode | [SUBMISSION.md](SUBMISSION.md#reviewer-test-cases) |
 
@@ -27,6 +28,14 @@ Raw evidence for 0.2.0 is in this repository under `results/eval-2026-10-16/`, `
 - The skill descriptions are narrowed to questions about the user's own Presscart account.
 
 Runs 1 and 2 keep their original expectations and grades. Run 3 is graded against the updated expectations, which were committed before it ran. Details are in [SUBMISSION.md](SUBMISSION.md#decisions-renz-2026-10-16).
+
+**Second decisions (Renz, 2026-10-16), recorded after run 3:**
+
+- The triggers are widened with clauses tied to the user's own Presscart account: buy or reorder requests, what their articles or campaigns will achieve, and content they share about their campaign. The generic exclusion is kept.
+- Replies must never point to a checkout or ordering page, including Presscart's own.
+- One connect-first instruction leads the skills' Steps.
+
+Run 3 is unchanged. Run 4 is graded strictly against expectations committed before it ran. Details are in [SUBMISSION.md](SUBMISSION.md#decisions-renz-2026-10-16-second-round).
 
 After run 2, review fixes changed only the skills' paging and team-access wording and the build's hostname check; the offline cases have no tools, so they would not exercise that wording. The offline runs disable the plugin's MCP server, so they test skill behavior with no account connection; they do not exercise the ten tools. Server-side enforcement (only the ten read-only tools are reachable on `/mcp/openai`, output allowlists) is covered by the repository's own tests, not by model behavior. Runs 1 and 2 could see the user's remote-curated `superpowers` plugin despite `--ignore-user-config`, so "no competing skills" did not hold for them; see the run 2 report. Run 3 passed `features.remote_plugin=false`, and no session read another plugin's skill.
 
