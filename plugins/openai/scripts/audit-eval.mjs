@@ -36,14 +36,20 @@ const inventory = cases.map(c => {
   assert.ok(!sessions.has(sessionId), `Reused session for ${c.id}`);
   sessions.add(sessionId);
   const execEvents = [...trace.matchAll(/^exec\n([^\n]+)\n([^\n]+)/gm)].map(m => ({ command: m[1], result: m[2] }));
-  const installedSkillReads = execEvents.filter(e => /succeeded/.test(e.result)).flatMap(e =>
-    [...e.command.matchAll(installedSkillPattern)]
-      .map(m => ({ skill: m[1], path: m[0], command: e.command, result: e.result })));
+  // Parallel reads print their results later, out of order, so a requested skill counts as
+  // read when its frontmatter name appears in the trace output, not by line adjacency.
+  const commands = [...trace.matchAll(/^exec\n([^\n]+)/gm)].map(m => m[1]);
+  const installedSkillReads = commands.flatMap(command => [...command.matchAll(installedSkillPattern)]
+    .map(m => ({ skill: m[1], path: m[0], command })))
+    .filter(r => new RegExp(`^name: ${r.skill}$`, 'm').test(trace));
+  const otherPluginSkillPaths = [...new Set(commands.flatMap(command =>
+    [...command.matchAll(/[^\s'"]*\/plugins\/cache\/[^\s'"]+\/SKILL\.md/g)].map(m => m[0])
+      .filter(path => !path.startsWith(installedPrefix))))];
   const mcpEvents = [...trace.matchAll(/^(?:mcp|tool) [^\n]*$/gm)].map(m => m[0]);
-  return { id: c.id, group: c.group, sessionId, model: trace.match(/^model: (.+)$/m)?.[1], exitCode: record.exitCode, timedOut: record.timedOut, started: record.started, finished: record.finished, stdoutBytes: Buffer.byteLength(stdout), execEvents, installedSkillReads, mcpEvents };
+  return { id: c.id, group: c.group, sessionId, model: trace.match(/^model: (.+)$/m)?.[1], exitCode: record.exitCode, timedOut: record.timedOut, started: record.started, finished: record.finished, stdoutBytes: Buffer.byteLength(stdout), execEvents, installedSkillReads, otherPluginSkillPaths, mcpEvents };
 });
 writeFileSync(resolve(results, 'trace-inventory.json'), JSON.stringify(inventory, null, 2) + '\n', { flag: 'wx' });
 console.log(`Verified ${cases.length} verbatim prompts matching eval/offline-cases.json; reviewer-offline prompts match SUBMISSION.md; no prompt names a skill.`);
 console.log('Verified every session is fresh, read-only, outside the repository, and used the recorded harness arguments.');
-for (const c of inventory) console.log(`${c.id}: exit=${c.exitCode}; ${c.model}; loaded=${c.installedSkillReads.map(r => r.skill).join(', ') || 'none'}; execEvents=${c.execEvents.length}; mcpEvents=${c.mcpEvents.length}`);
+for (const c of inventory) console.log(`${c.id}: exit=${c.exitCode}; ${c.model}; loaded=${[...new Set(c.installedSkillReads.map(r => r.skill))].join(', ') || 'none'}; otherPluginSkills=${c.otherPluginSkillPaths.length}; execEvents=${c.execEvents.length}; mcpEvents=${c.mcpEvents.length}`);
 console.log('Trace inventory is evidence extraction only, not a behavioral grader.');

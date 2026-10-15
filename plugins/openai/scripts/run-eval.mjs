@@ -20,6 +20,9 @@ const baseArgs = ['exec', '--ignore-user-config', '--ephemeral', '--skip-git-rep
   '-c', 'features.apps=false', '-c', 'features.multi_agent=false', '-c', 'features.plugins=true',
   '-c', 'features.skill_search=false', '-c', 'features.skip_host_skill_discovery=true',
   '-c', 'features.browser_use=false', '-c', 'features.computer_use=false', '-c', 'features.hooks=false',
+  // Remote-curated plugins (the user's superpowers) still loaded under --ignore-user-config
+  // in the first two 0.2.0 runs; keep them out so only this plugin's skills compete.
+  '-c', 'features.remote_plugin=false',
   '-c', 'mcp_servers={}', '-c', 'marketplaces.personal.source_type="local"',
   '-c', `marketplaces.personal.source=${JSON.stringify(resolve(root, 'test-marketplace'))}`,
   // The bundled server stays disabled: no account connection, no network calls to Presscart.
