@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { request } from 'node:http';
 import { afterEach, test } from 'node:test';
 
 import { InvalidTokenError } from '@modelcontextprotocol/sdk/server/auth/errors.js';
@@ -261,4 +262,81 @@ test('legacy /mcp with OAuth challenges with the canonical metadata URL and acce
   const metadata = await fetch(`${base}/.well-known/oauth-protected-resource/mcp`);
   assert.equal(metadata.status, 200);
   assert.equal(((await metadata.json()) as { resource: string }).resource, MCP_SERVER_URL.href);
+});
+
+const CHALLENGE_PATH = '/.well-known/openai-apps-challenge';
+const CHALLENGE_TOKEN = 'openai-challenge-placeholder';
+
+// fetch ignores a caller-supplied Host header, so host-allowlist checks go through node:http.
+function getWithHeaders(url: string, headers: Record<string, string>) {
+  return new Promise<{ status: number; body: string }>((resolve, reject) => {
+    const req = request(url, { headers }, res => {
+      let body = '';
+      res.setEncoding('utf8');
+      res.on('data', chunk => {
+        body += chunk;
+      });
+      res.on('end', () => resolve({ status: res.statusCode ?? 0, body }));
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+test('serves the OpenAI apps challenge token as exact plain text without OAuth', async () => {
+  const { base } = await start(baseConfig({ oauth: oauthConfig(), openaiAppsChallengeToken: CHALLENGE_TOKEN }));
+
+  const challenge = await fetch(`${base}${CHALLENGE_PATH}`);
+  assert.equal(challenge.status, 200);
+  assert.equal(challenge.headers.get('content-type'), 'text/plain; charset=utf-8');
+  assert.equal(challenge.headers.get('cache-control'), 'no-store');
+  assert.equal(challenge.headers.get('x-content-type-options'), 'nosniff');
+  assert.equal(await challenge.text(), CHALLENGE_TOKEN);
+
+  const head = await fetch(`${base}${CHALLENGE_PATH}`, { method: 'HEAD' });
+  assert.equal(head.status, 200);
+  assert.equal(head.headers.get('content-type'), 'text/plain; charset=utf-8');
+  assert.equal(head.headers.get('content-length'), String(CHALLENGE_TOKEN.length));
+  assert.equal(await head.text(), '');
+});
+
+test('serves the OpenAI apps challenge on allowlisted hosts regardless of Origin', async () => {
+  const { base } = await start(baseConfig({
+    allowedHosts: ['mcp.presscart.test'],
+    openaiAppsChallengeToken: CHALLENGE_TOKEN,
+  }));
+
+  const publicHost = await getWithHeaders(`${base}${CHALLENGE_PATH}`, {
+    host: 'mcp.presscart.test',
+    origin: 'https://platform.openai.com',
+  });
+  assert.equal(publicHost.status, 200);
+  assert.equal(publicHost.body, CHALLENGE_TOKEN);
+
+  const otherHost = await getWithHeaders(`${base}${CHALLENGE_PATH}`, { host: 'other.presscart.test' });
+  assert.equal(otherHost.status, 403);
+});
+
+test('returns 404 for the OpenAI apps challenge when no token is configured', async () => {
+  for (const openaiAppsChallengeToken of [undefined, '']) {
+    const { base } = await start(baseConfig({ openaiAppsChallengeToken }));
+    const challenge = await fetch(`${base}${CHALLENGE_PATH}`);
+    assert.equal(challenge.status, 404, `token=${JSON.stringify(openaiAppsChallengeToken)}`);
+    assert.deepEqual(await challenge.json(), { error: 'Not found' });
+  }
+});
+
+test('serves the OpenAI apps challenge only on GET and HEAD at the exact path', async () => {
+  const { base } = await start(baseConfig({ openaiAppsChallengeToken: CHALLENGE_TOKEN }));
+
+  for (const method of ['POST', 'PUT', 'DELETE', 'OPTIONS']) {
+    const response = await fetch(`${base}${CHALLENGE_PATH}`, { method });
+    assert.equal(response.status, 405, method);
+    assert.equal(response.headers.get('allow'), 'GET, HEAD', method);
+    assert.deepEqual(await response.json(), { error: 'Method not allowed' }, method);
+  }
+
+  for (const variant of [`${CHALLENGE_PATH}/`, CHALLENGE_PATH.toUpperCase()]) {
+    assert.equal((await fetch(`${base}${variant}`)).status, 404, variant);
+  }
 });

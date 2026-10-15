@@ -59,6 +59,12 @@ export MCP_DIRECTORY_PROFILES="openai,claude-directory"
 export MCP_DIRECTORY_ACCEPT_CANONICAL_AUDIENCE="true"
 ```
 
+Optional OpenAI plugin domain verification:
+
+```bash
+export OPENAI_APPS_CHALLENGE_TOKEN="<challenge_token_from_openai_portal>"
+```
+
 Notes:
 - `PRESSCART_API_URL` must point at the app API base that exposes `/teams/*` routes, not a public-api-only base.
 - `PRESSCART_APP_URL` controls direct application links returned by tools such as `list_publisher_articles`. Set it per environment so staging MCP links open staging.
@@ -70,6 +76,7 @@ Notes:
 - MCP clients store their own refresh tokens, initiate refresh automatically, and replace rotated refresh and access tokens. This server handles the refresh request statelessly and does not store refresh tokens.
 - The translator changes only MCP OAuth. It does not change ordinary Presscart browser or app sessions, and disabling MCP OAuth still preserves legacy direct-token mode.
 - In legacy direct-token mode, send `X-Presscart-API-Token: <presscart_api_token>` on `initialize` and later requests that need to confirm the active session credential.
+- `OPENAI_APPS_CHALLENGE_TOKEN` is the domain-verification token shown in OpenAI's plugin portal. When set, `GET /.well-known/openai-apps-challenge` returns it as `text/plain` with no authentication, on the MCP hostname's origin (the portal ignores the `/mcp/openai` path). Surrounding whitespace is trimmed; when unset or blank, the route returns 404. If `MCP_ALLOWED_HOSTS` is set, it must include the public MCP hostname.
 
 ## Install
 

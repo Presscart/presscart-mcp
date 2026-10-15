@@ -46,6 +46,8 @@ export type HttpAppConfig = {
   presscartApiTimeoutMs: number;
   directoryProfiles?: readonly DirectoryProfile[];
   oauth?: HttpAppOAuthConfig;
+  // Served at OPENAI_APPS_CHALLENGE_PATH for OpenAI plugin-portal domain verification.
+  openaiAppsChallengeToken?: string;
 };
 
 export type SessionProfile = 'legacy' | DirectoryProfileId;
@@ -74,6 +76,7 @@ export type HttpApp = {
 
 const PRESSCART_TOKEN_HEADER = 'x-presscart-api-token';
 const TOKEN_CACHE_TTL_MS = 60_000;
+const OPENAI_APPS_CHALLENGE_PATH = '/.well-known/openai-apps-challenge';
 const MCP_CORS_ALLOWED_METHODS = 'GET, POST, DELETE, OPTIONS';
 const MCP_CORS_ALLOWED_HEADERS = [
   'accept',
@@ -192,6 +195,10 @@ export function createHttpApp(config: HttpAppConfig): HttpApp {
   app.get('/health', (_req, res) => {
     res.json({ ok: true });
   });
+
+  if (config.openaiAppsChallengeToken) {
+    app.use(createOpenAiAppsChallengeRouter(config.openaiAppsChallengeToken));
+  }
 
   for (const endpoint of endpoints) {
     mountMcpEndpoint(endpoint);
@@ -439,6 +446,25 @@ export function createHttpApp(config: HttpAppConfig): HttpApp {
   }
 
   return { app, sessions, cleanupExpiredState, closeAllSessions };
+}
+
+// OpenAI's plugin portal verifies the MCP hostname by fetching this path from the
+// host's origin and expecting the bare token: plain text, no JSON, no trailing newline.
+// Public and unauthenticated by design; exact-path so only the declared URL answers.
+function createOpenAiAppsChallengeRouter(token: string): Router {
+  const router = express.Router({ caseSensitive: true, strict: true });
+  router
+    .route(OPENAI_APPS_CHALLENGE_PATH)
+    .get((_req, res) => {
+      res.setHeader('Cache-Control', 'no-store');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.type('text/plain').send(token);
+    })
+    .all((_req, res) => {
+      res.setHeader('Allow', 'GET, HEAD');
+      res.status(405).json({ error: 'Method not allowed' });
+    });
+  return router;
 }
 
 function rejectLegacyPresscartHeader(req: Request, path: string) {
