@@ -1,69 +1,38 @@
 import assert from 'node:assert/strict';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { once } from 'node:events';
-import { createServer, type Server } from 'node:http';
+import { createServer } from 'node:http';
 import { after, before, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 
 import { initializeRequest, sendMcp, type McpHttpResponse } from './http-app.fixtures.js';
+import { closeServer, listenOnLoopbackPort, startTestJwks } from './oauth-jwks.fixtures.js';
 
 // Boots the real entrypoint so the production env wiring is covered, not just createHttpApp.
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const STARTUP_TIMEOUT_MS = 15_000;
 const STOP_TIMEOUT_MS = 5_000;
+// node:test has no default timeout, and sendMcp has no abort signal.
+const REQUEST_TEST = { timeout: 10_000 };
 const DIRECTORY_PATHS = ['/mcp/openai', '/mcp/claude-directory'] as const;
 
-let privateKey: Awaited<ReturnType<typeof generateKeyPair>>['privateKey'];
-let jwksServer: Server | undefined;
-let issuer: string;
+const jwks = await startTestJwks();
 let child: ChildProcess | undefined;
 let base: string;
 
 before(async () => {
-  const keys = await generateKeyPair('ES256');
-  privateKey = keys.privateKey;
-  const jwk = { ...(await exportJWK(keys.publicKey)), kid: 'test-key', alg: 'ES256', use: 'sig' };
-  jwksServer = createServer((req, res) => {
-    if (req.url !== '/.well-known/jwks.json') {
-      res.writeHead(404).end();
-      return;
-    }
-    res.setHeader('content-type', 'application/json');
-    res.end(JSON.stringify({ keys: [jwk] }));
-  });
-  issuer = `http://127.0.0.1:${await listen(jwksServer)}`;
-
   const port = await findFreePort();
   base = `http://127.0.0.1:${port}`;
-  child = spawn(process.execPath, ['--import', 'tsx', 'src/http.ts'], {
-    cwd: REPO_ROOT,
-    env: {
-      PATH: process.env.PATH,
-      PRESSCART_API_URL: 'https://api.presscart.test',
-      MCP_HOST: '127.0.0.1',
-      PORT: String(port),
-      MCP_SERVER_URL: `${base}/mcp`,
-      MCP_OAUTH_AUDIENCE: `${base}/mcp`,
-      MCP_OAUTH_ENABLED: 'true',
-      MCP_OAUTH_ISSUER_URL: issuer,
-      MCP_DIRECTORY_PROFILES: 'openai,claude-directory',
-    },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
+  child = spawnEntrypoint(port);
   await waitForListening(child);
 });
 
 after(async () => {
   if (child) await stopChild(child);
-  const server = jwksServer;
-  if (server) {
-    server.closeAllConnections();
-    await new Promise<void>((resolve, reject) => server.close(error => (error ? reject(error) : resolve())));
-  }
+  await jwks.close();
 });
 
-test('a directory route refuses a token whose audience is the canonical /mcp resource', async () => {
+test('a directory route refuses a token whose audience is the canonical /mcp resource', REQUEST_TEST, async () => {
   for (const path of DIRECTORY_PATHS) {
     const response = await initializeWith(path, '/mcp');
     assert.equal(response.status, 401, path);
@@ -71,13 +40,13 @@ test('a directory route refuses a token whose audience is the canonical /mcp res
   }
 });
 
-test('a directory route accepts a token whose audience is that route', async () => {
+test('a directory route accepts a token whose audience is that route', REQUEST_TEST, async () => {
   for (const path of DIRECTORY_PATHS) {
     assert.equal((await initializeWith(path, path)).status, 200, path);
   }
 });
 
-test('/mcp accepts the canonical audience and refuses a directory audience', async () => {
+test('/mcp accepts the canonical audience and refuses a directory audience', REQUEST_TEST, async () => {
   assert.equal((await initializeWith('/mcp', '/mcp')).status, 200);
 
   const directoryToken = await initializeWith('/mcp', '/mcp/openai');
@@ -85,27 +54,26 @@ test('/mcp accepts the canonical audience and refuses a directory audience', asy
   assert.equal(readResourceMetadata(directoryToken), metadataUrlFor('/mcp'));
 });
 
-test('a token for one directory route is refused by another', async () => {
+test('a token for one directory route is refused by another', REQUEST_TEST, async () => {
   const response = await initializeWith('/mcp/claude-directory', '/mcp/openai');
   assert.equal(response.status, 401);
   assert.equal(readResourceMetadata(response), metadataUrlFor('/mcp/claude-directory'));
 });
 
+test('/mcp accepts the legacy origin audience and a directory route refuses it', REQUEST_TEST, async () => {
+  // An empty audience path signs the bare server origin, the form the verifier compares.
+  assert.equal((await initializeWith('/mcp', '')).status, 200);
+
+  const response = await initializeWith('/mcp/openai', '');
+  assert.equal(response.status, 401);
+  assert.equal(readResourceMetadata(response), metadataUrlFor('/mcp/openai'));
+});
+
 async function initializeWith(path: string, audiencePath: string) {
   return sendMcp(base, path, {
     body: initializeRequest(),
-    headers: { authorization: `Bearer ${await token(`${base}${audiencePath}`)}` },
+    headers: { authorization: `Bearer ${await jwks.sign(`${base}${audiencePath}`)}` },
   });
-}
-
-async function token(audience: string) {
-  return new SignJWT({ client_id: 'client-1', grant_id: '22222222-2222-2222-2222-222222222222' })
-    .setProtectedHeader({ alg: 'ES256', kid: 'test-key' })
-    .setIssuer(issuer)
-    .setSubject('11111111-1111-1111-1111-111111111111')
-    .setAudience(audience)
-    .setExpirationTime('5m')
-    .sign(privateKey);
 }
 
 function metadataUrlFor(path: string) {
@@ -116,18 +84,31 @@ function readResourceMetadata(response: McpHttpResponse) {
   return /resource_metadata="([^"]+)"/.exec(response.headers.get('www-authenticate') ?? '')?.[1];
 }
 
-async function listen(server: Server) {
-  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
-  const address = server.address();
-  assert(address && typeof address !== 'string');
-  return address.port;
-}
-
 async function findFreePort() {
   const server = createServer();
-  const port = await listen(server);
-  await new Promise<void>(resolve => server.close(() => resolve()));
+  const port = await listenOnLoopbackPort(server);
+  await closeServer(server);
   return port;
+}
+
+function spawnEntrypoint(port: number) {
+  const origin = `http://127.0.0.1:${port}`;
+  return spawn(process.execPath, ['--import', 'tsx', 'src/http.ts'], {
+    cwd: REPO_ROOT,
+    env: {
+      PATH: process.env.PATH,
+      PRESSCART_API_URL: 'https://api.presscart.test',
+      MCP_HOST: '127.0.0.1',
+      PORT: String(port),
+      MCP_SERVER_URL: `${origin}/mcp`,
+      MCP_OAUTH_AUDIENCE: `${origin}/mcp`,
+      MCP_OAUTH_LEGACY_AUDIENCE: origin,
+      MCP_OAUTH_ENABLED: 'true',
+      MCP_OAUTH_ISSUER_URL: jwks.issuer,
+      MCP_DIRECTORY_PROFILES: 'openai,claude-directory',
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
 }
 
 function waitForListening(entrypoint: ChildProcess) {
