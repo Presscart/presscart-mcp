@@ -69,6 +69,20 @@ test('/mcp accepts the legacy origin audience and a directory route refuses it',
   assert.equal(readResourceMetadata(response), metadataUrlFor('/mcp/openai'));
 });
 
+test('the entrypoint exits non-zero when its port is taken', { timeout: STARTUP_TIMEOUT_MS + STOP_TIMEOUT_MS }, async () => {
+  const occupier = createServer();
+  const entrypoint = spawnEntrypoint(await listenOnLoopbackPort(occupier));
+  try {
+    const { code, output } = await waitForExit(entrypoint);
+    assert.equal(code, 1, output);
+    assert.doesNotMatch(output, /listening on/);
+    assert.match(output, /EADDRINUSE/);
+  } finally {
+    await stopChild(entrypoint);
+    await closeServer(occupier);
+  }
+});
+
 async function initializeWith(path: string, audiencePath: string) {
   return sendMcp(base, path, {
     body: initializeRequest(),
@@ -140,6 +154,27 @@ function waitForListening(entrypoint: ChildProcess) {
     }
     entrypoint.stdout?.on('data', onData);
     entrypoint.once('exit', onExit);
+  });
+}
+
+function waitForExit(entrypoint: ChildProcess) {
+  let output = '';
+  entrypoint.stdout?.on('data', (chunk: Buffer) => {
+    output += chunk.toString();
+  });
+  entrypoint.stderr?.on('data', (chunk: Buffer) => {
+    output += chunk.toString();
+  });
+
+  return new Promise<{ code: number | null; output: string }>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`entrypoint did not exit within ${STARTUP_TIMEOUT_MS}ms:\n${output}`));
+    }, STARTUP_TIMEOUT_MS);
+    // 'close' waits for stdio to drain, so the output is complete.
+    entrypoint.once('close', code => {
+      clearTimeout(timer);
+      resolve({ code, output });
+    });
   });
 }
 

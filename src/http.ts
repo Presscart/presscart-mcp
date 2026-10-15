@@ -32,7 +32,12 @@ const httpApp = createHttpApp({
 const cleanupTimer = setInterval(() => httpApp.cleanupExpiredState(), SESSION_CLEANUP_INTERVAL_MS);
 cleanupTimer.unref();
 
-const server = httpApp.app.listen(env.MCP_PORT, env.MCP_HOST, () => {
+// Express 5 passes bind errors (e.g. EADDRINUSE) to this callback instead of throwing.
+const server = httpApp.app.listen(env.MCP_PORT, env.MCP_HOST, error => {
+  if (error) {
+    console.error(`Presscart MCP server failed to listen on ${env.MCP_HOST}:${env.MCP_PORT}: ${error.message}`);
+    process.exit(1);
+  }
   console.info(`Presscart MCP server listening on http://${env.MCP_HOST}:${env.MCP_PORT}/mcp`);
   for (const profile of directoryProfiles) {
     console.info(`Directory profile "${profile.id}" mounted at ${profile.path}`);
