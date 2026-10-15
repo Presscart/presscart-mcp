@@ -1,0 +1,4 @@
+codex debug prompt-input with the runner plugin overrides and features.remote_plugin=false (user config loaded; prompt-input has no --ignore-user-config)
+presscart:check-order-status skill entries: 1
+presscart:report-campaign-progress skill entries: 1
+openai-curated-remote mentions: 0

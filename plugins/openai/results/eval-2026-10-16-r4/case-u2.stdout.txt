@@ -1,0 +1,3 @@
+I can’t access your Presscart account in this session because connector access is disabled, so I can’t verify which articles are live or retrieve their links.
+
+Paste your campaign’s article list here, and I’ll pull out the live paid placements and their published URLs.
