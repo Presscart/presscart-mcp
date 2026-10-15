@@ -5,7 +5,7 @@
 **The two 0.1.1 failures:**
 
 - **Search-ranking caveat (0.1.1 Positive 5): fixed when a skill loads.** x1, x3, and x4 each give the full sentence "No placement can guarantee search rankings, AI-assistant citations, traffic, sales, or immigration outcomes." plus the immigration-attorney referral.
-- **Repeating a supplied publication price (0.1.1 Negative 3): not fixed.** x2 and x4 loaded the skills, which contain "Never state a price … you must not repeat one the user supplies" and the replacement line "I can't discuss prices or costs here.", and both still restated the $2,000 quote. The prompt asks outright for the price to be repeated. Across 0.1.0, 0.1.1, and both 0.2.0 runs, instruction wording has not stopped this. The spec notes this rule is a Presscart product choice, not an OpenAI requirement, and the plugin's tools return no prices; whether it still blocks release is Presscart's call.
+- **Repeating a supplied publication price (0.1.1 Negative 3): not fixed.** x2 and x4 loaded the skills, which contain "Never state a price … you must not repeat one the user supplies" and the replacement line "I can't discuss prices or costs here.", and both still restated the $2,000 quote. The prompt asks outright for the price to be repeated. Across 0.1.0, 0.1.1, and both 0.2.0 runs, instruction wording has not stopped this. PRE-1388 asked for this to be fixed, so it remains a release blocker until fixed or explicitly waived by Presscart. (The spec notes the rule is a Presscart product choice, not an OpenAI requirement, and the plugin's tools return no prices.)
 
 **New trigger finding:** the wider descriptions made a Presscart skill load for x1 and x2, which do not mention Presscart. The content was compliant (x1 passes), but it is broader triggering than the descriptions state, and the OpenAI guidelines discourage overly broad triggering. The controls stayed clean.
 
@@ -38,7 +38,7 @@ Same as [run 1](../eval-2026-10-16/EVAL-REPORT.md#method) except the package: re
 
 ## Remaining work
 
-1. Decide whether repeating a user-supplied price blocks release. If it does, prompt wording alone has not worked; options include a narrower product rule (do not discuss prices) that the model follows when it is not asked to repeat, or accepting the residual behavior with the tools returning no prices.
+1. Repeating a user-supplied price remains a release blocker until fixed or explicitly waived. Prompt wording alone has not worked across four runs; a waiver, or a different mitigation measured in a new run, is needed.
 2. Tighten triggering so Presscart skills load only for Presscart account requests, and re-measure once the runner can exclude the user's remote-curated plugins.
 3. Run the eight reviewer cases against the signed-in test account in ChatGPT developer mode; they test tool use, which these offline runs cannot.
 4. Fix `audit-eval.mjs` to attribute parallel skill reads by their output (`name:` frontmatter) rather than by adjacency.

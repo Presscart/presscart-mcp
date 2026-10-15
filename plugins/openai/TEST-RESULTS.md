@@ -6,17 +6,17 @@ Date: 2026-10-16. Package: presscart-placement-advisor 0.2.0, the first version 
 
 | Verification | Result | Evidence |
 | --- | --- | --- |
-| `node --test tests/` | 20 passed, 0 failed | package contents, manifest and listing limits, MCP template, build and URL validation, release gate, skill rules, description triggers, reviewer case format, tool coverage against `src/directory/policy.ts` |
+| `node --test tests/` | 21 passed, 0 failed | package contents, manifest and listing limits, MCP template, build and URL validation, release gate, skill rules, description triggers, reviewer case format, tool coverage against `src/directory/policy.ts` |
 | `npm test`, `npm run check`, `npm run build` (repo) | 227 passed; typecheck and build clean | server unchanged by this release |
 | `npm run check:release` | **exit 1, expected:** logo, composerIcon, supportURL, privacyPolicyURL, termsOfServiceURL missing | release blockers in [SUBMISSION.md](SUBMISSION.md#release-blockers) |
 | Build with `--mcp-url https://mcp.example.invalid/mcp/openai` | 7 files including generated `mcp.json`; ZIP, `plugin/`, and installed cache byte-identical | `verify-artifacts*.stdout.txt` in each results directory |
 | Real CLI install (codex-cli 0.162.0, throwaway `CODEX_HOME`) | accepted the package with its MCP configuration; version 0.2.0, installed, enabled, `authPolicy` `ON_USE` | `isolated-*` records |
 | Offline eval, run 1 (before description fix) | **5/10 PASS** — skills followed their rules when loaded, but guarantee, price, and pasted-content prompts loaded no skill | [report](results/eval-2026-10-16/EVAL-REPORT.md) |
-| Offline eval, run 2 (after one description fix) | **8/10 PASS** — search-ranking caveat fixed when a skill loads; **price repetition persists** (x2, x4); skills also fired on two prompts without Presscart context | [report](results/eval-2026-10-16-r2/EVAL-REPORT.md) |
+| Offline eval, run 2 (after one description fix) | **8/10 PASS** — search-ranking caveat fixed when a skill loads; **price repetition persists** (x2, x4; release blocker until fixed or waived); skills also fired on two prompts without Presscart context | [report](results/eval-2026-10-16-r2/EVAL-REPORT.md) |
 | Cleanup after each run | normal Codex `config.toml` bytes and SHA256 unchanged, lists byte-identical, test cache removed | `verify-cleanup.stdout.txt` |
 | Reviewer cases (5 positive, 3 negative) | **not yet run**; need the signed-in test account in ChatGPT developer mode | [SUBMISSION.md](SUBMISSION.md#reviewer-test-cases) |
 
-The offline runs disable the plugin's MCP server, so they test skill behavior with no account connection; they do not exercise the ten tools. Server-side enforcement (only the ten read-only tools are reachable on `/mcp/openai`, output allowlists) is covered by the repository's own tests, not by model behavior. Both runs could see the user's remote-curated `superpowers` plugin despite `--ignore-user-config`, so "no competing skills" did not hold; see the run 2 report.
+After run 2, review fixes changed only the skills' paging and team-access wording and the build's hostname check; the offline cases have no tools, so they would not exercise that wording. The offline runs disable the plugin's MCP server, so they test skill behavior with no account connection; they do not exercise the ten tools. Server-side enforcement (only the ten read-only tools are reachable on `/mcp/openai`, output allowlists) is covered by the repository's own tests, not by model behavior. Both runs could see the user's remote-curated `superpowers` plugin despite `--ignore-user-config`, so "no competing skills" did not hold; see the run 2 report.
 
 Everything below is historical 0.1.x evidence with its original version labels; only its headings were relabelled as historical.
 
