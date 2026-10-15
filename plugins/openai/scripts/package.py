@@ -11,6 +11,7 @@ import hashlib
 import ipaddress
 import json
 import os
+import re
 import stat
 import tempfile
 import zipfile
@@ -22,6 +23,8 @@ URL_TOKEN = "{{PRESSCART_MCP_URL}}"
 DIRECTORY_PATH = "/mcp/openai"
 LOCAL_MCP_CONFIG = "mcp.json"
 FORBIDDEN_MCP_KEYS = {"headers", "clientId", "clientSecret", "env", "command", "args", "cwd"}
+DNS_LABEL = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?")
+TLD = re.compile(r"[a-z]{2,63}|xn--[a-z0-9-]{1,59}")
 
 
 def fail(message):
@@ -54,7 +57,10 @@ def validate_mcp_url(value):
     except ValueError:
         pass
     labels = host.split(".")
-    if len(labels) < 2 or not all(labels) or host == "localhost" or labels[-1] in {"localhost", "local", "internal"}:
+    # LDH labels and an alphabetic TLD: rejects encoded hosts and the short or hex IPv4
+    # forms (127.1, 0x7f.1) that URL parsers normalize to loopback or private addresses.
+    if (len(host) > 253 or len(labels) < 2 or not all(DNS_LABEL.fullmatch(label) for label in labels)
+            or not TLD.fullmatch(labels[-1]) or labels[-1] in {"localhost", "local", "internal"}):
         fail("--mcp-url must use a public DNS hostname.")
     if parts.path != DIRECTORY_PATH:
         fail(f"--mcp-url path must be exactly {DIRECTORY_PATH}, the read-only directory endpoint.")

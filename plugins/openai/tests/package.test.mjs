@@ -302,6 +302,13 @@ test('skills have matching frontmatter and separate OpenAI UI metadata', () => {
   }
 });
 
+test('campaign skill pages list_campaign_articles by total_records, which has no next_page', () => {
+  const output = readFileSync(join(REPO, 'src/directory/output-schemas.ts'), 'utf8')
+    .match(/listCampaignArticlesResultSchema = z\s*\.object\(\{([^}]*)\}\)/)?.[1];
+  assert.ok(output && !output.includes('paginationShape') && output.includes('total_records'), 'schema changed: revisit the skill');
+  assert.match(skill('report-campaign-progress'), /`list_campaign_articles` returns only `total_records`: if that is larger than the number of articles you have, request the next `page`\./);
+});
+
 test('skill descriptions trigger on the Presscart requests the skills must decline or caveat', () => {
   // Run 1 of the 0.2.0 eval: without these, guarantee, price and pasted-content prompts loaded no skill.
   const orders = parseFrontmatter(skill('check-order-status')).description;
@@ -345,7 +352,7 @@ test('both skills carry the scope, price, outcome, disclosure, injection, commer
     assert.equal(body.split(PRICE_RULE).length - 1, 1, `${name}: keep one price rule`);
     assert.equal((body.match(/Never ask for passwords/g) ?? []).length, 1, `${name}: keep one privacy rule`);
     assert.match(body, /Never guess or construct an id\./);
-    assert.match(body, /says? their account does not have access to it and stop/);
+    assert.match(body, /does not return on any page, says? their account does not have access to it and stop/);
   }
 });
 
@@ -476,6 +483,9 @@ test('build refuses missing or unsafe MCP URLs', () => {
       'https://mcp.example.com:8443/mcp/openai', 'https://localhost/mcp/openai', 'https://127.0.0.1/mcp/openai',
       'https://[::1]/mcp/openai', 'https://intranet/mcp/openai', 'https://MCP.example.com/mcp/openai',
       ' https://mcp.example.com/mcp/openai', 'https://mcp.example.com/mcp/openai"', 'https://mcp.example.com/mcp/%6Fpenai',
+      'https://127.1/mcp/openai', 'https://0x7f.1/mcp/openai', 'https://mcp%2Eexample.com/mcp/openai',
+      'https://mcp_example.com/mcp/openai', 'https://-mcp.example.com/mcp/openai', 'https://mcp.example.123/mcp/openai',
+      'https://mcp..example.com/mcp/openai', `https://${'a'.repeat(64)}.example.com/mcp/openai`,
     ]) {
       const result = build(['--mcp-url', url, '--dist', dist]);
       assert.notEqual(result.status, 0, `accepted ${url}`);

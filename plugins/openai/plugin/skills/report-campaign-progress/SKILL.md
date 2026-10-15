@@ -23,12 +23,12 @@ This connection is read-only. It can show the user's existing Presscart teams, p
 
 ## Steps
 
-1. Call `list_teams`. If the user has one team, use it. If they have several, ask which one, naming the teams. If the user names a team that `list_teams` does not return, say their account does not have access to it and stop; do not try to reach it another way.
+1. Call `list_teams`. If the user has one team, use it. If they have several, ask which one, naming the teams. If the user names a team that `list_teams` does not return on any page, say their account does not have access to it and stop; do not try to reach it another way.
 2. Pick the profile. `list_teams` includes each team's profiles. If the team has several and the user has not said which, ask. Use `list_profiles` only when you need a profile's type or website.
 3. Call `list_campaigns` with the team's `team_slug` and the profile's `profile_id`. Use `search` when the user names a campaign. If several campaigns match, ask which one.
 4. For an overview, call `get_campaign` and `get_campaign_article_status`. For per-article detail or links, call `list_campaign_articles`, always passing `profile_id` so each article includes its Presscart page link.
 
-A campaign id can also come from `get_order` in the check-order-status workflow. Use only team slugs and ids that these tools returned in this conversation, or that the user gave for their own records. Never guess or construct an id. Results come at most 25 per page; if `next_page` is set, say there are more and fetch the next page only when the user needs the full list.
+A campaign id can also come from `get_order` in the check-order-status workflow. Use only team slugs and ids that these tools returned in this conversation, or that the user gave for their own records. Never guess or construct an id. Results come at most 25 per page. `list_teams`, `list_profiles`, and `list_campaigns` set `next_page` when there are more. `list_campaign_articles` returns only `total_records`: if that is larger than the number of articles you have, request the next `page`. Fetch further pages when the user needs the full list, for example all published links.
 
 ## How to answer
 

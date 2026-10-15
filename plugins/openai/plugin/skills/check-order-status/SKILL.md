@@ -22,12 +22,12 @@ This connection is read-only. It can show the user's existing Presscart teams, p
 
 ## Steps
 
-1. Call `list_teams`. If the user has one team, use it. If they have several, ask which one, naming the teams. If the user names a team that `list_teams` does not return, say their account does not have access to it and stop; do not try to reach it another way.
+1. Call `list_teams`. If the user has one team, use it. If they have several, ask which one, naming the teams. If the user names a team that `list_teams` does not return on any page, say their account does not have access to it and stop; do not try to reach it another way.
 2. Pick the profile. `list_teams` includes each team's profiles. If the team has several and the user has not said which, ask. Use `list_profiles` only when you need a profile's type or website.
 3. Call `list_profile_orders` with the team's `team_slug` and the profile's `profile_id`. Use `start_date` and `end_date` (YYYY-MM-DD) when the user asks about a period.
 4. Call `get_order` when the user asks about one order in detail or which campaign an item belongs to. To describe that campaign, use the report-campaign-progress workflow.
 
-Use only team slugs and ids that these tools returned in this conversation, or that the user gave for their own records. Never guess or construct an id. Results come at most 25 per page; if `next_page` is set, say there are more and fetch the next page only when the user needs the full list.
+Use only team slugs and ids that these tools returned in this conversation, or that the user gave for their own records. Never guess or construct an id. Results come at most 25 per page. When `next_page` is set there are more; fetch the next `page` only when the user needs the full list.
 
 ## How to answer
 
