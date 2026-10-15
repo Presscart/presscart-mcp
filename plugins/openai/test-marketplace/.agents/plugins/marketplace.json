@@ -5,10 +5,10 @@
   },
   "plugins": [
     {
-      "name": "presscart-placement-advisor",
+      "name": "presscart",
       "source": {
         "source": "local",
-        "path": "./plugins/presscart-placement-advisor"
+        "path": "./plugins/presscart"
       },
       "policy": {
         "installation": "AVAILABLE",

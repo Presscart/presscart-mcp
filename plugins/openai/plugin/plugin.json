@@ -1,6 +1,6 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
-  "name": "presscart-placement-advisor",
+  "name": "presscart",
   "version": "0.2.0",
   "description": "Read-only access to your existing Presscart account: teams, orders, campaign progress, and published article links. No purchasing, prices, or account changes.",
   "author": {

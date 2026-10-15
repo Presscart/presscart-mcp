@@ -15,7 +15,8 @@ for (const name of ['marketplaces', 'plugins']) {
   assert.deepEqual(readFileSync(resolve(results, `${name}-after.stdout.txt`)), readFileSync(resolve(results, `${name}-before.stdout.txt`)));
 }
 console.log('Marketplace and plugin list stdout also match byte for byte.');
-const cache = resolve(process.env.CODEX_HOME ?? resolve(homedir(), '.codex'), 'plugins/cache/personal/presscart-placement-advisor');
+const { name } = JSON.parse(readFileSync(resolve(root, 'plugin/plugin.json'), 'utf8'));
+const cache = resolve(process.env.CODEX_HOME ?? resolve(homedir(), '.codex'), 'plugins/cache/personal', name);
 assert.equal(existsSync(cache), false);
 console.log('The test plugin cache was removed.');
 

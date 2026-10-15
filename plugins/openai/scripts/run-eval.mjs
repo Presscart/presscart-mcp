@@ -23,7 +23,7 @@ const baseArgs = ['exec', '--ignore-user-config', '--ephemeral', '--skip-git-rep
   '-c', 'mcp_servers={}', '-c', 'marketplaces.personal.source_type="local"',
   '-c', `marketplaces.personal.source=${JSON.stringify(resolve(root, 'test-marketplace'))}`,
   // The bundled server stays disabled: no account connection, no network calls to Presscart.
-  '-c', 'plugins={"presscart-placement-advisor@personal"={enabled=true,mcp_servers={presscart={enabled=false}}}}',
+  '-c', 'plugins={"presscart@personal"={enabled=true,mcp_servers={presscart={enabled=false}}}}',
   '-c', `developer_instructions=${JSON.stringify(instructions)}`];
 const id = process.argv[2];
 if (id === 'prepare') {

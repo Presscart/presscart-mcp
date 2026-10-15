@@ -27,7 +27,7 @@ const EXPECTED_DIRS = [
 const SCHEMA = 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json';
 const MCP_SCHEMA = 'https://agent-plugins.org/schemas/1.0.0/mcp.schema.json';
 const URL_TOKEN = '{{PRESSCART_MCP_URL}}';
-const NAME = 'presscart-placement-advisor';
+const NAME = 'presscart';
 const VERSION = '0.2.0';
 const CATEGORIES = new Set([
   'Productivity', 'Creativity', 'Developer Tools', 'Business & Operations',
@@ -423,7 +423,7 @@ test('build packages the source tree plus a generated mcp.json for the given /mc
     const url = 'https://mcp.example.com/mcp/openai';
     const first = build(['--mcp-url', url, '--dist', dist]);
     assert.equal(first.status, 0, first.stderr);
-    assert.match(first.stdout, /presscart-placement-advisor-0\.2\.0\.zip \(7 files\) for MCP server https:\/\/mcp\.example\.com\/mcp\/openai/);
+    assert.match(first.stdout, /\/presscart-0\.2\.0\.zip \(7 files\) for MCP server https:\/\/mcp\.example\.com\/mcp\/openai/);
     const zip = join(dist, 'mcp.example.com', `${NAME}-${VERSION}.zip`);
     const entries = zipEntries(zip);
     assert.deepEqual(Object.keys(entries).sort(), [...EXPECTED_FILES, 'mcp.json'].sort());

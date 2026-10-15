@@ -2,7 +2,7 @@
 
 This repository fixture registers the `../plugin/` package for local Codex testing. It is not a home-directory marketplace and must not be copied to or generated under the user agents directory.
 
-The descriptor is `.agents/plugins/marketplace.json` under this directory. Its marketplace name is `personal`, its display name is `Personal`, and its plugin source is `./plugins/presscart-placement-advisor`, a repository symlink to `../../plugin`. Preserve symlinks when using this fixture. Its `policy.authentication` is `ON_USE`, so installing never starts an OAuth sign-in. The distribution ZIP is built separately and contains no marketplace files or symlink.
+The descriptor is `.agents/plugins/marketplace.json` under this directory. Its marketplace name is `personal`, its display name is `Personal`, and its plugin source is `./plugins/presscart`, a repository symlink to `../../plugin`. Preserve symlinks when using this fixture. Its `policy.authentication` is `ON_USE`, so installing never starts an OAuth sign-in. The distribution ZIP is built separately and contains no marketplace files or symlink.
 
 ## Build before installing
 
@@ -31,11 +31,11 @@ The eval runner uses `--ignore-user-config` and enables the plugin with `-c` ove
 
    ```sh
    CODEX_HOME=<empty scratch dir> codex plugin marketplace add ./test-marketplace
-   CODEX_HOME=<empty scratch dir> codex plugin add presscart-placement-advisor@personal
+   CODEX_HOME=<empty scratch dir> codex plugin add presscart@personal
    CODEX_HOME=<empty scratch dir> python3 scripts/verify-artifacts.py --mcp-url <build url>
    ```
 
-4. Copy `<scratch dir>/plugins/cache/personal/presscart-placement-advisor/0.2.0` to the same path under `~/.codex/plugins/cache/`, then `python3 scripts/verify-artifacts.py --mcp-url <build url>` against the real home.
+4. Copy `<scratch dir>/plugins/cache/personal/presscart/0.2.0` to the same path under `~/.codex/plugins/cache/`, then `python3 scripts/verify-artifacts.py --mcp-url <build url>` against the real home.
 5. Run `scripts/run-eval.mjs` with `PRESSCART_EVAL_SCRATCH` set to a fresh initialized scratch repository outside this repository: `prepare` once, then each id from [eval/offline-cases.json](../eval/offline-cases.json) as a separate invocation (at most three at a time). Each case is a fresh ephemeral read-only session with host skill discovery disabled, the plugin's MCP server disabled, and the user prompt passed verbatim. The runner refuses to overwrite evidence. Run every case once; do not retry a case to get a different answer. Manually grade complete responses and installed-skill reads; CLI exit 0 is not a behavioral pass. `scripts/audit-eval.mjs` checks evidence integrity only.
 6. Delete `~/.codex/plugins/cache/personal` and the scratch home, then verify nothing else changed:
 

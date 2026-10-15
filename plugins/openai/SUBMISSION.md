@@ -16,7 +16,7 @@ The MCP server URL is a build input; nothing in `plugin/` names a host. Build fr
 npm run package -- --mcp-url https://<production-mcp-host>/mcp/openai
 ```
 
-The packager accepts only `https://<public-dns-host>/mcp/openai` (no port, credentials, query, fragment, IP address, or other path, so the full-access `/mcp` route can never be packaged). It renders `mcp.template.json` into the ZIP's `mcp.json`, writes `dist/<host>/presscart-placement-advisor-0.2.0.zip` plus a `.build.json` record (URL, file list, SHA256), and refuses to overwrite either. The expected production value is `https://mcp.presscart.com/mcp/openai` once the directory route is enabled there; that is unconfirmed (see blockers). Use a staging URL only for a local or developer-mode build, never for the upload. Add `--write-local-config` to also write a gitignored `plugin/mcp.json` so a local marketplace install matches the ZIP.
+The packager accepts only `https://<public-dns-host>/mcp/openai` (no port, credentials, query, fragment, IP address, or other path, so the full-access `/mcp` route can never be packaged). It renders `mcp.template.json` into the ZIP's `mcp.json`, writes `dist/<host>/presscart-0.2.0.zip` plus a `.build.json` record (URL, file list, SHA256), and refuses to overwrite either. The expected production value is `https://mcp.presscart.com/mcp/openai` once the directory route is enabled there; that is unconfirmed (see blockers). Use a staging URL only for a local or developer-mode build, never for the upload. Add `--write-local-config` to also write a gitignored `plugin/mcp.json` so a local marketplace install matches the ZIP.
 
 The rendered `mcp.json` (only `url` varies):
 
@@ -50,7 +50,7 @@ Values are copied from `plugin/plugin.json` (`extensions.com.openai.interface`).
 
 | Field | Paste-ready value | Characters / limit |
 | --- | --- | --- |
-| Package name | presscart-placement-advisor | 27 / 64 |
+| Package name | presscart | 9 / 64 |
 | Version | 0.2.0 | 5 |
 | Package description | Read-only access to your existing Presscart account: teams, orders, campaign progress, and published article links. No purchasing, prices, or account changes. | 158 / 4,000 |
 | Display name | Presscart | 9 / 30 |
@@ -64,7 +64,7 @@ Values are copied from `plugin/plugin.json` (`extensions.com.openai.interface`).
 | Logo / composer icon | **missing — blocker** | square PNG ≥48×48, <5 MiB |
 | License | **undecided — blocker** | optional field; Presscart must choose before public distribution |
 
-The package name still says "placement-advisor" from 0.1.x. It is the stable identifier and cannot change after the first upload; consider renaming it (for example to `presscart`) before then.
+The package name is `presscart` (renamed from 0.1.x's `presscart-placement-advisor`; Renz, 2026-10-16). It is the stable identifier and cannot change after the first upload, so this rename had to happen before it.
 
 ### Long description — 737 / 4,000 characters
 

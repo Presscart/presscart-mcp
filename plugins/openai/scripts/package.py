@@ -18,7 +18,7 @@ import zipfile
 from pathlib import Path
 from urllib.parse import urlsplit
 
-NAME, VERSION = "presscart-placement-advisor", "0.2.0"
+NAME, VERSION = "presscart", "0.2.0"
 URL_TOKEN = "{{PRESSCART_MCP_URL}}"
 DIRECTORY_PATH = "/mcp/openai"
 LOCAL_MCP_CONFIG = "mcp.json"

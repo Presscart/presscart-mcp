@@ -31,7 +31,7 @@ Verification: see [TEST-RESULTS.md](TEST-RESULTS.md). The eight reviewer cases n
 
 ## How the MCP URL gets into the package
 
-`plugin/` names no host. `scripts/package.py` takes `--mcp-url`, accepts only `https://<public-dns-host>/mcp/openai` (no port, credentials, query, fragment, IP literal, or other path), renders `mcp.template.json` into the ZIP's `mcp.json`, and writes `dist/<host>/presscart-placement-advisor-<version>.zip` with a `.build.json` record of the URL and SHA256. `--write-local-config` also writes the gitignored `plugin/mcp.json` so a local marketplace install (via the `test-marketplace` symlink to `plugin/`) matches the ZIP. The release upload must be built with the production URL; staging builds are for local and developer-mode testing only.
+`plugin/` names no host. `scripts/package.py` takes `--mcp-url`, accepts only `https://<public-dns-host>/mcp/openai` (no port, credentials, query, fragment, IP literal, or other path), renders `mcp.template.json` into the ZIP's `mcp.json`, and writes `dist/<host>/presscart-<version>.zip` with a `.build.json` record of the URL and SHA256. `--write-local-config` also writes the gitignored `plugin/mcp.json` so a local marketplace install (via the `test-marketplace` symlink to `plugin/`) matches the ZIP. The release upload must be built with the production URL; staging builds are for local and developer-mode testing only.
 
 ## Tools the package describes
 
