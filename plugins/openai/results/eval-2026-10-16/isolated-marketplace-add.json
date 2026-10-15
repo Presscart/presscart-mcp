@@ -1,0 +1,16 @@
+{
+  "command": "codex",
+  "args": [
+    "plugin",
+    "marketplace",
+    "add",
+    "./test-marketplace"
+  ],
+  "commandLine": "'codex' 'plugin' 'marketplace' 'add' './test-marketplace'",
+  "cwd": "/Users/renz/waverly/presscart-mcp/.worktrees/openai-plugin-v02/plugins/openai",
+  "started": "2026-10-15T19:58:54.679Z",
+  "finished": "2026-10-15T19:58:54.698Z",
+  "exitCode": 0,
+  "signal": null,
+  "timedOut": false
+}
