@@ -7,31 +7,44 @@ const exactSensitiveKeys = new Set([
   'checkout_link',
   'checkout_session_id',
   'metadata',
-  'payment_intent_id',
   'posthog_distinct_id',
-  'vendor_invoice_id',
-  'vendor_invoice_url',
+  'charge_id',
+  'receipt_url',
 ]);
 
-const emailKeyPattern = /(^|_)emails?$/;
+const sensitiveSubstrings = [
+  'secret',
+  'stripe',
+  'payment_intent',
+  'setup_intent',
+  'payment_method',
+];
+
+const sensitiveTokenPatterns = [/(^|_)customer(_|$)/, /(^|_)invoices?(_|$)/, /(^|_)emails?(_|$)/];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/** paymentIntentId, PaymentIntentID and payment-intent-id all become payment_intent_id. */
+function toSnakeCase(key: string) {
+  return key
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')
+    .replace(/-/g, '_')
+    .toLowerCase();
+}
+
 function isSensitiveKey(key: string, options: SanitizeSensitiveFieldsOptions) {
-  const normalized = key.toLowerCase();
+  const normalized = toSnakeCase(key);
   if (options.keepCheckoutLink && normalized === 'checkout_link') {
     return false;
   }
 
   return (
     exactSensitiveKeys.has(normalized) ||
-    normalized.endsWith('_client_secret') ||
-    normalized.includes('secret') ||
-    normalized.includes('stripe') ||
-    normalized.startsWith('customer_') ||
-    emailKeyPattern.test(normalized)
+    sensitiveSubstrings.some((substring) => normalized.includes(substring)) ||
+    sensitiveTokenPatterns.some((pattern) => pattern.test(normalized))
   );
 }
 

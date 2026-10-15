@@ -221,3 +221,108 @@ test('keeps publisher business fields on order items while removing guest emails
     }
   );
 });
+
+test('removes camelCase and PascalCase variants of sensitive keys', () => {
+  assert.deepEqual(
+    sanitizeSensitiveFields({
+      id: 'order-1',
+      paymentIntentId: 'pi_placeholder',
+      clientSecret: 'pi_placeholder_secret_placeholder',
+      checkoutSessionId: 'cs_placeholder',
+      checkoutLink: 'https://app.presscart.com/orders/checkout/ABC123',
+      stripeCustomerId: 'cus_placeholder',
+      customerInvoiceUrl: 'https://invoice.example.com/placeholder',
+      guestEmail: 'guest@example.com',
+      posthogDistinctId: 'posthog_placeholder',
+      PaymentMethodId: 'pm_placeholder',
+      SetupIntentId: 'seti_placeholder',
+      paymentStatus: 'requires_payment_method',
+      referenceNumber: 'ABC123',
+    }),
+    {
+      id: 'order-1',
+      paymentStatus: 'requires_payment_method',
+      referenceNumber: 'ABC123',
+    }
+  );
+});
+
+test('removes kebab-case variants of sensitive keys', () => {
+  assert.deepEqual(
+    sanitizeSensitiveFields({
+      id: 'order-1',
+      'guest-email': 'guest@example.com',
+      'payment-intent-id': 'pi_placeholder',
+      'customer-invoice-url': 'https://invoice.example.com/placeholder',
+      'checkout-link': 'https://app.presscart.com/orders/checkout/ABC123',
+      'checkout-session-id': 'cs_placeholder',
+      'reference-number': 'ABC123',
+    }),
+    {
+      id: 'order-1',
+      'reference-number': 'ABC123',
+    }
+  );
+});
+
+test('removes invoice, customer, email, payment intent/method and charge fields by token', () => {
+  assert.deepEqual(
+    sanitizeSensitiveFields({
+      id: 'order-1',
+      hosted_invoice_url: 'https://invoice.example.com/hosted',
+      invoice_pdf: 'https://invoice.example.com/pdf',
+      vendor_invoice_date: '2026-01-01T00:00:00.000Z',
+      invoice_customer_id: 'cus_placeholder',
+      customer_id: 'cus_placeholder',
+      email_address: 'billing@example.com',
+      contact_email: 'team@example.com',
+      payment_intent: 'pi_placeholder',
+      payment_method: 'pm_placeholder',
+      payment_method_id: 'pm_placeholder',
+      setup_intent_id: 'seti_placeholder',
+      setup_intent_client_secret: 'seti_placeholder_secret_placeholder',
+      charge_id: 'ch_placeholder',
+      receipt_url: 'https://receipt.example.com/placeholder',
+      payment_status: 'paid',
+    }),
+    {
+      id: 'order-1',
+      payment_status: 'paid',
+    }
+  );
+});
+
+test('keeps order amounts, statuses, identifiers and publisher business fields', () => {
+  const keptFields = {
+    id: 'order-1',
+    client_id: 'user-1',
+    product_id: 'product-1',
+    team_id: 'team-1',
+    profile_id: 'profile-1',
+    checkout_by_id: 'user-2',
+    total: 3965.5,
+    subtotal: 3800,
+    discount: 0,
+    processing_fee: 165.5,
+    credits_applied: 0,
+    coupon: null,
+    price: 2400,
+    niche_snapshot: { niche: 'music', price_cents: 240000 },
+    payment_status: 'requires_payment_method',
+    payment_expires_at: '2026-01-02T00:00:00.000Z',
+    status: 'pending',
+    date_paid: null,
+    reference_number: 'ABC123',
+    external_reference_number: 'EXT-1',
+    is_guest_order: false,
+    name: 'Digital Music News',
+    quantity: 1,
+    outlet: { id: 'outlet-1', name: 'Digital Music News' },
+    internal_cost: 1200,
+    vendor_cost: 1000,
+    commission_amount: 240,
+    reseller_price: 2000,
+  };
+
+  assert.deepEqual(sanitizeSensitiveFields(keptFields), keptFields);
+});
