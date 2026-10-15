@@ -332,9 +332,9 @@ canonical resource upstream instead. This design does not ship that fallback.
 
 ### 6.4 Crossover
 
-Two changes close the crossover. The API issues a directory sign-in a token
-whose audience is that directory route (presscart-app #910), so `/mcp` refuses
-it through its existing audience check. A directory route accepts only its own
+Two changes close the crossover. The API gives tokens from a directory sign-in
+that route's audience (presscart-app #910), so `/mcp` refuses them through its
+existing audience check. A directory route accepts only its own
 audience (§6.3), so a canonical `/mcp` token is refused there.
 
 Grants made before the API change keep the canonical audience, including on
@@ -358,7 +358,8 @@ profile from `MCP_DIRECTORY_PROFILES` and redeploying; `/mcp` is unaffected.
 ## 8. Testing
 
 All tests use `node:test` with `fetch` stubbed at the network boundary. The
-MCP SDK, Zod, and internal utils are real.
+MCP SDK, Zod, and internal utils are real. One entry-point test boots
+`src/http.ts` against a loopback JWKS server instead.
 
 **Exposure**
 - For each profile, `tools/list` via a real SDK client over the in-memory
@@ -419,6 +420,7 @@ MCP SDK, Zod, and internal utils are real.
 
 - Staging verification with synthetic accounts, including Supabase `resource`
   handling (§6.2).
-- API directory audience / grant binding (§6.4) before any directory submission.
+- API directory audience (§6.4): merged to presscart-app staging (#910); it must
+  reach production before directory routes are enabled there.
 - Plugin packaging, portal materials, behavioral checks, and policy
   clarifications as listed in the source spec.

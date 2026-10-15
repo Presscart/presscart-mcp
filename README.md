@@ -198,7 +198,7 @@ git push origin v0.2.0
 Before submitting to a directory:
 
 1. Verify in staging that Supabase OAuth accepts the forwarded directory `resource` value.
-2. The Presscart API issues a directory sign-in a token whose audience is that route (presscart-app #910). Confirm this on staging before submission.
+2. The Presscart API gives tokens from a directory sign-in that route's audience (presscart-app #910). Confirm this on staging before submission.
 
 ## Hosted deployment shape
 
