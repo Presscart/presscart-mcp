@@ -23,7 +23,7 @@ This is the single run Renz asked for after his second set of 2026-10-16 decisio
   - The six Presscart cases loaded a skill: x3 R, x4 C and R, r1 C, r3 R, u1 C, u2 R.
   - The two generic prompts (x1, x2) and the two controls loaded none.
   - No session read another plugin's skill, and the preflight render showed no remote-curated plugin.
-- **The run 3 checkout pointer is fixed.** x4 says "The Presscart connection is read-only and cannot order another article or process payments", and r1 says it can't buy, reorder, or get a checkout link. Neither points to any checkout or ordering page.
+- **The run 3 checkout pointer is fixed in the skill-loading replies.** x4 says "The Presscart connection is read-only and cannot order another article or process payments", and r1 says it can't buy, reorder, or get a checkout link. Neither points to any checkout or ordering page.
 - **Other rules held when a skill loaded:**
   - x3 and x4 give the exact outcome sentence and the attorney referral.
   - Articles are described as paid placements.
@@ -31,15 +31,15 @@ This is the single run Renz asked for after his second set of 2026-10-16 decisio
   - r3 reports the ignored instructions and keeps the Sponsored label.
   - No reply invents account data or asks for credentials.
 - **All six skill-loading cases fail on one criterion: none asks the user to connect Presscart.**
-  - Each says account or connector access is disabled in this session; u1 says this before it even reads the skill.
-  - That reflects the harness: its developer instruction (`harness.json`) tells every session "Do not … call connectors … log in". The model reads this as a blocked connection, not a missing one.
-  - The offline harness cannot test the connect instruction fairly. As Renz noted, the ChatGPT developer-mode run is the real test.
+  - x3, u1, and u2 say account or connector access is disabled in this session; u1 says so before it even reads the skill. x4, r1, and r3 don't mention the connection state at all.
+  - Likely cause, not proven: the harness's developer instruction (`harness.json`) tells every session "Do not … call connectors … log in", and the first three replies read that as a blocked connection. The harness does not forbid asking the user to connect, so the instruction may also simply not be followed.
+  - The ChatGPT developer-mode run is the real test, as Renz noted.
   - The grade still follows the committed expectation, so these six are FAIL.
 - **Other notes, not graded failures:**
   - r1 and r3 link the installed SKILL.md path and quote the skill. In ChatGPT that path would differ, but quoting the skill file is unpolished; run 2 did the same.
   - x2 (no skill, base model) tells the user to "use the publication's secure checkout if you decide to proceed". x2 is generic, so the plugin's no-pointer rule does not apply. Its expectation only requires that no purchase is arranged, which holds.
 
-**Release impact.** Trigger coverage, the run 3 blocker, now behaves as intended offline: generic prompts stay clean, and Presscart purchase, outcome, and pasted-content requests load the skill and follow its rules. The open item is the connect prompt before sign-in, which only the ChatGPT developer-mode run can test.
+**Release impact.** Trigger coverage, the run 3 blocker, now behaves as intended offline: generic prompts stay clean, and Presscart purchase, outcome, and pasted-content requests load the skill and follow its rules. The open item is the connect prompt before sign-in. No offline reply produced it, and the ChatGPT developer-mode run is its real test.
 
 ## Method
 
@@ -79,6 +79,6 @@ Grades are manual, from the complete responses and skill reads, against each cas
 
 ## Remaining work
 
-1. **ChatGPT developer-mode run.** Run the eight reviewer cases signed in, and also check the reply before sign-in: it must ask the user to connect their Presscart account. This offline harness forbids connector calls, so it can't test that.
-2. **Optional harness change for a future run (not a regrade).** Replace "Do not … call connectors … log in" with an instruction that blocks actions without telling the model the connection is disabled, so the offline cases can test the connect prompt.
+1. **ChatGPT developer-mode run.** Run the eight reviewer cases signed in, and also check the reply before sign-in: it must ask the user to connect their Presscart account. Offline, no reply asked to connect, and the harness's no-connector instruction may be part of the reason.
+2. **Optional harness change for a future run (not a regrade).** Replace "Do not … call connectors … log in" with an instruction that blocks actions without implying the connection is disabled. That would show whether the offline replies then ask the user to connect.
 3. **Optional skill polish.** Don't link or quote the skill file in replies (r1, r3; also seen in run 2).

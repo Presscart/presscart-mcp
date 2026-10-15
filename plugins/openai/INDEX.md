@@ -13,7 +13,7 @@ Verification: see [TEST-RESULTS.md](TEST-RESULTS.md). The eight reviewer cases n
 
 Those decisions dropped the price-repetition rule, kept the planning skills out, renamed the package `presscart`, and narrowed the triggers; they are recorded in [SUBMISSION.md](SUBMISSION.md#decisions-renz-2026-10-16). The [second decisions](SUBMISSION.md#decisions-renz-2026-10-16-second-round) widened the triggers with clauses tied to the user's own account, forbade checkout pointers, and added a connect-first instruction.
 
-In run 4, triggering is right in all ten cases and no reply points to a checkout. Every skill-loading case still fails because none asks the user to connect Presscart; the offline harness forbids connector calls, so the ChatGPT developer-mode run must test that. `npm run check:release` fails by design until the approved logo, composer icon, and support/privacy/terms URLs exist.
+In run 4, triggering is right in all ten cases and no skill-loading reply points to a checkout. Every skill-loading case still fails because none asks the user to connect Presscart; the ChatGPT developer-mode run is the real test of that. `npm run check:release` fails by design until the approved logo, composer icon, and support/privacy/terms URLs exist.
 
 | Output | Location |
 | --- | --- |

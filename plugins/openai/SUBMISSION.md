@@ -14,8 +14,8 @@ Offline behavioral runs:
   - Presscart purchase, outcome, and pasted-content prompts no longer load one either.
 - After Renz's [second decisions](#decisions-renz-2026-10-16-second-round), [run 4](results/eval-2026-10-16-r4/EVAL-REPORT.md) scored 4/10, graded strictly.
   - Triggering is right in all ten cases: Presscart purchase, outcome, pasted-content, and account requests load a skill, and generic prompts and controls do not.
-  - The checkout pointer is gone, and the other skill rules held.
-  - All six skill-loading cases fail one criterion: none asks the user to connect Presscart. Each says connector access is disabled, which the offline harness instructs; only the developer-mode run can test this (blocker 12).
+  - No skill-loading reply points to a checkout, and the other skill rules held.
+  - All six skill-loading cases fail one criterion: none asks the user to connect Presscart. Three say connector access is disabled, possibly because the offline harness forbids connector calls; the other three don't mention the connection state. The developer-mode run is the real test (blocker 12).
 
 The offline runs have no tools, so the reviewer cases are the first test of the skills' paging and team-access wording. The eight reviewer cases have **not yet been run** because they need the signed-in test account.
 
@@ -252,7 +252,7 @@ Optionally put the same text in `extensions.com.openai.publication.release_notes
 9. **Demo video:** a reviewer-accessible recording of the main flows and the test cases.
 10. **License:** Presscart chooses and approves the distribution license.
 11. **Portal checks:** metadata findings, skill safety scans, a current MCP tool scan with annotation justifications, policy attestations, and final submission. Not started; no portal login, upload, or submission was done.
-12. **Connect prompt before sign-in:** in [run 4](results/eval-2026-10-16-r4/EVAL-REPORT.md), no reply asked the user to connect their Presscart account. Each said connector access is disabled, because the offline harness tells every session not to call connectors or log in.
+12. **Connect prompt before sign-in:** in [run 4](results/eval-2026-10-16-r4/EVAL-REPORT.md), no reply asked the user to connect their Presscart account. Three (x3, u1, u2) said connector access is disabled, possibly because the offline harness tells every session not to call connectors or log in. The other three (x4, r1, r3) didn't mention the connection state.
     - As part of blocker 8, check the reply before OAuth sign-in in ChatGPT developer mode: it must ask the user to connect their Presscart account and must not answer from memory.
     - Trigger coverage, the previous blocker 12, behaved as intended in run 4. Confirm it in the same developer-mode run.
 
