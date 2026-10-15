@@ -2,7 +2,7 @@
 
 Location: `plugins/openai/` in presscart-mcp. `dist/` and the generated `plugin/mcp.json` are gitignored; rebuild with `npm run package -- --mcp-url https://<host>/mcp/openai` from `plugins/openai/` (the packager refuses to overwrite an existing archive).
 
-Current release: **0.2.0**, the first version that declares the remote MCP server (the read-only `/mcp/openai` directory endpoint, OAuth with dynamic client registration). Local development package; not uploaded, connected, scanned, or submitted. OpenAI does not support adding an MCP server to a plugin first submitted as skills-only, so 0.1.x must never be uploaded.
+Current release: **0.2.0**, the first version that declares the remote MCP server (the read-only `/mcp/openai` directory endpoint, OAuth with dynamic client registration). Its `mcp.json` holds only the transport and URL, so Codex and the ChatGPT desktop app load the server; OAuth comes from discovery ([why](SUBMISSION.md#why-the-server-has-no-auth-block)). Local development package; not uploaded, connected, scanned, or submitted. OpenAI does not support adding an MCP server to a plugin first submitted as skills-only, so 0.1.x must never be uploaded.
 
 Verification: see [TEST-RESULTS.md](TEST-RESULTS.md). The eight reviewer cases need the signed-in test account and have not been run; offline behavioral results, including re-runs of the two 0.1.1 failures, are in:
 
@@ -36,11 +36,12 @@ In run 4, triggering is right in all ten cases and no skill-loading reply points
 | Exact command capture; never reads auth files | [scripts/record-command.mjs](scripts/record-command.mjs) |
 | Read-only config hash comparison and cleanup check | [scripts/config-fingerprint.mjs](scripts/config-fingerprint.mjs), [scripts/verify-cleanup.mjs](scripts/verify-cleanup.mjs) |
 | ZIP and installed-cache byte comparison | [scripts/verify-artifacts.py](scripts/verify-artifacts.py) |
+| Codex MCP loading check for a throwaway-home install | [scripts/verify-codex-mcp.mjs](scripts/verify-codex-mcp.mjs) |
 | Local test marketplace and procedure | [test-marketplace/](test-marketplace/README.md) |
 
 ## How the MCP URL gets into the package
 
-`plugin/` names no host. `scripts/package.py` takes `--mcp-url`, accepts only `https://<public-dns-host>/mcp/openai` (no port, credentials, query, fragment, IP literal, or other path), renders `mcp.template.json` into the ZIP's `mcp.json`, and writes `dist/<host>/presscart-<version>.zip` with a `.build.json` record of the URL and SHA256. `--write-local-config` also writes the gitignored `plugin/mcp.json` so a local marketplace install (via the `test-marketplace` symlink to `plugin/`) matches the ZIP. The release upload must be built with the production URL; staging builds are for local and developer-mode testing only.
+`plugin/` names no host. `scripts/package.py` takes `--mcp-url`, accepts only `https://<public-dns-host>/mcp/openai` (no port, credentials, query, fragment, IP literal, or other path), renders `mcp.template.json` into the ZIP's `mcp.json` (refusing a server with anything but `type: "streamable-http"` and `url`, which is all Codex accepts), and writes `dist/<host>/presscart-<version>.zip` with a `.build.json` record of the URL and SHA256. `--write-local-config` also writes the gitignored `plugin/mcp.json` so a local marketplace install (via the `test-marketplace` symlink to `plugin/`) matches the ZIP. The release upload must be built with the production URL; staging builds are for local and developer-mode testing only.
 
 ## Tools the package describes
 
@@ -48,9 +49,10 @@ Exactly the ten tools in `src/directory/policy.ts` (`STAGE_A_TOOLS`): `get_user`
 
 ## Checks
 
-- `node --test tests/` (or `npm test` here): package contents, manifest and listing limits, MCP template, build and URL validation, release gate behavior, skill rules, reviewer case format, and tool coverage against the server source.
+- `node --test tests/` (or `npm test` here): package contents, manifest and listing limits, MCP template shape, build, template and URL validation, release gate behavior, skill rules, reviewer case format, and tool coverage against the server source.
 - `npm run check:release`: fails until the approved logo, composer icon, and support/privacy/terms URLs are added; see [SUBMISSION.md](SUBMISSION.md#adding-the-assets-and-urls).
 - `python3 scripts/verify-artifacts.py --mcp-url <url> [--skip-installed]`: ZIP (and installed cache) against `plugin/` plus the generated `plugin/mcp.json`.
+- `CODEX_HOME=<throwaway home> node scripts/verify-codex-mcp.mjs --mcp-url <url>`: after a test-marketplace install, `codex mcp list` must show `presscart` at that URL with an OAuth auth status. Codex drops an invalid plugin MCP server without an error, so a successful install does not prove that the server loads.
 - Offline eval: [test-marketplace/README.md](test-marketplace/README.md). Reviewer cases: [SUBMISSION.md](SUBMISSION.md#reviewer-test-cases).
 
 The 0.1.x planning skills, the source-port script and fixtures, and the retired smoke runner were removed in 0.2.0; git history and the historical result reports keep them. Historical results keep their original version labels and are not overwritten.
