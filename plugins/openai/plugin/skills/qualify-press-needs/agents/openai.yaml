@@ -1,4 +1,0 @@
-interface:
-  display_name: "Qualify press needs"
-  short_description: "Create a press planning brief"
-  default_prompt: "Use $qualify-press-needs to turn my press request into a qualification brief."

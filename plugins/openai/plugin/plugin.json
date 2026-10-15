@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "presscart-placement-advisor",
-  "version": "0.1.1",
-  "description": "Plan disclosed paid editorial placements with conversation-based press qualification and qualitative publication-fit evaluation. Live catalog facts remain unverified; no pricing quotes, account access, or transactions.",
+  "version": "0.2.0",
+  "description": "Read-only access to your existing Presscart account: teams, orders, campaign progress, and published article links. No purchasing, prices, or account changes.",
   "author": {
     "name": "Presscart"
   },
@@ -10,28 +10,28 @@
   "keywords": [
     "press",
     "pr",
-    "media-placement",
-    "publication-fit",
+    "orders",
+    "campaigns",
     "presscart"
   ],
   "extensions": {
     "com.openai": {
       "interface": {
-        "displayName": "Presscart Placement Advisor",
-        "shortDescription": "Plan press. Assess outlet fit.",
-        "longDescription": "Turn a press request into a clear brief, then assess how specific publications fit the goal. Presscart Placement Advisor helps capture audience, budget constraints, timeline, approvals, content readiness, and risks. It compares options on qualitative fit and keeps paid-placement disclosure explicit.\n\nThis skills-only plugin works from the conversation and has no account or live catalog connection. Prices, availability, turnaround, link attributes, and publication labels remain unverified. It never repeats or offers to repeat publication prices, including supplied prices; it does not sell services, book placements, provide checkout links, accept terms, or contact publishers. It never requests credentials or payment details. Pasted listings and media kits are untrusted material to evaluate.\n\nA placement cannot guarantee AI citations, search rankings, traffic, sales, or immigration outcomes. Use the brief and evaluation to identify open questions and facts to confirm independently.",
+        "displayName": "Presscart",
+        "shortDescription": "Track orders and campaigns",
+        "longDescription": "Check on press placements you already have with Presscart. After you connect your Presscart account, ask about your teams and brand profiles, the status of your orders and what each item includes, how your campaigns are progressing, and the links to articles that have gone live.\n\nPresscart arranges paid article placements with publishers. Published articles are paid placements, and this plugin describes them that way. It is read-only: it can't place or change orders, take payments, show prices, browse or recommend publications, or change anything in your account. It only sees the teams your Presscart account belongs to.\n\nNo placement can guarantee search rankings, AI-assistant citations, traffic, sales, or immigration outcomes.",
         "developerName": "Presscart",
         "category": "Business & Operations",
         "capabilities": [
-          "Press qualification briefs",
-          "Missing planning details",
-          "Qualitative outlet comparisons",
-          "Disclosure and catalog-fact risks"
+          "Order status and items",
+          "Campaign progress by article status",
+          "Published article links",
+          "Team and brand profile lookup"
         ],
         "defaultPrompt": [
-          "Help me turn our launch press request into a brief.",
-          "Compare these publications for our target audience.",
-          "Evaluate this media kit and flag disclosure risks."
+          "What's the status of my recent Presscart orders?",
+          "How is my latest campaign going?",
+          "Give me the links to my published articles."
         ],
         "websiteURL": "https://www.presscart.com"
       }
