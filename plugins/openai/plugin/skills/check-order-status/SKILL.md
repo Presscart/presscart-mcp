@@ -1,6 +1,6 @@
 ---
 name: check-order-status
-description: Look up the user's existing Presscart orders through the connected Presscart account. Finds their team and brand profile, lists orders, and shows an order's status, dates, publications, what each item includes, and the campaign each item belongs to. Use only when the user asks about their own Presscart account, teams, brand profiles, or orders. Do not use for general press, PR, pricing, or guarantee questions that are not about the user's Presscart account. Read-only; no prices, purchases, or changes.
+description: Look up the user's existing Presscart orders through the connected Presscart account. Finds their team and brand profile, lists orders, and shows an order's status, dates, publications, what each item includes, and the campaign each item belongs to. Use only when the user asks about their own Presscart account, teams, brand profiles, or orders, including requests to buy or reorder Presscart placements, which this read-only plugin declines. Do not use for general press, PR, pricing, or guarantee questions that are not about the user's Presscart account. Read-only; no prices, purchases, or changes.
 ---
 
 # Check order status

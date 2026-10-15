@@ -310,20 +310,21 @@ test('campaign skill pages list_campaign_articles by total_records, which has no
   assert.match(skill('report-campaign-progress'), /`list_campaign_articles` returns only `total_records`: if that is larger than the number of articles you have, request the next `page`\./);
 });
 
-test('skill descriptions load only for questions about the user\'s own Presscart account', () => {
+test('skill descriptions load for the user\'s own Presscart requests, not generic ones', () => {
   // Renz, 2026-10-16: run 2's wider descriptions also loaded for generic guarantee and price
-  // prompts with no Presscart context. Triggers name only account, order, campaign and link topics.
+  // prompts (x1, x2); run 3's account-only ones missed Presscart purchase, outcome and pasted-
+  // content requests (x3, x4, r1, r3). Those topics may trigger only when tied to the user's account.
   const EXCLUSION = 'Do not use for general press, PR, pricing, or guarantee questions that are not about the user\'s Presscart account.';
   const triggers = {
-    'check-order-status': 'Use only when the user asks about their own Presscart account, teams, brand profiles, or orders.',
-    'report-campaign-progress': 'Use only when the user asks about their own Presscart campaigns, the status of their articles, or links to their published articles.',
+    'check-order-status': 'Use only when the user asks about their own Presscart account, teams, brand profiles, or orders, including requests to buy or reorder Presscart placements, which this read-only plugin declines.',
+    'report-campaign-progress': 'Use only when the user asks about their own Presscart campaigns, the status of their articles, or links to their published articles, including what their Presscart articles or campaigns will achieve for search, AI answers, or immigration, and content they share about their Presscart campaign.',
   };
   for (const name of SKILLS) {
     const description = parseFrontmatter(skill(name)).description;
     assert.ok(description.includes(triggers[name]), `${name}: account-scoped trigger`);
     assert.ok(description.includes(EXCLUSION), `${name}: generic-prompt exclusion`);
-    const scope = description.replace(EXCLUSION, '').replace(/Read-only; no prices, purchases, or changes\.$/, '');
-    assert.doesNotMatch(scope, /\b(?:buy|book|pay|price|pricing|cost|checkout|guarantee|rank|search|AI answers|traffic|immigration|visa|share content)/i, `${name}: generic price or outcome trigger`);
+    const rest = description.replace(triggers[name], '').replace(EXCLUSION, '').replace(/Read-only; no prices, purchases, or changes\.$/, '');
+    assert.doesNotMatch(rest, /\b(?:buy|reorder|book|pay|price|pricing|cost|checkout|guarantee|rank|search|AI answers|traffic|immigration|visa|share)/i, `${name}: price, purchase or outcome trigger outside the Presscart-scoped clause`);
   }
 });
 
