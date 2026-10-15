@@ -1,5 +1,7 @@
-import { createServer, type Server } from 'node:http';
+import { createServer } from 'node:http';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
+
+import { closeServer, listenOnLoopbackPort } from './http-app.fixtures.js';
 
 const KEY_ID = 'test-key';
 
@@ -36,25 +38,4 @@ export async function startTestJwks(): Promise<TestJwks> {
         .sign(privateKey),
     close: () => closeServer(server),
   };
-}
-
-// Listens on a free loopback port and returns it; rejects if the server cannot bind.
-export async function listenOnLoopbackPort(server: Server): Promise<number> {
-  await new Promise<void>((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => {
-      server.off('error', reject);
-      resolve();
-    });
-  });
-  const address = server.address();
-  if (address === null || typeof address === 'string') throw new Error('expected a TCP address');
-  return address.port;
-}
-
-export function closeServer(server: Server) {
-  return new Promise<void>((resolve, reject) => {
-    server.closeAllConnections();
-    server.close(error => (error ? reject(error) : resolve()));
-  });
 }

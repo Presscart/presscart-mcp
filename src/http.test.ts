@@ -5,8 +5,14 @@ import { createServer } from 'node:http';
 import { after, before, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { initializeRequest, sendMcp, type McpHttpResponse } from './http-app.fixtures.js';
-import { closeServer, listenOnLoopbackPort, startTestJwks } from './oauth-jwks.fixtures.js';
+import {
+  closeServer,
+  initializeRequest,
+  listenOnLoopbackPort,
+  sendMcp,
+  type McpHttpResponse,
+} from './http-app.fixtures.js';
+import { startTestJwks } from './oauth-jwks.fixtures.js';
 
 // Boots the real entrypoint so the production env wiring is covered, not just createHttpApp.
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
