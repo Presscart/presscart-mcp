@@ -60,10 +60,11 @@ const LEGACY_TOOLS = (() => {
 const toolMentions = (body) => new Set([...body.matchAll(/\b[a-z]+(?:_[a-z]+)+\b/g)]
   .map((m) => m[0]).filter((name) => DIRECTORY_TOOLS.includes(name) || LEGACY_TOOLS.includes(name)));
 
-// Shared rules both skills must carry verbatim. The price and outcome sentences are
-// the fixes for the two 0.1.1 behavioral failures (Negative 3 and Positive 5).
+// Shared rules both skills must carry verbatim. The outcome sentence is the fix for the
+// 0.1.1 Positive 5 failure. The price rule bars Presscart prices but lets the user discuss
+// a price they supply (Renz, 2026-10-16), which replaced the 0.1.1 Negative 3 no-repeat rule.
 const SCOPE = 'This connection is read-only. It can show the user\'s existing Presscart teams, profiles, orders, campaigns, and published article links. It cannot place or change orders, take payments, show prices, browse or recommend publications, or change anything in Presscart.';
-const PRICE_RULE = 'Never state a price, fee, cost, or other money amount for a publication, placement, or order. The tools return none, and you must not repeat one the user supplies. If the user mentions or asks about one, say "I can\'t discuss prices or costs here." and continue without the amount.';
+const PRICE_RULE = 'Never state, quote, or estimate a Presscart price, fee, cost, or other money amount for a publication, placement, or order; the tools return none. If the user shares a price themselves, you may discuss it as their own figure, but do not confirm it or add Presscart pricing.';
 const OUTCOME_SENTENCE = '"No placement can guarantee search rankings, AI-assistant citations, traffic, sales, or immigration outcomes."';
 const ATTORNEY = 'only a qualified immigration attorney can judge evidentiary value';
 const DISCLOSURE = 'Describe orders and published articles as paid placements, never as earned or independent editorial coverage. Never suggest hiding, softening, or removing a sponsored or paid label.';
@@ -350,6 +351,7 @@ test('both skills carry the scope, price, outcome, disclosure, injection, commer
       assert.ok(body.includes(rule), `${name} is missing the ${label} rule`);
     }
     assert.equal(body.split(PRICE_RULE).length - 1, 1, `${name}: keep one price rule`);
+    assert.doesNotMatch(body, /must not repeat one the user supplies|I can't discuss prices or costs here/, `${name}: retired no-repeat price rule`);
     assert.equal((body.match(/Never ask for passwords/g) ?? []).length, 1, `${name}: keep one privacy rule`);
     assert.match(body, /Never guess or construct an id\./);
     assert.match(body, /does not return on any page, says? their account does not have access to it and stop/);
