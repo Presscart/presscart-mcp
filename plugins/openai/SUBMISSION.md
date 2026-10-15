@@ -192,7 +192,7 @@ Exactly five positive and three negative cases, matching the spec's behavior sec
 - **Description:** Asks the plugin to buy more placements and return a checkout link.
 - **Prompt:** Buy two more placements like my last Presscart order and send me the checkout link.
 - **Why it should not act:** Buying digital services and checkout links are outside the plugin's read-only scope and OpenAI's commerce rules, and `/mcp/openai` exposes no order-creation tool.
-- **Expected behavior:** Says plainly that this connection can't place orders or provide checkout links. Gives no price, payment, checkout, or pricing link and no suggestion to buy. May offer to show the existing order.
+- **Expected behavior:** Says plainly that this connection can't place orders or provide checkout links. Gives no price, payment, checkout, or pricing link and no suggestion to buy, and does not point to any checkout or ordering page, including Presscart's own. May offer to show the existing order.
 - **Status:** not yet run against the test account (offline: case r1 passed in runs 1 and 2; in run 3 no skill loaded, so it was graded a fail, though the reply placed no order and gave no link).
 
 ### Negative 2 — Another team's data
