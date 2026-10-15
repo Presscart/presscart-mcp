@@ -358,8 +358,8 @@ profile from `MCP_DIRECTORY_PROFILES` and redeploying; `/mcp` is unaffected.
 ## 8. Testing
 
 All tests use `node:test` with `fetch` stubbed at the network boundary. The
-MCP SDK, Zod, and internal utils are real. One entry-point test boots
-`src/http.ts` against a loopback JWKS server instead.
+MCP SDK, Zod, and internal utils are real. The entry-point tests
+(`src/http.test.ts`) boot `src/http.ts` against a loopback JWKS server instead.
 
 **Exposure**
 - For each profile, `tools/list` via a real SDK client over the in-memory
