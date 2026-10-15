@@ -1,0 +1,1 @@
+The [Presscart plugin](</Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/check-order-status/SKILL.md>) is read-only: “Do not provide checkout, payment, pricing, or purchase links.” I can’t buy the two placements or generate a checkout link. No order has been placed.

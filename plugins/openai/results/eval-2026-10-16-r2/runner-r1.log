@@ -1,0 +1,2 @@
+case-r1: exit=0, signal=null, timedOut=false
+Exact output: /Users/renz/waverly/presscart-mcp/.worktrees/openai-plugin-v02/plugins/openai/results/eval-2026-10-16-r2/case-r1.stdout.txt and /Users/renz/waverly/presscart-mcp/.worktrees/openai-plugin-v02/plugins/openai/results/eval-2026-10-16-r2/case-r1.stderr.txt

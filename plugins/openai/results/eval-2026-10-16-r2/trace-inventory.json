@@ -1,0 +1,247 @@
+[
+  {
+    "id": "x1",
+    "group": "regression",
+    "sessionId": "01a14128-9bd2-7e21-862b-d0c9003a7171",
+    "model": "gpt-6.1-sol",
+    "exitCode": 0,
+    "timedOut": false,
+    "started": "2026-10-15T20:02:22.481Z",
+    "finished": "2026-10-15T20:02:41.203Z",
+    "stdoutBytes": 1729,
+    "execEvents": [
+      {
+        "command": "/bin/zsh -lc 'cat /Users/renz/.codex/plugins/cache/openai-curated-remote/personal/presscart-placement-advisor/0.2.0/skills/report-campaign-progress/SKILL.md /Users/renz/.codex/plugins/cache/openai-curated-remote/superpowers/6.4.2/skills/using-superpowers/SKILL.md' in /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16-r2",
+        "result": " exited 1 in 0ms:"
+      },
+      {
+        "command": "/bin/zsh -lc 'cat /Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/report-campaign-progress/SKILL.md' in /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16-r2",
+        "result": " succeeded in 0ms:"
+      }
+    ],
+    "installedSkillReads": [
+      {
+        "skill": "report-campaign-progress",
+        "path": "/Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/report-campaign-progress/SKILL.md",
+        "command": "/bin/zsh -lc 'cat /Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/report-campaign-progress/SKILL.md' in /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16-r2",
+        "result": " succeeded in 0ms:"
+      }
+    ],
+    "mcpEvents": []
+  },
+  {
+    "id": "x2",
+    "group": "regression",
+    "sessionId": "01a14128-9bd3-74b3-8e58-887407e20bee",
+    "model": "gpt-6.1-sol",
+    "exitCode": 0,
+    "timedOut": false,
+    "started": "2026-10-15T20:02:22.481Z",
+    "finished": "2026-10-15T20:02:37.105Z",
+    "stdoutBytes": 586,
+    "execEvents": [
+      {
+        "command": "/bin/zsh -lc 'cat /Users/renz/.codex/plugins/cache/openai-curated-remote/superpowers/6.4.2/skills/using-superpowers/SKILL.md /Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/report-campaign-progress/SKILL.md /Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/check-order-status/SKILL.md' in /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16-r2",
+        "result": " succeeded in 0ms:"
+      }
+    ],
+    "installedSkillReads": [
+      {
+        "skill": "report-campaign-progress",
+        "path": "/Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/report-campaign-progress/SKILL.md",
+        "command": "/bin/zsh -lc 'cat /Users/renz/.codex/plugins/cache/openai-curated-remote/superpowers/6.4.2/skills/using-superpowers/SKILL.md /Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/report-campaign-progress/SKILL.md /Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/check-order-status/SKILL.md' in /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16-r2",
+        "result": " succeeded in 0ms:"
+      },
+      {
+        "skill": "check-order-status",
+        "path": "/Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/check-order-status/SKILL.md",
+        "command": "/bin/zsh -lc 'cat /Users/renz/.codex/plugins/cache/openai-curated-remote/superpowers/6.4.2/skills/using-superpowers/SKILL.md /Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/report-campaign-progress/SKILL.md /Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/check-order-status/SKILL.md' in /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16-r2",
+        "result": " succeeded in 0ms:"
+      }
+    ],
+    "mcpEvents": []
+  },
+  {
+    "id": "x3",
+    "group": "regression",
+    "sessionId": "01a14128-9bd2-7171-89cc-1e710169de7f",
+    "model": "gpt-6.1-sol",
+    "exitCode": 0,
+    "timedOut": false,
+    "started": "2026-10-15T20:02:22.481Z",
+    "finished": "2026-10-15T20:02:38.519Z",
+    "stdoutBytes": 1304,
+    "execEvents": [
+      {
+        "command": "/bin/zsh -lc 'cat /Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/report-campaign-progress/SKILL.md /Users/renz/.codex/plugins/cache/openai-curated-remote/superpowers/6.4.2/skills/using-superpowers/SKILL.md' in /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16-r2",
+        "result": " succeeded in 0ms:"
+      }
+    ],
+    "installedSkillReads": [
+      {
+        "skill": "report-campaign-progress",
+        "path": "/Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/report-campaign-progress/SKILL.md",
+        "command": "/bin/zsh -lc 'cat /Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/report-campaign-progress/SKILL.md /Users/renz/.codex/plugins/cache/openai-curated-remote/superpowers/6.4.2/skills/using-superpowers/SKILL.md' in /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16-r2",
+        "result": " succeeded in 0ms:"
+      }
+    ],
+    "mcpEvents": []
+  },
+  {
+    "id": "x4",
+    "group": "regression",
+    "sessionId": "01a14128-e500-7712-bc71-fe55d701670b",
+    "model": "gpt-6.1-sol",
+    "exitCode": 0,
+    "timedOut": false,
+    "started": "2026-10-15T20:02:41.298Z",
+    "finished": "2026-10-15T20:02:52.942Z",
+    "stdoutBytes": 597,
+    "execEvents": [
+      {
+        "command": "/bin/zsh -lc 'cat /Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/report-campaign-progress/SKILL.md /Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/check-order-status/SKILL.md' in /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16-r2",
+        "result": " succeeded in 0ms:"
+      }
+    ],
+    "installedSkillReads": [
+      {
+        "skill": "report-campaign-progress",
+        "path": "/Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/report-campaign-progress/SKILL.md",
+        "command": "/bin/zsh -lc 'cat /Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/report-campaign-progress/SKILL.md /Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/check-order-status/SKILL.md' in /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16-r2",
+        "result": " succeeded in 0ms:"
+      },
+      {
+        "skill": "check-order-status",
+        "path": "/Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/check-order-status/SKILL.md",
+        "command": "/bin/zsh -lc 'cat /Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/report-campaign-progress/SKILL.md /Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/check-order-status/SKILL.md' in /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16-r2",
+        "result": " succeeded in 0ms:"
+      }
+    ],
+    "mcpEvents": []
+  },
+  {
+    "id": "r1",
+    "group": "reviewer-offline",
+    "sessionId": "01a14128-e504-74d1-a2a8-c98ab18924c6",
+    "model": "gpt-6.1-sol",
+    "exitCode": 0,
+    "timedOut": false,
+    "started": "2026-10-15T20:02:41.298Z",
+    "finished": "2026-10-15T20:02:50.812Z",
+    "stdoutBytes": 307,
+    "execEvents": [
+      {
+        "command": "/bin/zsh -lc 'cat /Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/check-order-status/SKILL.md' in /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16-r2",
+        "result": " succeeded in 0ms:"
+      }
+    ],
+    "installedSkillReads": [
+      {
+        "skill": "check-order-status",
+        "path": "/Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/check-order-status/SKILL.md",
+        "command": "/bin/zsh -lc 'cat /Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/check-order-status/SKILL.md' in /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16-r2",
+        "result": " succeeded in 0ms:"
+      }
+    ],
+    "mcpEvents": []
+  },
+  {
+    "id": "r3",
+    "group": "reviewer-offline",
+    "sessionId": "01a14128-e500-7c71-bbca-3b15699e863d",
+    "model": "gpt-6.1-sol",
+    "exitCode": 0,
+    "timedOut": false,
+    "started": "2026-10-15T20:02:41.298Z",
+    "finished": "2026-10-15T20:02:51.169Z",
+    "stdoutBytes": 461,
+    "execEvents": [
+      {
+        "command": "/bin/zsh -lc 'cat /Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/report-campaign-progress/SKILL.md' in /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16-r2",
+        "result": " succeeded in 0ms:"
+      }
+    ],
+    "installedSkillReads": [
+      {
+        "skill": "report-campaign-progress",
+        "path": "/Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/report-campaign-progress/SKILL.md",
+        "command": "/bin/zsh -lc 'cat /Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/report-campaign-progress/SKILL.md' in /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16-r2",
+        "result": " succeeded in 0ms:"
+      }
+    ],
+    "mcpEvents": []
+  },
+  {
+    "id": "u1",
+    "group": "unprompted",
+    "sessionId": "01a14129-128c-7dd1-b95c-d2fb029564f9",
+    "model": "gpt-6.1-sol",
+    "exitCode": 0,
+    "timedOut": false,
+    "started": "2026-10-15T20:02:53.042Z",
+    "finished": "2026-10-15T20:03:02.218Z",
+    "stdoutBytes": 309,
+    "execEvents": [
+      {
+        "command": "/bin/zsh -lc 'cat /Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/check-order-status/SKILL.md' in /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16-r2",
+        "result": "exec"
+      }
+    ],
+    "installedSkillReads": [],
+    "mcpEvents": []
+  },
+  {
+    "id": "u2",
+    "group": "unprompted",
+    "sessionId": "01a14129-128d-7ac0-9bbd-fde184bf41dd",
+    "model": "gpt-6.1-sol",
+    "exitCode": 0,
+    "timedOut": false,
+    "started": "2026-10-15T20:02:53.042Z",
+    "finished": "2026-10-15T20:03:01.879Z",
+    "stdoutBytes": 274,
+    "execEvents": [
+      {
+        "command": "/bin/zsh -lc 'cat /Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/report-campaign-progress/SKILL.md' in /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16-r2",
+        "result": " succeeded in 0ms:"
+      }
+    ],
+    "installedSkillReads": [
+      {
+        "skill": "report-campaign-progress",
+        "path": "/Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/report-campaign-progress/SKILL.md",
+        "command": "/bin/zsh -lc 'cat /Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/report-campaign-progress/SKILL.md' in /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16-r2",
+        "result": " succeeded in 0ms:"
+      }
+    ],
+    "mcpEvents": []
+  },
+  {
+    "id": "n1",
+    "group": "control",
+    "sessionId": "01a14129-128c-78e3-9c5c-3bb16eff864c",
+    "model": "gpt-6.1-sol",
+    "exitCode": 0,
+    "timedOut": false,
+    "started": "2026-10-15T20:02:53.043Z",
+    "finished": "2026-10-15T20:02:59.075Z",
+    "stdoutBytes": 463,
+    "execEvents": [],
+    "installedSkillReads": [],
+    "mcpEvents": []
+  },
+  {
+    "id": "n2",
+    "group": "control",
+    "sessionId": "01a14129-365c-7271-915a-c25985a9cbf2",
+    "model": "gpt-6.1-sol",
+    "exitCode": 0,
+    "timedOut": false,
+    "started": "2026-10-15T20:03:02.311Z",
+    "finished": "2026-10-15T20:03:09.015Z",
+    "stdoutBytes": 541,
+    "execEvents": [],
+    "installedSkillReads": [],
+    "mcpEvents": []
+  }
+]
