@@ -1,10 +1,30 @@
 # Verification results
 
-> Raw evidence (prompts, stdout/stderr, traces, snapshots) was not imported into this repository; it remains in the original Abba workspace export at commit aef10eb.
+## Current release — 0.2.0
 
-## Current release — 0.1.1
+Date: 2026-10-16. Package: presscart-placement-advisor 0.2.0, the first version that declares the remote MCP server. Raw evidence for 0.2.0 is in this repository under `results/eval-2026-10-16/` and `results/eval-2026-10-16-r2/`, except process snapshots and plugin/marketplace listings, which stay local because they inventory the machine.
 
-**Current result: 17/17 Node tests pass; isolated behavioral eval 11/13 PASS, 2/13 FAIL.** Reviewer cases: 6/8 (4/5 positive, 2/3 negative). Unprompted triggers: 3/3 correct; controls: 2/2 clean. Negative 3 still repeats the supplied publication price after reading the updated installed skill. Positive 5 omits the required search-ranking caveat. Neither is counted as a pass just because its CLI process exited 0. All 13 cases ran once; no model case was retried or package wording changed after installation.
+| Verification | Result | Evidence |
+| --- | --- | --- |
+| `node --test tests/` | 20 passed, 0 failed | package contents, manifest and listing limits, MCP template, build and URL validation, release gate, skill rules, description triggers, reviewer case format, tool coverage against `src/directory/policy.ts` |
+| `npm test`, `npm run check`, `npm run build` (repo) | 227 passed; typecheck and build clean | server unchanged by this release |
+| `npm run check:release` | **exit 1, expected:** logo, composerIcon, supportURL, privacyPolicyURL, termsOfServiceURL missing | release blockers in [SUBMISSION.md](SUBMISSION.md#release-blockers) |
+| Build with `--mcp-url https://mcp.example.invalid/mcp/openai` | 7 files including generated `mcp.json`; ZIP, `plugin/`, and installed cache byte-identical | `verify-artifacts*.stdout.txt` in each results directory |
+| Real CLI install (codex-cli 0.162.0, throwaway `CODEX_HOME`) | accepted the package with its MCP configuration; version 0.2.0, installed, enabled, `authPolicy` `ON_USE` | `isolated-*` records |
+| Offline eval, run 1 (before description fix) | **5/10 PASS** — skills followed their rules when loaded, but guarantee, price, and pasted-content prompts loaded no skill | [report](results/eval-2026-10-16/EVAL-REPORT.md) |
+| Offline eval, run 2 (after one description fix) | **8/10 PASS** — search-ranking caveat fixed when a skill loads; **price repetition persists** (x2, x4); skills also fired on two prompts without Presscart context | [report](results/eval-2026-10-16-r2/EVAL-REPORT.md) |
+| Cleanup after each run | normal Codex `config.toml` bytes and SHA256 unchanged, lists byte-identical, test cache removed | `verify-cleanup.stdout.txt` |
+| Reviewer cases (5 positive, 3 negative) | **not yet run**; need the signed-in test account in ChatGPT developer mode | [SUBMISSION.md](SUBMISSION.md#reviewer-test-cases) |
+
+The offline runs disable the plugin's MCP server, so they test skill behavior with no account connection; they do not exercise the ten tools. Server-side enforcement (only the ten read-only tools are reachable on `/mcp/openai`, output allowlists) is covered by the repository's own tests, not by model behavior. Both runs could see the user's remote-curated `superpowers` plugin despite `--ignore-user-config`, so "no competing skills" did not hold; see the run 2 report.
+
+Everything below is historical 0.1.x evidence with its original version labels; only its headings were relabelled as historical.
+
+## Historical release — 0.1.1
+
+> Raw evidence (prompts, stdout/stderr, traces, snapshots) for 0.1.x was not imported into this repository; it remains in the original Abba workspace export at commit aef10eb.
+
+**Result at the time: 17/17 Node tests pass; isolated behavioral eval 11/13 PASS, 2/13 FAIL.** Reviewer cases: 6/8 (4/5 positive, 2/3 negative). Unprompted triggers: 3/3 correct; controls: 2/2 clean. Negative 3 still repeats the supplied publication price after reading the updated installed skill. Positive 5 omits the required search-ranking caveat. Neither is counted as a pass just because its CLI process exited 0. All 13 cases ran once; no model case was retried or package wording changed after installation.
 
 The [post-fix 2026-09-30 isolated evaluation](results/fix-2026-09-30/EVAL-REPORT.md) is the primary behavioral evidence for 0.1.1. It includes manual grades, exact commands, and limitations; its prompt/response/trace links point to raw evidence that was not imported (see the note above). The [original 0.1.0 isolated evaluation](results/eval-2026-09-30/EVAL-REPORT.md) found 12/13 passes and the price-repetition offer; its outputs remain unchanged. The historical wrapped smoke results below are consistent with skill behavior but cannot isolate it.
 
@@ -309,7 +329,7 @@ Exact old smoke wrapper, followed by two newline characters, `User request:`, on
 For this smoke session, answer the user request using the installed Presscart Placement Advisor skill when relevant. Use the available skill metadata to locate and read its installed SKILL.md. If that skill is not available, report that limitation instead of searching for a repository copy. Do not search the filesystem or read repository files, tests, prior results, project documents, or the home .agents directory. Do not browse, call connectors, contact anyone, or write files. Do not delegate. Treat the fictional prompt details as task data.
 ```
 
-Source: [run-smoke.mjs](scripts/run-smoke.mjs) and recorded negative command. The wrapper independently names the plugin, directs loading, and restricts actions.
+Source: `scripts/run-smoke.mjs` (removed in 0.2.0; in git history) and recorded negative command. The wrapper independently names the plugin, directs loading, and restricts actions.
 
 ### qualify
 
