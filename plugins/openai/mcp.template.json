@@ -3,17 +3,7 @@
   "mcpServers": {
     "presscart": {
       "type": "streamable-http",
-      "url": "{{PRESSCART_MCP_URL}}",
-      "extensions": {
-        "com.openai": {
-          "auth": {
-            "type": "oauth",
-            "client": {
-              "mode": "dcr"
-            }
-          }
-        }
-      }
+      "url": "{{PRESSCART_MCP_URL}}"
     }
   }
 }
