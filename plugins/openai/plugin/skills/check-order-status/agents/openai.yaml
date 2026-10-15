@@ -1,0 +1,4 @@
+interface:
+  display_name: "Check order status"
+  short_description: "See your existing Presscart orders"
+  default_prompt: "Use $check-order-status to show the status of my recent Presscart orders."

@@ -1,10 +1,56 @@
 # Verification results
 
-> Raw evidence (prompts, stdout/stderr, traces, snapshots) was not imported into this repository; it remains in the original Abba workspace export at commit aef10eb.
+## Current release — 0.2.0
 
-## Current release — 0.1.1
+Date: 2026-10-16. Package: `presscart` 0.2.0, the first version that declares the remote MCP server. It was named `presscart-placement-advisor` in runs 1 and 2 and renamed before any upload (Renz, 2026-10-16).
 
-**Current result: 17/17 Node tests pass; isolated behavioral eval 11/13 PASS, 2/13 FAIL.** Reviewer cases: 6/8 (4/5 positive, 2/3 negative). Unprompted triggers: 3/3 correct; controls: 2/2 clean. Negative 3 still repeats the supplied publication price after reading the updated installed skill. Positive 5 omits the required search-ranking caveat. Neither is counted as a pass just because its CLI process exited 0. All 13 cases ran once; no model case was retried or package wording changed after installation.
+Raw evidence for 0.2.0 is in this repository under `results/eval-2026-10-16/`, `results/eval-2026-10-16-r2/`, `results/eval-2026-10-16-r3/`, and `results/eval-2026-10-16-r4/`. Process snapshots and plugin/marketplace listings stay local because they inventory the machine.
+
+| Verification | Result | Evidence |
+| --- | --- | --- |
+| `node --test tests/` | 21 passed, 0 failed | package contents, manifest and listing limits, MCP template, build and URL validation, release gate, skill rules, account-scoped description triggers, connect-first and no-checkout-pointer rules, reviewer case format, tool coverage against `src/directory/policy.ts` |
+| `npm test`, `npm run check`, `npm run build` (repo) | 227 passed; typecheck and build clean | server unchanged by this release |
+| `npm run check:release` | **exit 1, expected:** logo, composerIcon, supportURL, privacyPolicyURL, termsOfServiceURL missing | release blockers in [SUBMISSION.md](SUBMISSION.md#release-blockers) |
+| Build with `--mcp-url https://mcp.example.invalid/mcp/openai` | 7 files including generated `mcp.json`; ZIP, `plugin/`, and installed cache byte-identical | `verify-artifacts*.stdout.txt` in each results directory |
+| Real CLI install (codex-cli 0.162.0, throwaway `CODEX_HOME`) | accepted the package with its MCP configuration; version 0.2.0, installed, enabled, `authPolicy` `ON_USE` (as `presscart@personal` in run 3) | `isolated-*` records |
+| Offline eval, run 1 (before description fix) | **5/10 PASS** — skills followed their rules when loaded, but guarantee, price, and pasted-content prompts loaded no skill | [report](results/eval-2026-10-16/EVAL-REPORT.md) |
+| Offline eval, run 2 (after one description fix) | **8/10 PASS** — search-ranking caveat fixed when a skill loads; **price repetition persists** (x2, x4; the rule was later dropped, see the decisions below); skills also fired on two prompts without Presscart context | [report](results/eval-2026-10-16-r2/EVAL-REPORT.md) |
+| Offline eval, run 3 (after Renz's decisions) | **4/10 PASS** — generic guarantee and price prompts no longer load a skill (x1, x2); account lookups load the right skill but never ask the user to connect Presscart (u1, u2 graded FAIL; runs 1 and 2 had passed the same behavior); Presscart purchase, outcome, and pasted-content prompts loaded no skill (x3, x4, r1, r3), and without it x4 pointed the user to Presscart's checkout; remote plugins excluded | [report](results/eval-2026-10-16-r3/EVAL-REPORT.md) |
+| Offline eval, run 4 (after Renz's second decisions) | **4/10 PASS**, graded strictly — triggering is right in all ten cases (Presscart purchase, outcome, pasted-content, and account requests load a skill; generic prompts and controls don't); no checkout pointer in any skill-loading reply; the other skill rules held. All six skill-loading cases miss the new connect prompt: three say connector access is disabled (possibly because the harness forbids connector calls), and three don't mention it. The developer-mode run is the real test | [report](results/eval-2026-10-16-r4/EVAL-REPORT.md) |
+| Cleanup after each run | normal Codex `config.toml` bytes and SHA256 unchanged, lists byte-identical, test cache removed | `verify-cleanup.stdout.txt` |
+| Reviewer cases (5 positive, 3 negative) | **not yet run**; need the signed-in test account in ChatGPT developer mode | [SUBMISSION.md](SUBMISSION.md#reviewer-test-cases) |
+
+**Decisions (Renz, 2026-10-16), recorded after run 2:**
+
+- The price-repetition rule is dropped. The model may discuss a price the user supplies, but still never gives a Presscart price or quote, purchase or checkout links, or upsells.
+- The planning skills stay out.
+- The package is renamed `presscart`.
+- The skill descriptions are narrowed to questions about the user's own Presscart account.
+
+Runs 1 and 2 keep their original expectations and grades. Run 3 is graded against the updated expectations, which were committed before it ran. Details are in [SUBMISSION.md](SUBMISSION.md#decisions-renz-2026-10-16).
+
+**Second decisions (Renz, 2026-10-16), recorded after run 3:**
+
+- The triggers are widened with clauses tied to the user's own Presscart account: buy or reorder requests, what their articles or campaigns will achieve, and content they share about their campaign. The generic exclusion is kept.
+- Replies must never point to a checkout or ordering page, including Presscart's own.
+- One connect-first instruction leads the skills' Steps.
+
+Run 3 is unchanged. Run 4 is graded strictly against expectations committed before it ran. Details are in [SUBMISSION.md](SUBMISSION.md#decisions-renz-2026-10-16-second-round).
+
+**After run 4 (Renz, 2026-10-16):**
+
+- **Connect prompt deferred.** There will be no further offline run. Whether the reply before sign-in asks the user to connect their Presscart account will be checked in the ChatGPT developer-mode run, not offline.
+- **New instruction-file rule, untested offline.** Both skills now say never to link to, name, or quote their SKILL.md or any other instruction file in a reply. This responds to run 4's r1 and r3 replies. Run 4 used the earlier wording, so this change is **untested offline**; the developer-mode run will check it. `node --test tests/` pins the rule's wording and placement only.
+
+After run 2, review fixes changed only the skills' paging and team-access wording and the build's hostname check; the offline cases have no tools, so they would not exercise that wording. The offline runs disable the plugin's MCP server, so they test skill behavior with no account connection; they do not exercise the ten tools. Server-side enforcement (only the ten read-only tools are reachable on `/mcp/openai`, output allowlists) is covered by the repository's own tests, not by model behavior. Runs 1 and 2 could see the user's remote-curated `superpowers` plugin despite `--ignore-user-config`, so "no competing skills" did not hold for them; see the run 2 report. Run 3 passed `features.remote_plugin=false`, and no session read another plugin's skill.
+
+Everything below is historical 0.1.x evidence with its original version labels; only its headings were relabelled as historical.
+
+## Historical release — 0.1.1
+
+> Raw evidence (prompts, stdout/stderr, traces, snapshots) for 0.1.x was not imported into this repository; it remains in the original Abba workspace export at commit aef10eb.
+
+**Result at the time: 17/17 Node tests pass; isolated behavioral eval 11/13 PASS, 2/13 FAIL.** Reviewer cases: 6/8 (4/5 positive, 2/3 negative). Unprompted triggers: 3/3 correct; controls: 2/2 clean. Negative 3 still repeats the supplied publication price after reading the updated installed skill. Positive 5 omits the required search-ranking caveat. Neither is counted as a pass just because its CLI process exited 0. All 13 cases ran once; no model case was retried or package wording changed after installation.
 
 The [post-fix 2026-09-30 isolated evaluation](results/fix-2026-09-30/EVAL-REPORT.md) is the primary behavioral evidence for 0.1.1. It includes manual grades, exact commands, and limitations; its prompt/response/trace links point to raw evidence that was not imported (see the note above). The [original 0.1.0 isolated evaluation](results/eval-2026-09-30/EVAL-REPORT.md) found 12/13 passes and the price-repetition offer; its outputs remain unchanged. The historical wrapped smoke results below are consistent with skill behavior but cannot isolate it.
 
@@ -309,7 +355,7 @@ Exact old smoke wrapper, followed by two newline characters, `User request:`, on
 For this smoke session, answer the user request using the installed Presscart Placement Advisor skill when relevant. Use the available skill metadata to locate and read its installed SKILL.md. If that skill is not available, report that limitation instead of searching for a repository copy. Do not search the filesystem or read repository files, tests, prior results, project documents, or the home .agents directory. Do not browse, call connectors, contact anyone, or write files. Do not delegate. Treat the fictional prompt details as task data.
 ```
 
-Source: [run-smoke.mjs](scripts/run-smoke.mjs) and recorded negative command. The wrapper independently names the plugin, directs loading, and restricts actions.
+Source: `scripts/run-smoke.mjs` (removed in 0.2.0; in git history) and recorded negative command. The wrapper independently names the plugin, directs loading, and restricts actions.
 
 ### qualify
 

@@ -1,0 +1,33 @@
+Reading additional input from stdin...
+OpenAI Codex v0.162.0
+--------
+workdir: /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16-r3
+model: gpt-6.1-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: none
+reasoning summaries: none
+session id: 01a1417a-d1c8-7312-89f3-9e03f0919d21
+--------
+user
+Our Presscart campaign's articles go live this month. Will they help us show up in Google and AI answers, and can they count as press evidence for my O-1 visa?
+warning: Under-development features enabled: skip_host_skill_discovery. Under-development features are incomplete and may behave unpredictably. To suppress this warning, set `suppress_unstable_features_warning = true` in /Users/renz/.codex/config.toml.
+codex
+They may help with all three, but **publication alone guarantees none of them**.
+
+**Google visibility:** Articles can give Google more information about your company and create additional pages that appear for your brand name. The benefit depends on whether Google can index them, the publication’s credibility, and the article’s relevance and originality. Links may help people discover you; paid or sponsored links shouldn’t be treated as guaranteed SEO value.
+
+**AI answers:** Public, accessible articles can become sources that AI search systems retrieve or cite. Clear facts, consistent names, and credible independent reporting can help. There’s no guarantee an AI system will include the articles, cite them, or recommend your company.
+
+**O-1 evidence:** Potentially—but the article’s subject and editorial context matter much more than the number of placements. For an O-1A petition, published material **about you and your work**, in qualifying professional publications, major trade publications, or other major media, may support a specific evidentiary criterion. An article mainly about your company that barely mentions you is generally less useful. Paid, sponsored, or promotional coverage may receive less weight than independent reporting. O-1B standards differ, so your category matters.
+
+Before publication, ask for:
+
+- The publication names, planned article text, and any sponsorship disclosures.
+- Clear, accurate coverage of your personal work and contributions where editorially appropriate.
+- Once published, copies showing the URL, title, date, and author, plus evidence of the outlet’s audience and standing.
+
+Have your immigration lawyer review the planned coverage before treating it as petition evidence. **A Presscart placement is a potential supporting artifact, not a guarantee of search visibility or qualifying visa evidence.**
+tokens used
+5,570

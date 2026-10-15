@@ -1,0 +1,4 @@
+interface:
+  display_name: "Report campaign progress"
+  short_description: "Track campaigns and live links"
+  default_prompt: "Use $report-campaign-progress to show how my Presscart campaign is going."

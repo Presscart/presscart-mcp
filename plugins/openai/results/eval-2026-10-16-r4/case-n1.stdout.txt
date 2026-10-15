@@ -1,0 +1,25 @@
+```python
+from __future__ import annotations
+from dataclasses import dataclass
+
+
+@dataclass
+class Node:
+    value: int
+    next: Node | None = None
+
+
+def reverse_linked_list(head: Node | None) -> Node | None:
+    previous = None
+    current = head
+
+    while current is not None:
+        next_node = current.next
+        current.next = previous
+        previous = current
+        current = next_node
+
+    return previous
+```
+
+Reverses the list in place and returns the new head. Handles empty lists. **O(n)** time, **O(1)** extra space.

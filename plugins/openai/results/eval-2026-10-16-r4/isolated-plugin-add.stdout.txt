@@ -1,0 +1,2 @@
+Added plugin `presscart` from marketplace `personal`.
+Installed plugin root: /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/codex-install-home-r4/plugins/cache/personal/presscart/0.2.0

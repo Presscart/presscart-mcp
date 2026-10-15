@@ -1,32 +1,53 @@
 # Local Presscart test marketplace
 
-This repository fixture registers the installable `../plugin/` package for local Codex testing. It is not a home-directory marketplace and must not be copied to or generated under the user agents directory.
+This repository fixture registers the `../plugin/` package for local Codex testing. It is not a home-directory marketplace and must not be copied to or generated under the user agents directory.
 
-The descriptor is `.agents/plugins/marketplace.json` under this directory. Its marketplace name is `personal`, its display name is `Personal`, and its plugin source is `./plugins/presscart-placement-advisor`, relative to this marketplace root. That path is a repository symlink to `../../plugin`; it avoids a second, potentially stale copy of the package. Preserve symlinks when using this fixture. The distribution ZIP is built separately from `plugin/` and contains no marketplace files or symlink.
+The descriptor is `.agents/plugins/marketplace.json` under this directory. Its marketplace name is `personal`, its display name is `Personal`, and its plugin source is `./plugins/presscart`, a repository symlink to `../../plugin`. Preserve symlinks when using this fixture. Its `policy.authentication` is `ON_USE`, so installing never starts an OAuth sign-in. The distribution ZIP is built separately and contains no marketplace files or symlink.
 
-The initial CLI baseline for this task found no registered marketplace named `personal`. Before reusing the fixture later, check existing registrations: if `personal` already belongs to another marketplace, do not overwrite it or later remove it. Create a distinct repository-local fixture name in that case and update the evaluation configuration to match. Actual installation, evaluation, errors, and cleanup are recorded in [TEST-RESULTS.md](../TEST-RESULTS.md).
+## Build before installing
 
-From the plugin root (`plugins/openai/` in presscart-mcp), the requested local test flow is:
-
-```sh
-codex plugin marketplace add ./test-marketplace
-codex plugin list
-codex plugin add presscart-placement-advisor@personal
-```
-
-Run `scripts/run-eval.mjs` after installation with `PRESSCART_RESULTS_DIR` set to a fresh results directory and `PRESSCART_EVAL_SCRATCH` set to a fresh initialized scratch repository outside this repository. Run `prepare`, then `p1 p2 p3 p4 p5 r1 r2 r3 u1 u2 u3 n1 n2` as separate invocations. The harness uses fresh ephemeral read-only sessions, disables host skill discovery per invocation, and passes user prompts verbatim. It refuses to overwrite evidence. Manually grade the complete responses and successful installed-skill reads; CLI exit 0 is not a behavioral pass. Use `scripts/audit-eval.mjs` for evidence integrity only.
-
-Keep outputs in the new results directory. Do not create or copy a temporary `CODEX_HOME`, read or copy authentication files, log in, submit to a portal, push changes, or access the user agents directory. The CLI may update its normal plugin registration/cache state as part of this explicitly requested test; do not manually write home-directory marketplace files or persist `skip_host_skill_discovery` in config.toml.
-
-After testing, remove only the registration and plugin created by this fixture:
+`plugin/` has no `mcp.json`; the URL is a build input. Build first so the installed package matches a ZIP:
 
 ```sh
-codex plugin remove presscart-placement-advisor@personal
-codex plugin marketplace remove personal
+npm run package -- --mcp-url https://<host>/mcp/openai --write-local-config
 ```
 
-Record command output and failures rather than claiming successful loading or cleanup when the CLI reports an error. Recheck the user's plugin state against the baseline. These instructions are a test procedure, not a claim that commands are supported or that the plugin is published.
+For the offline eval, build with a placeholder that never resolves (`https://mcp.example.invalid/mcp/openai`); the runner disables the plugin's MCP server anyway. For a signed-in developer-mode run, build with the staging or production `/mcp/openai` URL. Never upload a non-production build.
 
-Before installation and after removal, capture config fingerprints with `scripts/config-fingerprint.mjs` and save `codex plugin marketplace list --json` and `codex plugin list --json`. Run `scripts/verify-cleanup.mjs` with the same results directory; it requires identical config fingerprints, identical list bytes, removal of the test cache, and absence of `skip_host_skill_discovery` in the normal config.
+## Install, evaluate, remove
 
-The package's user README intentionally omits this development fixture. Current version is 0.1.1. The root portable manifest carries `extensions.com.openai`; no compatibility overlay is intended. The actual install evidence determines CLI compatibility. Test, package, asset-gate, and release-status details live in [INDEX.md](../INDEX.md), not in the distribution README.
+The eval runner uses `--ignore-user-config` and enables the plugin with `-c` overrides, so a run needs only the installed files in `<codex-home>/plugins/cache/personal/`, not a registration in the user's `config.toml`. Other Codex sessions on the same machine read that config, so do not register this fixture there. Instead (the 2026-10-16 procedure):
+
+1. Check that `~/.codex/plugins/cache/personal` does not exist. If it does, another marketplace named `personal` is in use: do not touch it; rename this fixture and update the runner.
+2. Capture the baseline from `plugins/openai/`, with `PRESSCART_RESULTS_DIR` set to a fresh results directory:
+
+   ```sh
+   node scripts/config-fingerprint.mjs before
+   node scripts/record-command.mjs marketplaces-before codex plugin marketplace list --json
+   node scripts/record-command.mjs plugins-before codex plugin list --json
+   ```
+
+3. Install with the real CLI into an empty throwaway home. It needs no authentication; never copy auth files into it.
+
+   ```sh
+   CODEX_HOME=<empty scratch dir> codex plugin marketplace add ./test-marketplace
+   CODEX_HOME=<empty scratch dir> codex plugin add presscart@personal
+   CODEX_HOME=<empty scratch dir> python3 scripts/verify-artifacts.py --mcp-url <build url>
+   ```
+
+4. Copy `<scratch dir>/plugins/cache/personal/presscart/0.2.0` to the same path under `~/.codex/plugins/cache/`, then `python3 scripts/verify-artifacts.py --mcp-url <build url>` against the real home.
+5. Run `scripts/run-eval.mjs` with `PRESSCART_EVAL_SCRATCH` set to a fresh initialized scratch repository outside this repository: `prepare` once, then each id from [eval/offline-cases.json](../eval/offline-cases.json) as a separate invocation (at most three at a time). Each case is a fresh ephemeral read-only session with host skill discovery disabled, remote-curated plugins disabled (`features.remote_plugin=false`; the first two 0.2.0 runs could still see the user's remote `superpowers` plugin without it), the plugin's MCP server disabled, and the user prompt passed verbatim. The runner refuses to overwrite evidence. Run every case once; do not retry a case to get a different answer. Manually grade complete responses and installed-skill reads; CLI exit 0 is not a behavioral pass. `scripts/audit-eval.mjs` checks evidence integrity only; its trace inventory also lists any other plugin's skill files a session tried to read, which should be none.
+6. Delete `~/.codex/plugins/cache/personal` and the scratch home, then verify nothing else changed:
+
+   ```sh
+   node scripts/config-fingerprint.mjs after
+   node scripts/record-command.mjs marketplaces-after codex plugin marketplace list --json
+   node scripts/record-command.mjs plugins-after codex plugin list --json
+   node scripts/verify-cleanup.mjs
+   ```
+
+`verify-cleanup.mjs` requires identical config fingerprints, identical list output, removal of the test cache, and no `skip_host_skill_discovery` in the normal config.
+
+Do not read or copy authentication files, log in, submit to a portal, or push changes during these runs. Record command output and failures rather than claiming success when the CLI reports an error.
+
+The reviewer cases in [SUBMISSION.md](../SUBMISSION.md#reviewer-test-cases) need a signed-in Presscart test account and run in ChatGPT developer mode, not with this fixture.

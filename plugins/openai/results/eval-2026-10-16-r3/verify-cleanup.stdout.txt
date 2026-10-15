@@ -1,0 +1,6 @@
+Codex config bytes and SHA256 exactly match the pre-test snapshot.
+Registered marketplace list exactly matches the pre-test snapshot.
+Plugin list exactly matches the pre-test snapshot.
+Marketplace and plugin list stdout also match byte for byte.
+The test plugin cache was removed.
+~/.codex/config.toml contains no skip_host_skill_discovery setting.

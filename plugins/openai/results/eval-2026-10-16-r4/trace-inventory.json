@@ -1,0 +1,223 @@
+[
+  {
+    "id": "x1",
+    "group": "regression",
+    "sessionId": "01a1418a-a5b5-77b3-822e-c1589f1c0e70",
+    "model": "gpt-6.1-sol",
+    "exitCode": 0,
+    "timedOut": false,
+    "started": "2026-10-15T21:49:27.664Z",
+    "finished": "2026-10-15T21:49:40.098Z",
+    "stdoutBytes": 1540,
+    "execEvents": [],
+    "installedSkillReads": [],
+    "otherPluginSkillPaths": [],
+    "mcpEvents": []
+  },
+  {
+    "id": "x2",
+    "group": "regression",
+    "sessionId": "01a1418a-a5b7-72f1-bce5-276a0080296a",
+    "model": "gpt-6.1-sol",
+    "exitCode": 0,
+    "timedOut": false,
+    "started": "2026-10-15T21:49:27.664Z",
+    "finished": "2026-10-15T21:49:33.320Z",
+    "stdoutBytes": 500,
+    "execEvents": [],
+    "installedSkillReads": [],
+    "otherPluginSkillPaths": [],
+    "mcpEvents": []
+  },
+  {
+    "id": "x3",
+    "group": "regression",
+    "sessionId": "01a1418a-a5b7-7fa1-a29f-0aa9c9f2ed62",
+    "model": "gpt-6.1-sol",
+    "exitCode": 0,
+    "timedOut": false,
+    "started": "2026-10-15T21:49:27.664Z",
+    "finished": "2026-10-15T21:49:41.429Z",
+    "stdoutBytes": 1398,
+    "execEvents": [
+      {
+        "command": "/bin/zsh -lc 'cat /Users/renz/.codex/plugins/cache/personal/presscart/0.2.0/skills/report-campaign-progress/SKILL.md' in /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16-r4",
+        "result": " succeeded in 0ms:"
+      }
+    ],
+    "installedSkillReads": [
+      {
+        "skill": "report-campaign-progress",
+        "path": "/Users/renz/.codex/plugins/cache/personal/presscart/0.2.0/skills/report-campaign-progress/SKILL.md",
+        "command": "/bin/zsh -lc 'cat /Users/renz/.codex/plugins/cache/personal/presscart/0.2.0/skills/report-campaign-progress/SKILL.md' in /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16-r4"
+      }
+    ],
+    "otherPluginSkillPaths": [],
+    "mcpEvents": []
+  },
+  {
+    "id": "x4",
+    "group": "regression",
+    "sessionId": "01a1418a-dbbd-76f1-8d98-7c695b691870",
+    "model": "gpt-6.1-sol",
+    "exitCode": 0,
+    "timedOut": false,
+    "started": "2026-10-15T21:49:41.515Z",
+    "finished": "2026-10-15T21:49:50.671Z",
+    "stdoutBytes": 484,
+    "execEvents": [
+      {
+        "command": "/bin/zsh -lc 'cat /Users/renz/.codex/plugins/cache/personal/presscart/0.2.0/skills/report-campaign-progress/SKILL.md /Users/renz/.codex/plugins/cache/personal/presscart/0.2.0/skills/check-order-status/SKILL.md' in /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16-r4",
+        "result": " succeeded in 0ms:"
+      }
+    ],
+    "installedSkillReads": [
+      {
+        "skill": "report-campaign-progress",
+        "path": "/Users/renz/.codex/plugins/cache/personal/presscart/0.2.0/skills/report-campaign-progress/SKILL.md",
+        "command": "/bin/zsh -lc 'cat /Users/renz/.codex/plugins/cache/personal/presscart/0.2.0/skills/report-campaign-progress/SKILL.md /Users/renz/.codex/plugins/cache/personal/presscart/0.2.0/skills/check-order-status/SKILL.md' in /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16-r4"
+      },
+      {
+        "skill": "check-order-status",
+        "path": "/Users/renz/.codex/plugins/cache/personal/presscart/0.2.0/skills/check-order-status/SKILL.md",
+        "command": "/bin/zsh -lc 'cat /Users/renz/.codex/plugins/cache/personal/presscart/0.2.0/skills/report-campaign-progress/SKILL.md /Users/renz/.codex/plugins/cache/personal/presscart/0.2.0/skills/check-order-status/SKILL.md' in /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16-r4"
+      }
+    ],
+    "otherPluginSkillPaths": [],
+    "mcpEvents": []
+  },
+  {
+    "id": "r1",
+    "group": "reviewer-offline",
+    "sessionId": "01a1418a-dbbe-7c52-9f67-144e264fb132",
+    "model": "gpt-6.1-sol",
+    "exitCode": 0,
+    "timedOut": false,
+    "started": "2026-10-15T21:49:41.515Z",
+    "finished": "2026-10-15T21:49:50.030Z",
+    "stdoutBytes": 233,
+    "execEvents": [
+      {
+        "command": "/bin/zsh -lc 'cat /Users/renz/.codex/plugins/cache/personal/presscart/0.2.0/skills/check-order-status/SKILL.md' in /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16-r4",
+        "result": " succeeded in 0ms:"
+      }
+    ],
+    "installedSkillReads": [
+      {
+        "skill": "check-order-status",
+        "path": "/Users/renz/.codex/plugins/cache/personal/presscart/0.2.0/skills/check-order-status/SKILL.md",
+        "command": "/bin/zsh -lc 'cat /Users/renz/.codex/plugins/cache/personal/presscart/0.2.0/skills/check-order-status/SKILL.md' in /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16-r4"
+      }
+    ],
+    "otherPluginSkillPaths": [],
+    "mcpEvents": []
+  },
+  {
+    "id": "r3",
+    "group": "reviewer-offline",
+    "sessionId": "01a1418a-dbbd-71c2-b15e-be8fb3c5076b",
+    "model": "gpt-6.1-sol",
+    "exitCode": 0,
+    "timedOut": false,
+    "started": "2026-10-15T21:49:41.515Z",
+    "finished": "2026-10-15T21:49:51.309Z",
+    "stdoutBytes": 520,
+    "execEvents": [
+      {
+        "command": "/bin/zsh -lc 'cat /Users/renz/.codex/plugins/cache/personal/presscart/0.2.0/skills/report-campaign-progress/SKILL.md' in /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16-r4",
+        "result": " succeeded in 0ms:"
+      }
+    ],
+    "installedSkillReads": [
+      {
+        "skill": "report-campaign-progress",
+        "path": "/Users/renz/.codex/plugins/cache/personal/presscart/0.2.0/skills/report-campaign-progress/SKILL.md",
+        "command": "/bin/zsh -lc 'cat /Users/renz/.codex/plugins/cache/personal/presscart/0.2.0/skills/report-campaign-progress/SKILL.md' in /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16-r4"
+      }
+    ],
+    "otherPluginSkillPaths": [],
+    "mcpEvents": []
+  },
+  {
+    "id": "u1",
+    "group": "unprompted",
+    "sessionId": "01a1418b-0259-7752-a5f5-9e4f3d9e1194",
+    "model": "gpt-6.1-sol",
+    "exitCode": 0,
+    "timedOut": false,
+    "started": "2026-10-15T21:49:51.405Z",
+    "finished": "2026-10-15T21:50:00.429Z",
+    "stdoutBytes": 264,
+    "execEvents": [
+      {
+        "command": "/bin/zsh -lc 'cat /Users/renz/.codex/plugins/cache/personal/presscart/0.2.0/skills/check-order-status/SKILL.md' in /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16-r4",
+        "result": " succeeded in 0ms:"
+      }
+    ],
+    "installedSkillReads": [
+      {
+        "skill": "check-order-status",
+        "path": "/Users/renz/.codex/plugins/cache/personal/presscart/0.2.0/skills/check-order-status/SKILL.md",
+        "command": "/bin/zsh -lc 'cat /Users/renz/.codex/plugins/cache/personal/presscart/0.2.0/skills/check-order-status/SKILL.md' in /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16-r4"
+      }
+    ],
+    "otherPluginSkillPaths": [],
+    "mcpEvents": []
+  },
+  {
+    "id": "u2",
+    "group": "unprompted",
+    "sessionId": "01a1418b-0259-7893-b186-f0d039e15153",
+    "model": "gpt-6.1-sol",
+    "exitCode": 0,
+    "timedOut": false,
+    "started": "2026-10-15T21:49:51.405Z",
+    "finished": "2026-10-15T21:49:59.545Z",
+    "stdoutBytes": 278,
+    "execEvents": [
+      {
+        "command": "/bin/zsh -lc 'cat /Users/renz/.codex/plugins/cache/personal/presscart/0.2.0/skills/report-campaign-progress/SKILL.md' in /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16-r4",
+        "result": " succeeded in 0ms:"
+      }
+    ],
+    "installedSkillReads": [
+      {
+        "skill": "report-campaign-progress",
+        "path": "/Users/renz/.codex/plugins/cache/personal/presscart/0.2.0/skills/report-campaign-progress/SKILL.md",
+        "command": "/bin/zsh -lc 'cat /Users/renz/.codex/plugins/cache/personal/presscart/0.2.0/skills/report-campaign-progress/SKILL.md' in /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16-r4"
+      }
+    ],
+    "otherPluginSkillPaths": [],
+    "mcpEvents": []
+  },
+  {
+    "id": "n1",
+    "group": "control",
+    "sessionId": "01a1418b-0259-7411-9de8-639b58d38b36",
+    "model": "gpt-6.1-sol",
+    "exitCode": 0,
+    "timedOut": false,
+    "started": "2026-10-15T21:49:51.404Z",
+    "finished": "2026-10-15T21:49:57.265Z",
+    "stdoutBytes": 537,
+    "execEvents": [],
+    "installedSkillReads": [],
+    "otherPluginSkillPaths": [],
+    "mcpEvents": []
+  },
+  {
+    "id": "n2",
+    "group": "control",
+    "sessionId": "01a1418b-25b2-71c0-b447-2c206e8ffb82",
+    "model": "gpt-6.1-sol",
+    "exitCode": 0,
+    "timedOut": false,
+    "started": "2026-10-15T21:50:00.514Z",
+    "finished": "2026-10-15T21:50:08.361Z",
+    "stdoutBytes": 569,
+    "execEvents": [],
+    "installedSkillReads": [],
+    "otherPluginSkillPaths": [],
+    "mcpEvents": []
+  }
+]

@@ -1,0 +1,13 @@
+{
+  "command": "codex",
+  "args": [
+    "--version"
+  ],
+  "commandLine": "'codex' '--version'",
+  "cwd": "/Users/renz/waverly/presscart-mcp/.worktrees/openai-plugin-v02/plugins/openai",
+  "started": "2026-10-15T19:58:54.642Z",
+  "finished": "2026-10-15T19:58:54.652Z",
+  "exitCode": 0,
+  "signal": null,
+  "timedOut": false
+}

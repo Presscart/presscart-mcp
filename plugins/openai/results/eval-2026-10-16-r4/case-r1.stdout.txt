@@ -1,0 +1,1 @@
+The [Presscart skill](/Users/renz/.codex/plugins/cache/personal/presscart/0.2.0/skills/check-order-status/SKILL.md) says this connection is read-only and “can't” buy, reorder, or get a checkout link. I haven’t placed an order.

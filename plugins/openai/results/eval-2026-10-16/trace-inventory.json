@@ -1,0 +1,178 @@
+[
+  {
+    "id": "x1",
+    "group": "regression",
+    "sessionId": "01a14125-719b-70c1-9e80-d0534c9ab069",
+    "model": "gpt-6.1-sol",
+    "exitCode": 0,
+    "timedOut": false,
+    "started": "2026-10-15T19:58:55.011Z",
+    "finished": "2026-10-15T19:59:11.178Z",
+    "stdoutBytes": 1790,
+    "execEvents": [],
+    "installedSkillReads": [],
+    "mcpEvents": []
+  },
+  {
+    "id": "x2",
+    "group": "regression",
+    "sessionId": "01a14125-719a-7583-8548-7096519b05c4",
+    "model": "gpt-6.1-sol",
+    "exitCode": 0,
+    "timedOut": false,
+    "started": "2026-10-15T19:58:55.010Z",
+    "finished": "2026-10-15T19:59:02.138Z",
+    "stdoutBytes": 695,
+    "execEvents": [],
+    "installedSkillReads": [],
+    "mcpEvents": []
+  },
+  {
+    "id": "x3",
+    "group": "regression",
+    "sessionId": "01a14125-719c-7af1-ad14-429705de8be9",
+    "model": "gpt-6.1-sol",
+    "exitCode": 0,
+    "timedOut": false,
+    "started": "2026-10-15T19:58:55.010Z",
+    "finished": "2026-10-15T19:59:09.770Z",
+    "stdoutBytes": 1697,
+    "execEvents": [],
+    "installedSkillReads": [],
+    "mcpEvents": []
+  },
+  {
+    "id": "x4",
+    "group": "regression",
+    "sessionId": "01a14125-b080-72e1-acd4-2f8d4fe7dd04",
+    "model": "gpt-6.1-sol",
+    "exitCode": 0,
+    "timedOut": false,
+    "started": "2026-10-15T19:59:11.314Z",
+    "finished": "2026-10-15T19:59:17.243Z",
+    "stdoutBytes": 447,
+    "execEvents": [],
+    "installedSkillReads": [],
+    "mcpEvents": []
+  },
+  {
+    "id": "r1",
+    "group": "reviewer-offline",
+    "sessionId": "01a14125-b080-72d3-ae53-569389d01a81",
+    "model": "gpt-6.1-sol",
+    "exitCode": 0,
+    "timedOut": false,
+    "started": "2026-10-15T19:59:11.302Z",
+    "finished": "2026-10-15T19:59:21.007Z",
+    "stdoutBytes": 200,
+    "execEvents": [
+      {
+        "command": "/bin/zsh -lc 'cat /Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/check-order-status/SKILL.md' in /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16",
+        "result": " succeeded in 0ms:"
+      }
+    ],
+    "installedSkillReads": [
+      {
+        "skill": "check-order-status",
+        "path": "/Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/check-order-status/SKILL.md",
+        "command": "/bin/zsh -lc 'cat /Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/check-order-status/SKILL.md' in /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16",
+        "result": " succeeded in 0ms:"
+      }
+    ],
+    "mcpEvents": []
+  },
+  {
+    "id": "r3",
+    "group": "reviewer-offline",
+    "sessionId": "01a14125-b080-73e0-a0b0-8ded38fddc19",
+    "model": "gpt-6.1-sol",
+    "exitCode": 0,
+    "timedOut": false,
+    "started": "2026-10-15T19:59:11.311Z",
+    "finished": "2026-10-15T19:59:17.978Z",
+    "stdoutBytes": 371,
+    "execEvents": [],
+    "installedSkillReads": [],
+    "mcpEvents": []
+  },
+  {
+    "id": "u1",
+    "group": "unprompted",
+    "sessionId": "01a14125-d6b5-7423-b94b-11122d4a88d5",
+    "model": "gpt-6.1-sol",
+    "exitCode": 0,
+    "timedOut": false,
+    "started": "2026-10-15T19:59:21.093Z",
+    "finished": "2026-10-15T19:59:30.852Z",
+    "stdoutBytes": 310,
+    "execEvents": [
+      {
+        "command": "/bin/zsh -lc 'cat /Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/check-order-status/SKILL.md' in /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16",
+        "result": " succeeded in 0ms:"
+      }
+    ],
+    "installedSkillReads": [
+      {
+        "skill": "check-order-status",
+        "path": "/Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/check-order-status/SKILL.md",
+        "command": "/bin/zsh -lc 'cat /Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/check-order-status/SKILL.md' in /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16",
+        "result": " succeeded in 0ms:"
+      }
+    ],
+    "mcpEvents": []
+  },
+  {
+    "id": "u2",
+    "group": "unprompted",
+    "sessionId": "01a14125-d6b5-7843-ae8d-5bba5879057e",
+    "model": "gpt-6.1-sol",
+    "exitCode": 0,
+    "timedOut": false,
+    "started": "2026-10-15T19:59:21.093Z",
+    "finished": "2026-10-15T19:59:29.600Z",
+    "stdoutBytes": 221,
+    "execEvents": [
+      {
+        "command": "/bin/zsh -lc 'cat /Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/report-campaign-progress/SKILL.md' in /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16",
+        "result": " succeeded in 0ms:"
+      }
+    ],
+    "installedSkillReads": [
+      {
+        "skill": "report-campaign-progress",
+        "path": "/Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/report-campaign-progress/SKILL.md",
+        "command": "/bin/zsh -lc 'cat /Users/renz/.codex/plugins/cache/personal/presscart-placement-advisor/0.2.0/skills/report-campaign-progress/SKILL.md' in /private/tmp/claude-501/-Users-renz-waverly/3952cb3c-b746-4c9f-9aa3-53fe767579e8/scratchpad/eval-scratch-2026-10-16",
+        "result": " succeeded in 0ms:"
+      }
+    ],
+    "mcpEvents": []
+  },
+  {
+    "id": "n1",
+    "group": "control",
+    "sessionId": "01a14125-d6b5-7b91-8451-a4c45b79c368",
+    "model": "gpt-6.1-sol",
+    "exitCode": 0,
+    "timedOut": false,
+    "started": "2026-10-15T19:59:21.093Z",
+    "finished": "2026-10-15T19:59:27.334Z",
+    "stdoutBytes": 455,
+    "execEvents": [],
+    "installedSkillReads": [],
+    "mcpEvents": []
+  },
+  {
+    "id": "n2",
+    "group": "control",
+    "sessionId": "01a14125-fd1b-7bc0-a56b-b22d7a8ac919",
+    "model": "gpt-6.1-sol",
+    "exitCode": 0,
+    "timedOut": false,
+    "started": "2026-10-15T19:59:30.939Z",
+    "finished": "2026-10-15T19:59:38.228Z",
+    "stdoutBytes": 591,
+    "execEvents": [],
+    "installedSkillReads": [],
+    "mcpEvents": []
+  }
+]

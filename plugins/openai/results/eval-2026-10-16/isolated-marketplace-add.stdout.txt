@@ -1,0 +1,2 @@
+Added marketplace `personal` from /Users/renz/waverly/presscart-mcp/.worktrees/openai-plugin-v02/plugins/openai/test-marketplace.
+Installed marketplace root: /Users/renz/waverly/presscart-mcp/.worktrees/openai-plugin-v02/plugins/openai/test-marketplace
