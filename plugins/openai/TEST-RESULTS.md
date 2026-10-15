@@ -2,21 +2,33 @@
 
 ## Current release — 0.2.0
 
-Date: 2026-10-16. Package: presscart-placement-advisor 0.2.0, the first version that declares the remote MCP server. Raw evidence for 0.2.0 is in this repository under `results/eval-2026-10-16/` and `results/eval-2026-10-16-r2/`, except process snapshots and plugin/marketplace listings, which stay local because they inventory the machine.
+Date: 2026-10-16. Package: `presscart` 0.2.0, the first version that declares the remote MCP server. It was named `presscart-placement-advisor` in runs 1 and 2 and renamed before any upload (Renz, 2026-10-16).
+
+Raw evidence for 0.2.0 is in this repository under `results/eval-2026-10-16/`, `results/eval-2026-10-16-r2/`, and `results/eval-2026-10-16-r3/`. Process snapshots and plugin/marketplace listings stay local because they inventory the machine.
 
 | Verification | Result | Evidence |
 | --- | --- | --- |
-| `node --test tests/` | 21 passed, 0 failed | package contents, manifest and listing limits, MCP template, build and URL validation, release gate, skill rules, description triggers, reviewer case format, tool coverage against `src/directory/policy.ts` |
+| `node --test tests/` | 21 passed, 0 failed | package contents, manifest and listing limits, MCP template, build and URL validation, release gate, skill rules, account-scoped description triggers, reviewer case format, tool coverage against `src/directory/policy.ts` |
 | `npm test`, `npm run check`, `npm run build` (repo) | 227 passed; typecheck and build clean | server unchanged by this release |
 | `npm run check:release` | **exit 1, expected:** logo, composerIcon, supportURL, privacyPolicyURL, termsOfServiceURL missing | release blockers in [SUBMISSION.md](SUBMISSION.md#release-blockers) |
 | Build with `--mcp-url https://mcp.example.invalid/mcp/openai` | 7 files including generated `mcp.json`; ZIP, `plugin/`, and installed cache byte-identical | `verify-artifacts*.stdout.txt` in each results directory |
-| Real CLI install (codex-cli 0.162.0, throwaway `CODEX_HOME`) | accepted the package with its MCP configuration; version 0.2.0, installed, enabled, `authPolicy` `ON_USE` | `isolated-*` records |
+| Real CLI install (codex-cli 0.162.0, throwaway `CODEX_HOME`) | accepted the package with its MCP configuration; version 0.2.0, installed, enabled, `authPolicy` `ON_USE` (as `presscart@personal` in run 3) | `isolated-*` records |
 | Offline eval, run 1 (before description fix) | **5/10 PASS** — skills followed their rules when loaded, but guarantee, price, and pasted-content prompts loaded no skill | [report](results/eval-2026-10-16/EVAL-REPORT.md) |
-| Offline eval, run 2 (after one description fix) | **8/10 PASS** — search-ranking caveat fixed when a skill loads; **price repetition persists** (x2, x4; release blocker until fixed or waived); skills also fired on two prompts without Presscart context | [report](results/eval-2026-10-16-r2/EVAL-REPORT.md) |
+| Offline eval, run 2 (after one description fix) | **8/10 PASS** — search-ranking caveat fixed when a skill loads; **price repetition persists** (x2, x4; the rule was later dropped, see the decisions below); skills also fired on two prompts without Presscart context | [report](results/eval-2026-10-16-r2/EVAL-REPORT.md) |
+| Offline eval, run 3 (after Renz's decisions) | **6/10 PASS** — generic guarantee and price prompts no longer load a skill (x1, x2) and account lookups still do (u1, u2); Presscart purchase, outcome, and pasted-content prompts loaded no skill (x3, x4, r1, r3), and without it x4 pointed the user to Presscart's checkout; remote plugins excluded | [report](results/eval-2026-10-16-r3/EVAL-REPORT.md) |
 | Cleanup after each run | normal Codex `config.toml` bytes and SHA256 unchanged, lists byte-identical, test cache removed | `verify-cleanup.stdout.txt` |
 | Reviewer cases (5 positive, 3 negative) | **not yet run**; need the signed-in test account in ChatGPT developer mode | [SUBMISSION.md](SUBMISSION.md#reviewer-test-cases) |
 
-After run 2, review fixes changed only the skills' paging and team-access wording and the build's hostname check; the offline cases have no tools, so they would not exercise that wording. The offline runs disable the plugin's MCP server, so they test skill behavior with no account connection; they do not exercise the ten tools. Server-side enforcement (only the ten read-only tools are reachable on `/mcp/openai`, output allowlists) is covered by the repository's own tests, not by model behavior. Both runs could see the user's remote-curated `superpowers` plugin despite `--ignore-user-config`, so "no competing skills" did not hold; see the run 2 report.
+**Decisions (Renz, 2026-10-16), recorded after run 2:**
+
+- The price-repetition rule is dropped. The model may discuss a price the user supplies, but still never gives a Presscart price or quote, purchase or checkout links, or upsells.
+- The planning skills stay out.
+- The package is renamed `presscart`.
+- The skill descriptions are narrowed to questions about the user's own Presscart account.
+
+Runs 1 and 2 keep their original expectations and grades. Run 3 is graded against the updated expectations, which were committed before it ran. Details are in [SUBMISSION.md](SUBMISSION.md#decisions-renz-2026-10-16).
+
+After run 2, review fixes changed only the skills' paging and team-access wording and the build's hostname check; the offline cases have no tools, so they would not exercise that wording. The offline runs disable the plugin's MCP server, so they test skill behavior with no account connection; they do not exercise the ten tools. Server-side enforcement (only the ten read-only tools are reachable on `/mcp/openai`, output allowlists) is covered by the repository's own tests, not by model behavior. Runs 1 and 2 could see the user's remote-curated `superpowers` plugin despite `--ignore-user-config`, so "no competing skills" did not hold for them; see the run 2 report. Run 3 passed `features.remote_plugin=false`, and no session read another plugin's skill.
 
 Everything below is historical 0.1.x evidence with its original version labels; only its headings were relabelled as historical.
 

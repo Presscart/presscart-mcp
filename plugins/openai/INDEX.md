@@ -4,7 +4,13 @@ Location: `plugins/openai/` in presscart-mcp. `dist/` and the generated `plugin/
 
 Current release: **0.2.0**, the first version that declares the remote MCP server (the read-only `/mcp/openai` directory endpoint, OAuth with dynamic client registration). Local development package; not uploaded, connected, scanned, or submitted. OpenAI does not support adding an MCP server to a plugin first submitted as skills-only, so 0.1.x must never be uploaded.
 
-Verification: see [TEST-RESULTS.md](TEST-RESULTS.md). The eight reviewer cases need the signed-in test account and have not been run; offline behavioral results, including re-runs of the two 0.1.1 failures, are in [run 1](results/eval-2026-10-16/EVAL-REPORT.md) (5/10) and [run 2](results/eval-2026-10-16-r2/EVAL-REPORT.md) (8/10, after one description fix). The search-ranking caveat is fixed when a skill loads; repeating a price the user pastes is not. `npm run check:release` fails by design until the approved logo, composer icon, and support/privacy/terms URLs exist.
+Verification: see [TEST-RESULTS.md](TEST-RESULTS.md). The eight reviewer cases need the signed-in test account and have not been run; offline behavioral results, including re-runs of the two 0.1.1 failures, are in:
+
+- [run 1](results/eval-2026-10-16/EVAL-REPORT.md): 5/10;
+- [run 2](results/eval-2026-10-16-r2/EVAL-REPORT.md): 8/10, after one description fix;
+- [run 3](results/eval-2026-10-16-r3/EVAL-REPORT.md): 6/10, after Renz's 2026-10-16 decisions.
+
+Those decisions dropped the price-repetition rule, kept the planning skills out, renamed the package `presscart`, and narrowed the triggers; they are recorded in [SUBMISSION.md](SUBMISSION.md#decisions-renz-2026-10-16). In run 3, generic prompts no longer load a skill, but Presscart purchase, outcome, and pasted-content prompts don't either. `npm run check:release` fails by design until the approved logo, composer icon, and support/privacy/terms URLs exist.
 
 | Output | Location |
 | --- | --- |
@@ -16,7 +22,7 @@ Verification: see [TEST-RESULTS.md](TEST-RESULTS.md). The eight reviewer cases n
 | Campaign progress and published links skill and UI | [plugin/skills/report-campaign-progress/](plugin/skills/report-campaign-progress/) |
 | Listing and MCP connection fields, annotations, 5 positive/3 negative reviewer cases, release notes, release blockers | [SUBMISSION.md](SUBMISSION.md) |
 | Verification summary across releases | [TEST-RESULTS.md](TEST-RESULTS.md) |
-| 0.2.0 offline evaluations, manual grades, raw evidence | [results/eval-2026-10-16/](results/eval-2026-10-16/EVAL-REPORT.md), [results/eval-2026-10-16-r2/](results/eval-2026-10-16-r2/EVAL-REPORT.md) |
+| 0.2.0 offline evaluations, manual grades, raw evidence | [results/eval-2026-10-16/](results/eval-2026-10-16/EVAL-REPORT.md), [results/eval-2026-10-16-r2/](results/eval-2026-10-16-r2/EVAL-REPORT.md), [results/eval-2026-10-16-r3/](results/eval-2026-10-16-r3/EVAL-REPORT.md) |
 | Historical 0.1.1 post-fix evaluation (11/13) and 0.1.0 evaluation (12/13) | [results/fix-2026-09-30/](results/fix-2026-09-30/EVAL-REPORT.md), [results/eval-2026-09-30/](results/eval-2026-09-30/EVAL-REPORT.md) |
 | Independent review of 0.1.0, preserved verbatim | [reviews/independent-review-2026-09-30.md](reviews/independent-review-2026-09-30.md) |
 | Offline eval cases (no connection needed) | [eval/offline-cases.json](eval/offline-cases.json) |
