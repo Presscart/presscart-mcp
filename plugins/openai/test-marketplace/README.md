@@ -33,7 +33,10 @@ The eval runner uses `--ignore-user-config` and enables the plugin with `-c` ove
    CODEX_HOME=<empty scratch dir> codex plugin marketplace add ./test-marketplace
    CODEX_HOME=<empty scratch dir> codex plugin add presscart@personal
    CODEX_HOME=<empty scratch dir> python3 scripts/verify-artifacts.py --mcp-url <build url>
+   CODEX_HOME=<empty scratch dir> node scripts/verify-codex-mcp.mjs --mcp-url <build url>
    ```
+
+   The last check runs `codex mcp list --json` and requires `presscart` at the build URL with an OAuth auth status (`not_logged_in` until someone signs in; `unknown` for the offline eval's `.invalid` placeholder, which never resolves). Codex installs a package whose MCP server it cannot parse and then silently drops the server, so the install output alone is not enough. It fetches the URL's OAuth discovery metadata and makes no other request.
 
 4. Copy `<scratch dir>/plugins/cache/personal/presscart/0.2.0` to the same path under `~/.codex/plugins/cache/`, then `python3 scripts/verify-artifacts.py --mcp-url <build url>` against the real home.
 5. Run `scripts/run-eval.mjs` with `PRESSCART_EVAL_SCRATCH` set to a fresh initialized scratch repository outside this repository: `prepare` once, then each id from [eval/offline-cases.json](../eval/offline-cases.json) as a separate invocation (at most three at a time). Each case is a fresh ephemeral read-only session with host skill discovery disabled, remote-curated plugins disabled (`features.remote_plugin=false`; the first two 0.2.0 runs could still see the user's remote `superpowers` plugin without it), the plugin's MCP server disabled, and the user prompt passed verbatim. The runner refuses to overwrite evidence. Run every case once; do not retry a case to get a different answer. Manually grade complete responses and installed-skill reads; CLI exit 0 is not a behavioral pass. `scripts/audit-eval.mjs` checks evidence integrity only; its trace inventory also lists any other plugin's skill files a session tried to read, which should be none.
