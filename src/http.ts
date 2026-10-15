@@ -26,6 +26,7 @@ const httpApp = createHttpApp({
   presscartApiTimeoutMs: env.PRESSCART_API_TIMEOUT_MS,
   directoryProfiles,
   oauth: oauthConfig,
+  openaiAppsChallengeToken: env.OPENAI_APPS_CHALLENGE_TOKEN,
 });
 
 const cleanupTimer = setInterval(() => httpApp.cleanupExpiredState(), SESSION_CLEANUP_INTERVAL_MS);
