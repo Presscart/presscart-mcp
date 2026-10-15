@@ -37,6 +37,11 @@ Runs 1 and 2 keep their original expectations and grades. Run 3 is graded agains
 
 Run 3 is unchanged. Run 4 is graded strictly against expectations committed before it ran. Details are in [SUBMISSION.md](SUBMISSION.md#decisions-renz-2026-10-16-second-round).
 
+**After run 4 (Renz, 2026-10-16):**
+
+- **Connect prompt deferred.** There will be no further offline run. Whether the reply before sign-in asks the user to connect their Presscart account will be checked in the ChatGPT developer-mode run, not offline.
+- **New instruction-file rule, untested offline.** Both skills now say never to link to, name, or quote their SKILL.md or any other instruction file in a reply. This responds to run 4's r1 and r3 replies. Run 4 used the earlier wording, so this change is **untested offline**; the developer-mode run will check it. `node --test tests/` pins the rule's wording and placement only.
+
 After run 2, review fixes changed only the skills' paging and team-access wording and the build's hostname check; the offline cases have no tools, so they would not exercise that wording. The offline runs disable the plugin's MCP server, so they test skill behavior with no account connection; they do not exercise the ten tools. Server-side enforcement (only the ten read-only tools are reachable on `/mcp/openai`, output allowlists) is covered by the repository's own tests, not by model behavior. Runs 1 and 2 could see the user's remote-curated `superpowers` plugin despite `--ignore-user-config`, so "no competing skills" did not hold for them; see the run 2 report. Run 3 passed `features.remote_plugin=false`, and no session read another plugin's skill.
 
 Everything below is historical 0.1.x evidence with its original version labels; only its headings were relabelled as historical.

@@ -45,6 +45,8 @@ Recorded after the [run 3](results/eval-2026-10-16-r3/EVAL-REPORT.md) report, wh
 2. **No checkout pointers.** When a purchase or reorder request loads a skill, the reply declines buying inside the plugin. It must not point to a checkout, an ordering page, or an "official checkout", including Presscart's own. An informational presscart.com link is fine only if it is not a purchase page.
 3. **Connect first.** One instruction leads the skills' Steps: when the Presscart tools are not available or connected, ask the user to connect their Presscart account and don't answer from memory. The ChatGPT developer-mode run is the real test of this.
 4. **One run, graded strictly.** The offline eval ran once more ([run 4](results/eval-2026-10-16-r4/EVAL-REPORT.md)), with expectations committed first.
+5. **Connect prompt deferred to the developer-mode run (after run 4).** No further offline run. Whether the reply before sign-in asks the user to connect their Presscart account will be checked in the ChatGPT developer-mode run (blocker 8), not offline.
+6. **No citing instruction files (after run 4).** Both skills now say never to link to, name, or quote their SKILL.md or any other instruction file in a reply, and to explain in their own words. This responds to run 4's r1 and r3 replies, which linked and quoted the installed SKILL.md. The change is **untested offline**: run 4 used the earlier wording, and the developer-mode run will check it.
 
 ## Building the ZIP
 
@@ -253,7 +255,8 @@ Optionally put the same text in `extensions.com.openai.publication.release_notes
 10. **License:** Presscart chooses and approves the distribution license.
 11. **Portal checks:** metadata findings, skill safety scans, a current MCP tool scan with annotation justifications, policy attestations, and final submission. Not started; no portal login, upload, or submission was done.
 12. **Connect prompt before sign-in:** in [run 4](results/eval-2026-10-16-r4/EVAL-REPORT.md), no reply asked the user to connect their Presscart account. Three (x3, u1, u2) said connector access is disabled, possibly because the offline harness tells every session not to call connectors or log in. The other three (x4, r1, r3) didn't mention the connection state.
-    - As part of blocker 8, check the reply before OAuth sign-in in ChatGPT developer mode: it must ask the user to connect their Presscart account and must not answer from memory.
+    - Deferred to the developer-mode run (Renz, 2026-10-16); no further offline run. As part of blocker 8, check the reply before OAuth sign-in in ChatGPT developer mode: it must ask the user to connect their Presscart account and must not answer from memory.
+    - In the same run, check that no reply links to, names, or quotes a SKILL.md or other instruction file. That rule was added after run 4 and is untested offline.
     - Trigger coverage, the previous blocker 12, behaved as intended in run 4. Confirm it in the same developer-mode run.
 
 ### Adding the assets and URLs
