@@ -310,13 +310,21 @@ test('campaign skill pages list_campaign_articles by total_records, which has no
   assert.match(skill('report-campaign-progress'), /`list_campaign_articles` returns only `total_records`: if that is larger than the number of articles you have, request the next `page`\./);
 });
 
-test('skill descriptions trigger on the Presscart requests the skills must decline or caveat', () => {
-  // Run 1 of the 0.2.0 eval: without these, guarantee, price and pasted-content prompts loaded no skill.
-  const orders = parseFrontmatter(skill('check-order-status')).description;
-  const campaigns = parseFrontmatter(skill('report-campaign-progress')).description;
-  assert.match(orders, /ask to buy, book, pay for, or get prices or checkout links for Presscart placements, which this read-only plugin declines/);
-  assert.match(campaigns, /ask what their Presscart articles will do for search, AI answers, traffic, or immigration evidence/);
-  assert.match(campaigns, /share content about their Presscart campaign/);
+test('skill descriptions load only for questions about the user\'s own Presscart account', () => {
+  // Renz, 2026-10-16: run 2's wider descriptions also loaded for generic guarantee and price
+  // prompts with no Presscart context. Triggers name only account, order, campaign and link topics.
+  const EXCLUSION = 'Do not use for general press, PR, pricing, or guarantee questions that are not about the user\'s Presscart account.';
+  const triggers = {
+    'check-order-status': 'Use only when the user asks about their own Presscart account, teams, brand profiles, or orders.',
+    'report-campaign-progress': 'Use only when the user asks about their own Presscart campaigns, the status of their articles, or links to their published articles.',
+  };
+  for (const name of SKILLS) {
+    const description = parseFrontmatter(skill(name)).description;
+    assert.ok(description.includes(triggers[name]), `${name}: account-scoped trigger`);
+    assert.ok(description.includes(EXCLUSION), `${name}: generic-prompt exclusion`);
+    const scope = description.replace(EXCLUSION, '').replace(/Read-only; no prices, purchases, or changes\.$/, '');
+    assert.doesNotMatch(scope, /\b(?:buy|book|pay|price|pricing|cost|checkout|guarantee|rank|search|AI answers|traffic|immigration|visa|share content)/i, `${name}: generic price or outcome trigger`);
+  }
 });
 
 test('the profile allowlist still has no OpenAI-only additions', () => {

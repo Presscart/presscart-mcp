@@ -1,6 +1,6 @@
 ---
 name: report-campaign-progress
-description: Report progress on the user's existing Presscart campaigns through the connected Presscart account. Shows campaign details, article counts by status, each article's status and expected completion date, and links to published articles. Use when someone asks how a Presscart campaign is going, which of their articles are live, or for their published article links, and when they ask what their Presscart articles will do for search, AI answers, traffic, or immigration evidence, or share content about their Presscart campaign. Read-only; no prices, purchases, or changes.
+description: Report progress on the user's existing Presscart campaigns through the connected Presscart account. Shows campaign details, article counts by status, each article's status and expected completion date, and links to published articles. Use only when the user asks about their own Presscart campaigns, the status of their articles, or links to their published articles. Do not use for general press, PR, pricing, or guarantee questions that are not about the user's Presscart account. Read-only; no prices, purchases, or changes.
 ---
 
 # Report campaign progress
