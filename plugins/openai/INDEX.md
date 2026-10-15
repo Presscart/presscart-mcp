@@ -8,9 +8,9 @@ Verification: see [TEST-RESULTS.md](TEST-RESULTS.md). The eight reviewer cases n
 
 - [run 1](results/eval-2026-10-16/EVAL-REPORT.md): 5/10;
 - [run 2](results/eval-2026-10-16-r2/EVAL-REPORT.md): 8/10, after one description fix;
-- [run 3](results/eval-2026-10-16-r3/EVAL-REPORT.md): 6/10, after Renz's 2026-10-16 decisions.
+- [run 3](results/eval-2026-10-16-r3/EVAL-REPORT.md): 4/10, after Renz's 2026-10-16 decisions, graded strictly; its grading note explains.
 
-Those decisions dropped the price-repetition rule, kept the planning skills out, renamed the package `presscart`, and narrowed the triggers; they are recorded in [SUBMISSION.md](SUBMISSION.md#decisions-renz-2026-10-16). In run 3, generic prompts no longer load a skill, but Presscart purchase, outcome, and pasted-content prompts don't either. `npm run check:release` fails by design until the approved logo, composer icon, and support/privacy/terms URLs exist.
+Those decisions dropped the price-repetition rule, kept the planning skills out, renamed the package `presscart`, and narrowed the triggers; they are recorded in [SUBMISSION.md](SUBMISSION.md#decisions-renz-2026-10-16). In run 3, generic prompts no longer load a skill, but Presscart purchase, outcome, and pasted-content prompts don't either. Account lookups load the right skill but never ask the user to connect Presscart. `npm run check:release` fails by design until the approved logo, composer icon, and support/privacy/terms URLs exist.
 
 | Output | Location |
 | --- | --- |

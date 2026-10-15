@@ -8,8 +8,9 @@ Offline behavioral runs:
 
 - [Run 1](results/eval-2026-10-16/EVAL-REPORT.md) scored 5/10.
 - [Run 2](results/eval-2026-10-16-r2/EVAL-REPORT.md) scored 8/10 after one description fix.
-- After Renz's [decisions](#decisions-renz-2026-10-16), [run 3](results/eval-2026-10-16-r3/EVAL-REPORT.md) scored 6/10.
-  - Generic guarantee and price prompts no longer load a skill, and account lookups still do.
+- After Renz's [decisions](#decisions-renz-2026-10-16), [run 3](results/eval-2026-10-16-r3/EVAL-REPORT.md) scored 4/10.
+  - Generic guarantee and price prompts no longer load a skill.
+  - Account lookups still load the right skill but, as in runs 1 and 2, never ask the user to connect Presscart. Run 3 grades that as a fail; runs 1 and 2 had passed it.
   - Presscart purchase, outcome, and pasted-content prompts no longer load one either (blocker 12).
 
 The offline runs have no tools, so the reviewer cases are the first test of the skills' paging and team-access wording. The eight reviewer cases have **not yet been run** because they need the signed-in test account.
@@ -25,7 +26,7 @@ Recorded after the [run 2](results/eval-2026-10-16-r2/EVAL-REPORT.md) report. Ru
 1. **Price repetition rule dropped.** The skills still never state, quote, or estimate a Presscart price, and give no purchase or checkout links and no upsells. The model may discuss a price the user supplies themselves, as their own figure. The release blocker for repeating a pasted price is removed, and the offline cases no longer expect a supplied price to be withheld.
 2. **Planning skills stay out.** `qualify-press-needs` and `evaluate-publication-fit` are not coming back; 0.2.0 ships only the two account skills.
 3. **Package renamed to `presscart`** (from `presscart-placement-advisor`) before the first upload, which makes the name permanent.
-4. **Narrower triggers.** The skills load only for questions about the user's own Presscart account, orders, campaigns, or published links, not for generic price or guarantee prompts. The offline eval ran once more to measure this: [run 3](results/eval-2026-10-16-r3/EVAL-REPORT.md), 6/10. See blocker 12 for what it showed.
+4. **Narrower triggers.** The skills load only for questions about the user's own Presscart account, orders, campaigns, or published links, not for generic price or guarantee prompts. The offline eval ran once more to measure this: [run 3](results/eval-2026-10-16-r3/EVAL-REPORT.md), 4/10. See blocker 12 for what it showed.
 
 ## Building the ZIP
 
