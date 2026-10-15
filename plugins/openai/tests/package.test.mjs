@@ -302,6 +302,15 @@ test('skills have matching frontmatter and separate OpenAI UI metadata', () => {
   }
 });
 
+test('skill descriptions trigger on the Presscart requests the skills must decline or caveat', () => {
+  // Run 1 of the 0.2.0 eval: without these, guarantee, price and pasted-content prompts loaded no skill.
+  const orders = parseFrontmatter(skill('check-order-status')).description;
+  const campaigns = parseFrontmatter(skill('report-campaign-progress')).description;
+  assert.match(orders, /ask to buy, book, pay for, or get prices or checkout links for Presscart placements, which this read-only plugin declines/);
+  assert.match(campaigns, /ask what their Presscart articles will do for search, AI answers, traffic, or immigration evidence/);
+  assert.match(campaigns, /share content about their Presscart campaign/);
+});
+
 test('the profile allowlist still has no OpenAI-only additions', () => {
   // If this fails, the /mcp/openai tool set changed: update the skills, README and reviewer cases.
   assert.equal(PLATFORM_ADDITIONS?.trim(), '');
