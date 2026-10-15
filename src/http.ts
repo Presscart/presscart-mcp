@@ -92,7 +92,6 @@ function resolveOAuthRuntimeConfig(): HttpAppOAuthConfig | undefined {
     audiences,
     translatorEnabled: env.MCP_OAUTH_TRANSLATOR_ENABLED,
     upstreamTimeoutMs: env.MCP_OAUTH_UPSTREAM_TIMEOUT_MS,
-    acceptCanonicalAudienceOnDirectoryRoutes: env.MCP_DIRECTORY_ACCEPT_CANONICAL_AUDIENCE,
     createVerifier: ({ resource: verifierResource, audiences: verifierAudiences }) =>
       new SupabaseOAuthVerifier({
         issuerUrl: issuer,

@@ -3,7 +3,6 @@ import { test } from 'node:test';
 
 process.env.PRESSCART_API_URL = 'https://api.example.com';
 delete process.env.MCP_DIRECTORY_PROFILES;
-delete process.env.MCP_DIRECTORY_ACCEPT_CANONICAL_AUDIENCE;
 delete process.env.OPENAI_APPS_CHALLENGE_TOKEN;
 
 const { booleanEnvSchema, env, optionalTrimmedEnvSchema } = await import('./env.js');
@@ -26,9 +25,8 @@ test('rejects other string environment values', () => {
   }
 });
 
-test('defaults to no directory profiles and canonical audience acceptance', () => {
+test('defaults to no directory profiles', () => {
   assert.equal(env.MCP_DIRECTORY_PROFILES, '');
-  assert.equal(env.MCP_DIRECTORY_ACCEPT_CANONICAL_AUDIENCE, true);
 });
 
 test('defaults to no OpenAI apps challenge token', () => {

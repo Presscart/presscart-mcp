@@ -56,7 +56,6 @@ Optional directory integration settings:
 
 ```bash
 export MCP_DIRECTORY_PROFILES="openai,claude-directory"
-export MCP_DIRECTORY_ACCEPT_CANONICAL_AUDIENCE="true"
 ```
 
 Optional OpenAI plugin domain verification:
@@ -192,14 +191,14 @@ git push origin v0.2.0
 - Directory tools return explicit field allowlists (no prices, payment or checkout fields, emails, writer names, internal document links, or add-ons), advertise strict output schemas, and cap `limit` at 25.
 - A session belongs to the route it was initialized on. Sending its `Mcp-Session-Id` to any other MCP route returns `404 Session not found`.
 - Exposure is not authorization: the Presscart API still authorizes every request.
-- With `MCP_OAUTH_ENABLED=true`, each directory route has its own protected-resource metadata and `WWW-Authenticate` challenge, the OAuth facade accepts its resource on `/oauth/authorize` and `/oauth/token`, and its verifier accepts that resource as the token audience. While `MCP_DIRECTORY_ACCEPT_CANONICAL_AUDIENCE=true` (default), it also accepts the canonical `/mcp` audience, which the Presscart API currently sets on every MCP token.
+- With `MCP_OAUTH_ENABLED=true`, each directory route has its own protected-resource metadata and `WWW-Authenticate` challenge, the OAuth facade accepts its resource on `/oauth/authorize` and `/oauth/token`, and its verifier accepts only that route's resource as the token audience. A token whose audience is the canonical `/mcp` resource (or the legacy origin) is refused there, and a directory token is refused by `/mcp`.
 - With `MCP_OAUTH_ENABLED=false`, directory routes use `X-Presscart-API-Token` like `/mcp`. Use this only for local and staging testing.
 - Rollback: remove the profile from `MCP_DIRECTORY_PROFILES` and redeploy. `/mcp` is unaffected.
 
 Before submitting to a directory:
 
 1. Verify in staging that Supabase OAuth accepts the forwarded directory `resource` value.
-2. Ship the Presscart API change that issues directory grants a directory audience (or equivalent grant binding), then set `MCP_DIRECTORY_ACCEPT_CANONICAL_AUDIENCE=false`. Until then, a token issued through a directory route can also call `/mcp`.
+2. The Presscart API issues a directory sign-in a token whose audience is that route (presscart-app #910). Confirm this on staging before submission.
 
 ## Hosted deployment shape
 

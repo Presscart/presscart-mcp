@@ -96,7 +96,6 @@ function oauthConfig(verifiedTokens: string[] = ['access-good']): NonNullable<Ht
     audiences: [MCP_SERVER_URL],
     translatorEnabled: false,
     upstreamTimeoutMs: 1_000,
-    acceptCanonicalAudienceOnDirectoryRoutes: true,
     createVerifier: () => verifier,
   };
 }
