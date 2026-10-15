@@ -44,7 +44,7 @@ export function registerOrderTools(server: McpServer, options: ServerOptions) {
         profile_id: profileId,
         line_items: input.line_items,
       });
-      return jsonResult(sanitizeSensitiveFields(response));
+      return jsonResult(sanitizeSensitiveFields(response, { keepCheckoutLink: true }));
     }
   );
 
