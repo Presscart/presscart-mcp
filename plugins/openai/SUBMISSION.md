@@ -66,23 +66,25 @@ The rendered `mcp.json` (only `url` varies):
   "mcpServers": {
     "presscart": {
       "type": "streamable-http",
-      "url": "https://<production-mcp-host>/mcp/openai",
-      "extensions": {
-        "com.openai": {
-          "auth": {
-            "type": "oauth",
-            "client": {
-              "mode": "dcr"
-            }
-          }
-        }
-      }
+      "url": "https://<production-mcp-host>/mcp/openai"
     }
   }
 }
 ```
 
-No headers, client id, client secret, token, or endpoint overrides. OAuth endpoints come from discovery: `/.well-known/oauth-protected-resource/mcp/openai` names the resource `https://<host>/mcp/openai` and the MCP host as authorization server, whose metadata advertises dynamic client registration (`/oauth/register`), PKCE S256, and scopes `profile offline_access`. Verified read-only against staging on 2026-10-16; the server advertises no Client ID Metadata Document support, so `dcr` (not `cimd`) is declared.
+No headers, auth block, client id, client secret, token, or endpoint overrides. OAuth with dynamic client registration comes from discovery. An unauthenticated request to `/mcp/openai` gets a 401 whose `WWW-Authenticate` header points to `/.well-known/oauth-protected-resource/mcp/openai`. That document names the resource `https://<host>/mcp/openai` and the MCP host as authorization server. The host's metadata advertises dynamic client registration (`/oauth/register`), PKCE S256, and scopes `profile offline_access`, but no Client ID Metadata Document support. All of this was verified read-only against staging on 2026-10-16.
+
+### Why the server has no auth block
+
+0.2.0 as merged in #16 also declared `extensions["com.openai"].auth` (`oauth`, `client.mode: "dcr"`) on the server, as the Package your plugin page describes. Codex silently dropped that server, so the installed plugin had its two skills and no MCP server.
+
+- **Affected builds.** The CLI (codex-cli 0.162.0) and the ChatGPT desktop app's bundled copy (0.162.0-alpha.17.2) both dropped the server. Neither `codex mcp list` nor the app's plugin MCP list showed `presscart`.
+- **Cause.** Codex reads a root `plugin.json` with the Agent Plugins `$schema` as a portable package and always takes its MCP servers from `./mcp.json`. It parses that file like the published [Agent Plugins 1.0.0 MCP schema](https://github.com/agentplugins/agent-plugins-spec/blob/main/schemas/1.0.0/mcp.schema.json), which closes each server shape: a `streamable-http` server may hold only `type`, `url`, and `headers`. Any other field, including `extensions`, invalidates the server and Codex skips it with a log warning only. Codex `main` has the same parser. Codex also never reads `extensions["com.openai"].auth`: for an HTTP server it runs OAuth discovery itself and registers a client dynamically.
+- **No workaround inside the portable format.** A `.codex-plugin/plugin.json` overlay or a `.mcp.json` file does not change which file a portable package's MCP servers come from.
+- **Portal impact.** OpenAI's pages mark every auth field optional ("Omitted optional values remain available for discovery"). DCR needs only a registration endpoint "through discovery or a `registrationUrl` override". The complete Agent Plugins example on the submission page has a bare `streamable-http` server with no `extensions` block. No documented ingestion error covers a missing auth block.
+- **Packager check.** The packager now refuses any server other than exactly `type` and `url`.
+- **Load check.** After a throwaway-home install, run `node scripts/verify-codex-mcp.mjs` to confirm Codex lists `presscart` with an OAuth auth status (see [the test marketplace](test-marketplace/README.md)).
+- **Portal check.** Confirm at upload that the portal's MCP connection shows OAuth (blocker 11).
 
 ## Package identity and listing fields
 
@@ -254,6 +256,7 @@ Optionally put the same text in `extensions.com.openai.publication.release_notes
 9. **Demo video:** a reviewer-accessible recording of the main flows and the test cases.
 10. **License:** Presscart chooses and approves the distribution license.
 11. **Portal checks:** metadata findings, skill safety scans, a current MCP tool scan with annotation justifications, policy attestations, and final submission. Not started; no portal login, upload, or submission was done.
+    - Before connecting, open MCPs and check that the saved connection for `presscart` shows OAuth with dynamic client registration from discovery. The package declares no auth block ([why](#why-the-server-has-no-auth-block)). If the portal shows no authentication or offers no OAuth choice, stop and decide with OpenAI before connecting. Adding the auth block back would make Codex and the ChatGPT desktop app drop the server again.
 12. **Connect prompt before sign-in:** in [run 4](results/eval-2026-10-16-r4/EVAL-REPORT.md), no reply asked the user to connect their Presscart account. Three (x3, u1, u2) said connector access is disabled, possibly because the offline harness tells every session not to call connectors or log in. The other three (x4, r1, r3) didn't mention the connection state.
     - Deferred to the developer-mode run (Renz, 2026-10-16); no further offline run. As part of blocker 8, check the reply before OAuth sign-in in ChatGPT developer mode: it must ask the user to connect their Presscart account and must not answer from memory.
     - In the same run, check that no reply links to, names, or quotes a SKILL.md or other instruction file. That rule was added after run 4 and is untested offline.
@@ -278,7 +281,7 @@ Create `plugin/assets/` with the approved files, then add to `extensions.com.ope
 Re-read on 2026-10-16:
 
 - [Upload and submit your plugin](https://developers.openai.com/plugins/deploy/submission): MCP must be in the initial ZIP; one connected MCP server; OAuth via registered client, DCR, or CIMD; no client secret in `mcp.json`; nonempty server `headers` rejected; no API-key flow; no apps or lifecycle hooks in ZIPs; exactly five positive and three negative cases (positive: description, prompt, tools_triggered, expected_behavior); demo video; release notes; all four listing URLs for MCP review; test account without MFA; domain verification at `/.well-known/openai-apps-challenge`.
-- [Package your plugin](https://developers.openai.com/plugins/build/plugins): portable packages declare servers in root `mcp.json` with the Agent Plugins MCP schema, `type: "streamable-http"`, `url`, and auth under `extensions["com.openai"].auth`; `client.mode: "dcr"` must not include `clientId` or credentials.
+- [Package your plugin](https://developers.openai.com/plugins/build/plugins): portable packages declare servers in root `mcp.json` with the Agent Plugins MCP schema, `type: "streamable-http"`, and `url`. The page documents optional auth under each server's `extensions["com.openai"].auth`; omitted values "remain available for discovery", and `client.mode: "dcr"` must not include `clientId` or credentials. Re-read the same day after the Codex loading failure: the wording is unchanged, and Codex 0.162 drops a server that carries that block ([why](#why-the-server-has-no-auth-block)).
 - [Plugin submission errors](https://developers.openai.com/plugins/deploy/submission-errors): listing limits and categories, logo and composer icon rules, listing URLs required for remote MCP, annotations with justifications, current tool scan.
 - [Plugin guidelines](https://developers.openai.com/plugins/plugin-guidelines): commerce limited to physical goods; no digital-service sales, checkout links, or upgrade promotion; existing paid-account users may access included features; no advertising vehicle; explicit accurate annotations; accurate, non-steering descriptions; return only relevant data, no diagnostic or internal ids.
 - Specification: `2026-09-30-presscart-directory-plugin-spec.md` §3 (Stage A tools), §4 (server contract), §7 (behavior and release gates).

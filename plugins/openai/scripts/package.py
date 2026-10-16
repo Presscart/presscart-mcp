@@ -22,7 +22,7 @@ NAME, VERSION = "presscart", "0.2.0"
 URL_TOKEN = "{{PRESSCART_MCP_URL}}"
 DIRECTORY_PATH = "/mcp/openai"
 LOCAL_MCP_CONFIG = "mcp.json"
-FORBIDDEN_MCP_KEYS = {"headers", "clientId", "clientSecret", "env", "command", "args", "cwd"}
+MCP_SCHEMA = "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json"
 DNS_LABEL = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?")
 TLD = re.compile(r"[a-z]{2,63}|xn--[a-z0-9-]{1,59}")
 
@@ -68,26 +68,19 @@ def validate_mcp_url(value):
 
 
 def check_mcp_config(config, url):
-    def keys(value):
-        if isinstance(value, dict):
-            for key, child in value.items():
-                yield key
-                yield from keys(child)
-        elif isinstance(value, list):
-            for child in value:
-                yield from keys(child)
-
-    servers = config.get("mcpServers")
+    # Codex (CLI and ChatGPT desktop app) reads an Agent Plugins mcp.json with the 1.0.0 schema's
+    # closed shapes and silently drops a server with any other field, including an
+    # extensions["com.openai"].auth block. OAuth with dynamic client registration comes from the
+    # server's discovery metadata, so the server holds only its transport and URL: no headers,
+    # auth block, client id, or secret.
+    if not isinstance(config, dict) or sorted(config) != ["$schema", "mcpServers"] or config["$schema"] != MCP_SCHEMA:
+        fail(f"mcp.template.json must hold only $schema ({MCP_SCHEMA}) and mcpServers.")
+    servers = config["mcpServers"]
     if not isinstance(servers, dict) or len(servers) != 1:
         fail("mcp.template.json must declare exactly one MCP server.")
     (server,) = servers.values()
-    if server.get("type") != "streamable-http" or server.get("url") != url:
-        fail("mcp.template.json server must be streamable-http with the URL placeholder.")
-    if server.get("extensions", {}).get("com.openai", {}).get("auth", {}).get("type") != "oauth":
-        fail("mcp.template.json server must declare OAuth.")
-    forbidden = FORBIDDEN_MCP_KEYS.intersection(keys(config))
-    if forbidden:
-        fail(f"mcp.template.json must not declare {', '.join(sorted(forbidden))}.")
+    if server != {"type": "streamable-http", "url": url}:
+        fail("mcp.template.json server must hold only type streamable-http and the URL placeholder; Codex drops a server with any other field.")
 
 
 def render_mcp_config(repo, url):

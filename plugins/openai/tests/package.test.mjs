@@ -213,6 +213,12 @@ function build(args, env = {}) {
   });
 }
 
+// A scratch copy of plugins/openai for builds that change inputs; build outputs and evidence stay behind.
+function copyPackage(root) {
+  cpSync(ROOT, root, { recursive: true, filter: (src) => !/\/(?:dist|results|node_modules)(?:\/|$)/.test(src.slice(ROOT.length)) });
+  return root;
+}
+
 function zipEntries(path) {
   const script = 'import json,sys,zipfile\nz=zipfile.ZipFile(sys.argv[1])\nassert z.testzip() is None\n'
     + 'print(json.dumps({i.filename:[z.read(i).decode(),oct(i.external_attr>>16),i.date_time] for i in z.infolist()}))';
@@ -421,20 +427,43 @@ test('all outbound package URLs are HTTPS schema/homepage links, never checkout 
   }
 });
 
-test('MCP template declares one remote OAuth (DCR) server whose URL is a build input', () => {
+// Codex 0.162 (the CLI and the ChatGPT desktop app's bundled copy) reads an Agent Plugins mcp.json
+// strictly, as the 1.0.0 schema does: a streamable-http server may hold only type, url and headers.
+// Any other field, including an extensions["com.openai"].auth block, silently drops the server.
+// OAuth with dynamic client registration comes from the server's discovery metadata instead.
+test('MCP template declares one bare streamable-http server whose URL is a build input', () => {
   const raw = readFileSync(join(ROOT, 'mcp.template.json'), 'utf8');
   assert.equal(raw.split(URL_TOKEN).length - 1, 1, 'URL placeholder must appear exactly once');
   const config = JSON.parse(raw);
   assert.deepEqual(Object.keys(config).sort(), ['$schema', 'mcpServers']);
   assert.equal(config.$schema, MCP_SCHEMA);
-  assert.deepEqual(Object.keys(config.mcpServers), ['presscart']);
-  assert.deepEqual(config.mcpServers.presscart, {
-    type: 'streamable-http',
-    url: URL_TOKEN,
-    extensions: { 'com.openai': { auth: { type: 'oauth', client: { mode: 'dcr' } } } },
-  });
-  for (const key of deepKeys(config)) {
-    assert.ok(!['headers', 'clientId', 'clientSecret', 'env', 'command', 'args', 'cwd'].includes(key), `Forbidden MCP field: ${key}`);
+  assert.deepEqual(config.mcpServers, { presscart: { type: 'streamable-http', url: URL_TOKEN } });
+});
+
+test('build refuses an MCP template that Codex would drop or the portal would reject', () => {
+  const work = mkdtempSync(join(tmpdir(), 'presscart-plugin-template-'));
+  try {
+    const root = copyPackage(join(work, 'openai'));
+    const server = { type: 'streamable-http', url: URL_TOKEN };
+    const templates = {
+      'OpenAI auth extension': { $schema: MCP_SCHEMA, mcpServers: { presscart: { ...server, extensions: { 'com.openai': { auth: { type: 'oauth', client: { mode: 'dcr' } } } } } } },
+      'empty headers': { $schema: MCP_SCHEMA, mcpServers: { presscart: { ...server, headers: {} } } },
+      'Codex oauth table': { $schema: MCP_SCHEMA, mcpServers: { presscart: { ...server, oauth: { clientId: 'x' } } } },
+      'legacy http type': { $schema: MCP_SCHEMA, mcpServers: { presscart: { ...server, type: 'http' } } },
+      'missing schema': { mcpServers: { presscart: server } },
+      'extra top-level field': { $schema: MCP_SCHEMA, mcpServers: { presscart: server }, extensions: {} },
+      'second server': { $schema: MCP_SCHEMA, mcpServers: { presscart: server, other: server } },
+    };
+    for (const [label, template] of Object.entries(templates)) {
+      writeFileSync(join(root, 'mcp.template.json'), JSON.stringify(template, null, 2) + '\n');
+      const dist = join(work, 'dist', label.replaceAll(' ', '-'));
+      const result = spawnSync('python3', ['-I', join(root, 'scripts/package.py'), root, '--mcp-url', 'https://mcp.example.com/mcp/openai', '--dist', dist], { encoding: 'utf8' });
+      assert.notEqual(result.status, 0, `accepted a template with ${label}`);
+      assert.match(result.stderr, /mcp\.template\.json/, `unexpected error for ${label}: ${result.stderr}`);
+      assert.equal(existsSync(dist), false, `wrote output for ${label}`);
+    }
+  } finally {
+    rmSync(work, { recursive: true, force: true });
   }
 });
 
@@ -454,8 +483,7 @@ test('build packages the source tree plus a generated mcp.json for the given /mc
       assert.deepEqual(date, [1980, 1, 1, 0, 0, 0]);
     }
     const generated = JSON.parse(entries['mcp.json'][0]);
-    assert.equal(generated.mcpServers.presscart.url, url);
-    assert.deepEqual(generated.mcpServers.presscart.extensions['com.openai'].auth, { type: 'oauth', client: { mode: 'dcr' } });
+    assert.deepEqual(generated, { $schema: MCP_SCHEMA, mcpServers: { presscart: { type: 'streamable-http', url } } });
     assert.equal(entries['mcp.json'][0], readFileSync(join(ROOT, 'mcp.template.json'), 'utf8').replace(URL_TOKEN, url));
     const info = JSON.parse(readFileSync(join(dist, 'mcp.example.com', `${NAME}-${VERSION}.build.json`), 'utf8'));
     assert.equal(info.mcp_url, url);
@@ -474,8 +502,7 @@ test('build packages the source tree plus a generated mcp.json for the given /mc
 test('build is reproducible and ignores a stale local mcp.json', () => {
   const work = mkdtempSync(join(tmpdir(), 'presscart-plugin-copy-'));
   try {
-    const root = join(work, 'openai');
-    cpSync(ROOT, root, { recursive: true, filter: (src) => !/\/(?:dist|results|node_modules)(?:\/|$)/.test(src.slice(ROOT.length)) });
+    const root = copyPackage(join(work, 'openai'));
     writeFileSync(join(root, 'plugin', LOCAL_MCP_CONFIG), '{"stale": true}\n');
     const run = (dist) => spawnSync('python3', ['-I', join(root, 'scripts/package.py'), root, '--mcp-url', 'https://mcp.example.com/mcp/openai', '--dist', dist], { encoding: 'utf8' });
     assert.equal(run(join(work, 'a')).status, 0);
