@@ -178,7 +178,8 @@ test('derives a directory resource from the canonical resource origin', () => {
 test('builds facade and direct-Supabase metadata without mixing issuers', () => {
   assert.equal(createAuthorizationServerMetadata(facade).issuer, facadeIssuer);
   assert.deepEqual(createProtectedResourceMetadata({ resource, authorizationServer: facade, translatorEnabled: true }).authorization_servers, [facadeIssuer]);
-  assert.deepEqual(createProtectedResourceMetadata({ resource, authorizationServer: upstream, translatorEnabled: false }).scopes_supported, ['openid', 'profile']);
+  // Presscart's token hook refuses openid, so direct-Supabase clients must not be told to request it.
+  assert.deepEqual(createProtectedResourceMetadata({ resource, authorizationServer: upstream, translatorEnabled: false }).scopes_supported, ['profile']);
 });
 
 test('accepts the exact official public Supabase DCR response and emits only portable fields', () => {

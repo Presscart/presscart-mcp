@@ -201,7 +201,8 @@ export function createProtectedResourceMetadata(args: {
   return {
     resource: args.resource.href,
     authorization_servers: [args.authorizationServer.href.replace(/\/$/, '')],
-    scopes_supported: args.translatorEnabled ? ['profile', 'offline_access'] : ['openid', 'profile'],
+    // Presscart's access token hook refuses a code exchange whose scope includes openid, so never advertise it.
+    scopes_supported: args.translatorEnabled ? ['profile', 'offline_access'] : ['profile'],
     bearer_methods_supported: ['header'],
     resource_name: 'Presscart MCP',
   };

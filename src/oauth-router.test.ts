@@ -170,7 +170,7 @@ test('publishes facade metadata only when enabled and caches both resource route
   assert.deepEqual(direct, {
     resource: canonicalResource,
     authorization_servers: ['https://project.supabase.co/auth/v1'],
-    scopes_supported: ['openid', 'profile'],
+    scopes_supported: ['profile'],
     bearer_methods_supported: ['header'],
     resource_name: 'Presscart MCP',
   });

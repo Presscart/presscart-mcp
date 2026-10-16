@@ -222,7 +222,7 @@ MCP_OAUTH_UPSTREAM_TIMEOUT_MS=10000
 
 The canonical resource and JWT audience must match `MCP_SERVER_URL`, allowing only a trailing-slash difference. Both public OAuth URLs and the upstream issuer must use HTTPS except for loopback-only local development. `MCP_OAUTH_LEGACY_AUDIENCE` is needed only during the migration window, must match the MCP server origin exactly, and should otherwise be unset.
 
-With the translator disabled, the server exposes direct-Supabase protected-resource metadata at:
+With the translator disabled, the server exposes direct-Supabase protected-resource metadata (advertising only the `profile` scope, because Presscart's access token hook refuses any code exchange that asks for `openid`) at:
 
 - `/.well-known/oauth-protected-resource`
 - `/.well-known/oauth-protected-resource/mcp`
