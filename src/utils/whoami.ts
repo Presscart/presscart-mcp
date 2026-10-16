@@ -13,9 +13,11 @@ export type WhoamiResponse =
       pro_pricing_enabled: boolean;
     };
 
+// accountName comes from Presscart (fetchAccountName) and wins over the token's name claims.
 export function toWhoamiResponse(
   response: TokenSessionResponse | undefined,
-  authInfo: AuthInfoLike | undefined
+  authInfo: AuthInfoLike | undefined,
+  accountName: string | null = null
 ): WhoamiResponse {
   if (response?.source === 'api_token') {
     return {
@@ -28,7 +30,7 @@ export function toWhoamiResponse(
   const email = readString(authInfo?.extra?.email);
   const firstName = readString(authInfo?.extra?.first_name);
   const lastName = readString(authInfo?.extra?.last_name);
-  const fullName = [firstName, lastName].filter(Boolean).join(' ');
+  const fullName = accountName || [firstName, lastName].filter(Boolean).join(' ');
 
   return removeUndefinedValues({
     id: readString(authInfo?.extra?.sub),

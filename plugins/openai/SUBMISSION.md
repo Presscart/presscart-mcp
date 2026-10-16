@@ -150,7 +150,7 @@ Every tool is registered with `readOnlyHint: true`, `destructiveHint: false`, `o
 
 | Tool | Title | Purpose |
 | --- | --- | --- |
-| `get_user` | Get User | Connected account's id and name |
+| `get_user` | Get User | Connected account's id and the account holder's name |
 | `list_teams` | List Teams | Teams the account belongs to, role, profiles |
 | `get_team` | Get Team | One team and its profiles |
 | `list_profiles` | List Profiles | A team's profiles with type and website |
@@ -174,7 +174,7 @@ Exactly five positive and three negative cases, matching the spec's behavior sec
 - **Description:** Shows which account is connected and the teams and brand profiles it can access, and nothing beyond them.
 - **Prompt:** Which Presscart account am I connected as, and which teams and brand profiles can I access?
 - **Tools triggered:** get_user, list_teams
-- **Expected behavior:** Names the connected account, then lists each of the test account's teams with the user's role and its profile names. Shows no other teams and no raw ids unless asked. If there are several teams, asks which to use for follow-up questions.
+- **Expected behavior:** Names the connected account by the account holder's name from `get_user`, then lists each of the test account's teams with the user's role and its profile names. Shows no other teams and no raw ids unless asked. If there are several teams, asks which to use for follow-up questions.
 - **Status:** not yet run.
 
 ### Positive 2 — List existing orders

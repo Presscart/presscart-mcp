@@ -188,15 +188,82 @@ for (const item of handlerCases) {
   });
 }
 
-test('get_user answers OAuth sessions from token claims without calling the API', async () => {
+test('get_user names OAuth accounts from their GET /teams membership', async () => {
   await withStubbedFetch(
-    () => jsonResponse({}),
+    () => jsonResponse(fixtures.accountMembershipTeamsResponse()),
     async requests => {
       const { client, close } = await connectInMemoryClient(directoryServer());
       try {
         const result = await client.callTool({ name: 'get_user', arguments: {} });
+
+        assert.equal(result.isError, undefined, readTextContent(result));
+        assert.deepEqual(result.structuredContent, { id: ids.userId, name: 'Grace Hopper' });
+        assert.deepEqual(JSON.parse(readTextContent(result)), { id: ids.userId, name: 'Grace Hopper' });
+        assert.equal(requests.length, 1);
+        const request = requests[0];
+        assert.ok(request);
+        assert.equal(request.method, 'GET');
+        assert.equal(request.url.pathname, '/teams');
+        assert.deepEqual(
+          [...request.url.searchParams.entries()],
+          [['limit', '1'], ['filters[include_membership]', 'true']],
+        );
+        assert.equal(request.headers.get('authorization'), 'Bearer internal-token-placeholder');
+        assert.equal(request.headers.get('x-presscart-oauth-grant-id'), 'grant-1');
+      } finally {
+        await close();
+      }
+    },
+  );
+});
+
+const accountNameLookupFailures: Array<{ label: string; respond: () => Response }> = [
+  { label: 'the API refuses the lookup', respond: () => jsonResponse({ message: 'Insufficient permissions' }, 403) },
+  { label: 'the API is unavailable', respond: () => jsonResponse({ message: 'down' }, 503) },
+  {
+    label: 'the request fails',
+    respond: () => {
+      throw new TypeError('fetch failed');
+    },
+  },
+  { label: 'the account has no teams', respond: () => jsonResponse({ records: [], total_records: 0 }) },
+  {
+    label: 'the membership has no name',
+    respond: () => jsonResponse({ records: [{ membership: { first_name: '', last_name: '' } }] }),
+  },
+];
+
+for (const failure of accountNameLookupFailures) {
+  test(`get_user falls back to the token-claim name when ${failure.label}`, async () => {
+    await withStubbedFetch(failure.respond, async requests => {
+      const { client, close } = await connectInMemoryClient(directoryServer());
+      try {
+        const result = await client.callTool({ name: 'get_user', arguments: {} });
+
+        assert.equal(result.isError, undefined, readTextContent(result));
         assert.deepEqual(result.structuredContent, { id: ids.userId, name: 'Ada Lovelace' });
-        assert.equal(requests.length, 0);
+        assert.equal(requests.length, 1);
+      } finally {
+        await close();
+      }
+    });
+  });
+}
+
+test('get_user returns only the id when neither Presscart nor the token has a name', async () => {
+  const namelessAuthInfo = {
+    token: 'oauth-access-token',
+    extra: { source: 'mcp', sub: ids.userId, oauth_grant_id: 'grant-1', email: 'buyer@example.com' },
+  };
+  await withStubbedFetch(
+    () => jsonResponse({ message: 'Insufficient permissions' }, 403),
+    async () => {
+      const { client, close } = await connectInMemoryClient(directoryServer(namelessAuthInfo));
+      try {
+        const result = await client.callTool({ name: 'get_user', arguments: {} });
+
+        assert.equal(result.isError, undefined, readTextContent(result));
+        assert.deepEqual(result.structuredContent, { id: ids.userId });
       } finally {
         await close();
       }

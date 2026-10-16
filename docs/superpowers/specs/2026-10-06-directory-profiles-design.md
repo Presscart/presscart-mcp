@@ -56,7 +56,7 @@ exists but is empty.
 
 | Tool | API route | API scope |
 |---|---|---|
-| `get_user` | none for OAuth sessions (token claims); `GET /auth/token` for API-token sessions | — |
+| `get_user` | `GET /teams?limit=1&filters[include_membership]=true` for OAuth sessions (the caller's name; token claims if it fails); `GET /auth/token` for API-token sessions | `teams.lists` (OAuth) |
 | `list_teams` | `GET /teams` | `teams.lists` |
 | `get_team` | `GET /teams/slug/{slug}` | `teams.read` |
 | `list_profiles` | `GET /teams/{team_id}/profiles` | `profiles.lists` |
@@ -198,8 +198,13 @@ tools allow 100).
 Derivations:
 
 - `get_user` uses the same identity source as legacy `toWhoamiResponse`. OAuth
-  sessions return `id` and `name` (no `email`). API-token sessions return
-  `team_id` only (no `token_type`, no `pro_pricing_enabled`).
+  sessions return `id` and `name` (no `email`). `name` is the first and last
+  name on the caller's own membership row from `GET /teams` with
+  `include_membership`, because Presscart keeps names on its users table and the
+  token's `user_metadata` often has none. If that call fails or carries no
+  name, `name` falls back to the token claims, and is omitted when neither has
+  one. API-token sessions return `team_id` only (no `token_type`, no
+  `pro_pricing_enabled`).
 - `list_campaigns` derives `article_count` and `published_count` (articles
   whose `live_url` is an absolute http(s) URL, per `readHttpUrl`) from the
   embedded `articles[]`. Article records are not returned.
