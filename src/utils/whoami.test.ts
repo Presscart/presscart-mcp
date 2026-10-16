@@ -26,6 +26,30 @@ test('returns public MCP identity fields for get_user', () => {
   );
 });
 
+test('prefers the Presscart account name over MCP name claims', () => {
+  assert.deepEqual(
+    toWhoamiResponse(
+      undefined,
+      {
+        token: 'token',
+        extra: {
+          source: 'mcp',
+          email: 'renz@presscart.com',
+          sub: 'user-1',
+          first_name: 'Claim',
+          last_name: 'Name',
+        },
+      },
+      'Renz Vallinas'
+    ),
+    {
+      id: 'user-1',
+      name: 'Renz Vallinas',
+      email: 'renz@presscart.com',
+    }
+  );
+});
+
 test('falls back to email identity values when MCP name claims are unavailable', () => {
   assert.deepEqual(
     toWhoamiResponse(

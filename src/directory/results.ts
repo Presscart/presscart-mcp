@@ -31,16 +31,22 @@ export type CampaignArticleUrlContext = {
   profileId?: string;
 };
 
-export function buildOAuthUserResult(authInfo: AuthInfoLike | undefined): GetUserResult {
+// accountName comes from Presscart (fetchAccountName); token claims are the fallback.
+export function buildOAuthUserResult(
+  authInfo: AuthInfoLike | undefined,
+  accountName: string | null
+): GetUserResult {
   const claims = asRecord(authInfo?.extra);
   const id = readString(claims, 'sub');
-  const fullName = [readString(claims, 'first_name'), readString(claims, 'last_name')]
-    .filter((part): part is string => part !== null)
-    .join(' ');
+  const name =
+    accountName ??
+    [readString(claims, 'first_name'), readString(claims, 'last_name')]
+      .filter((part): part is string => part !== null)
+      .join(' ');
 
   return {
     ...(id === null ? {} : { id }),
-    ...(fullName.length > 0 ? { name: fullName } : {}),
+    ...(name.length > 0 ? { name } : {}),
   };
 }
 

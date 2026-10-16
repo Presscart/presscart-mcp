@@ -1,6 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 import type { TokenSessionResponse } from '../api.js';
+import { fetchAccountName } from '../utils/account-name.js';
 import {
   createPresscartApiClient,
   getSessionAuthInfo,
@@ -16,7 +17,8 @@ export function registerAuthTools(server: McpServer, options: ServerOptions) {
     'get_user',
     {
       title: 'Get User',
-      description: 'Return the current authenticated user.',
+      description:
+        'Return the current authenticated user. OAuth sessions include the name from their Presscart profile.',
       inputSchema: {},
       outputSchema: getUserOutputSchema,
       annotations: readOnlyTool,
@@ -25,7 +27,9 @@ export function registerAuthTools(server: McpServer, options: ServerOptions) {
       const authInfo = getSessionAuthInfo(extra, options);
 
       if (isOAuthSession(authInfo)) {
-        return jsonResult(toWhoamiResponse(undefined, authInfo));
+        return jsonResult(
+          toWhoamiResponse(undefined, authInfo, await fetchAccountName(extra, options))
+        );
       }
 
       const api = createPresscartApiClient(extra, options);

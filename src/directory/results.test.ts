@@ -63,9 +63,29 @@ test('get_user returns only id and name for OAuth sessions', () => {
       oauth_grant_id: 'grant-1',
       scope: 'profile',
     },
-  });
+  }, null);
 
   assert.deepEqual(result, { id: ids.userId, name: 'Ada Lovelace' });
+  DIRECTORY_RESULT_SCHEMAS.get_user.parse(result);
+  assertNoLeaks(result);
+});
+
+test('get_user names the account from Presscart before the token claims', () => {
+  const result = results.buildOAuthUserResult(
+    {
+      token: 'oauth-access-token',
+      extra: {
+        source: 'mcp',
+        sub: ids.userId,
+        email: 'buyer@example.com',
+        first_name: 'Ada',
+        last_name: 'Lovelace',
+      },
+    },
+    'Grace Hopper'
+  );
+
+  assert.deepEqual(result, { id: ids.userId, name: 'Grace Hopper' });
   DIRECTORY_RESULT_SCHEMAS.get_user.parse(result);
   assertNoLeaks(result);
 });
@@ -74,10 +94,10 @@ test('get_user omits name instead of falling back to the email address', () => {
   const result = results.buildOAuthUserResult({
     token: 'oauth-access-token',
     extra: { source: 'mcp', sub: ids.userId, email: 'buyer@example.com' },
-  });
+  }, null);
 
   assert.deepEqual(result, { id: ids.userId });
-  assert.deepEqual(results.buildOAuthUserResult(undefined), {});
+  assert.deepEqual(results.buildOAuthUserResult(undefined, null), {});
 });
 
 test('get_user returns only team_id for API-token sessions', () => {

@@ -57,7 +57,10 @@ const orderShape = {
 export const getUserResultSchema = z
   .object({
     id: z.string().optional(),
-    name: z.string().optional(),
+    name: z
+      .string()
+      .optional()
+      .describe("The account holder's first and last name from their Presscart profile."),
     team_id: z.string().optional(),
   })
   .strict();

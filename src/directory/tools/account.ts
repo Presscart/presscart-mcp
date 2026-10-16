@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { fetchAccountName } from '../../utils/account-name.js';
 import { teamBySlugRoute } from '../../utils/team-routes.js';
 import {
   createPresscartApiClient,
@@ -25,12 +26,14 @@ export const getUserTool = defineDirectoryTool({
   name: 'get_user',
   title: 'Get User',
   description:
-    'Return the connected Presscart account: id and name for OAuth connections, or team_id for API-token connections. Takes no input. Use list_teams next to see the teams this account can read.',
+    "Return the connected Presscart account. OAuth connections: id and name, the account holder's first and last name from their Presscart profile (omitted when none is on file). API-token connections: team_id only. Never returns email or other contact details. Takes no input. Use list_teams next to see the teams this account can read.",
   inputSchema: {},
   outputSchema: getUserResultSchema,
   handler: async (_input, extra, options) => {
     const authInfo = getSessionAuthInfo(extra, options);
-    if (isOAuthSession(authInfo)) return buildOAuthUserResult(authInfo);
+    if (isOAuthSession(authInfo)) {
+      return buildOAuthUserResult(authInfo, await fetchAccountName(extra, options));
+    }
 
     const api = createPresscartApiClient(extra, options);
     return buildApiTokenUserResult(await api.get<unknown>('/auth/token'));

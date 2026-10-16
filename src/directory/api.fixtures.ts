@@ -82,6 +82,33 @@ export function teamsListResponse() {
   };
 }
 
+// GET /teams?limit=1&filters[include_membership]=true, which get_user reads for the caller's name.
+export function accountMembershipTeamsResponse() {
+  const [team] = teamsListResponse().records;
+  return {
+    records: [
+      {
+        ...team,
+        membership: {
+          id: 'membership-placeholder',
+          role: 'owner',
+          first_name: 'Grace',
+          last_name: 'Hopper',
+          created_at: '2026-01-02T03:04:05.000Z',
+          email: 'grace@example.com',
+          phone: '+1-555-0100',
+          future_internal_field: 'must-not-leak',
+        },
+      },
+    ],
+    total_records: 2,
+    total_pages: 2,
+    current_page: 1,
+    next_page: 2,
+    previous_page: null,
+  };
+}
+
 export function teamBySlugResponse() {
   return {
     id: FIXTURE_IDS.teamId,
