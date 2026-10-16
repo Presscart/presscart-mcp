@@ -17,6 +17,8 @@ type RegisteredTool = {
 
 type RecordedRequest = { url: URL; headers: Headers };
 
+const TEAM_ID = '0b6b1a52-7c0e-4a39-9d55-1f6a3c0f0a01';
+
 test('get_user names an OAuth user from their GET /teams membership', async () => {
   const { requests, result } = await callGetUser(oauthExtra(), () =>
     jsonResponse({
@@ -75,7 +77,7 @@ test('get_user reads only GET /auth/token for API-token sessions', async () => {
     () =>
       jsonResponse({
         source: 'api_token',
-        team_id: 'team-1',
+        team_id: TEAM_ID,
         token_type: 'read_only',
         scopes: ['teams.lists'],
         pro_pricing_enabled: false,
@@ -87,7 +89,7 @@ test('get_user reads only GET /auth/token for API-token sessions', async () => {
     ['/auth/token']
   );
   assert.deepEqual(toolOutput(result), {
-    team_id: 'team-1',
+    team_id: TEAM_ID,
     token_type: 'read_only',
     pro_pricing_enabled: false,
   });

@@ -26,7 +26,7 @@ export const getUserTool = defineDirectoryTool({
   name: 'get_user',
   title: 'Get User',
   description:
-    "Return the connected Presscart account. OAuth connections: id and name, the account holder's first and last name from their Presscart profile (omitted when none is on file). API-token connections: team_id only. Never returns email or other contact details. Takes no input. Use list_teams next to see the teams this account can read.",
+    "Return the connected Presscart account. OAuth connections: id and name, the account holder's name from their Presscart profile, or from their sign-in details if that lookup fails (omitted when neither has one). API-token connections: team_id only. Never returns email or other contact details. Takes no input. Use list_teams next to see the teams this account can read.",
   inputSchema: {},
   outputSchema: getUserResultSchema,
   handler: async (_input, extra, options) => {

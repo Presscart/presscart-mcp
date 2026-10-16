@@ -60,7 +60,9 @@ export const getUserResultSchema = z
     name: z
       .string()
       .optional()
-      .describe("The account holder's first and last name from their Presscart profile."),
+      .describe(
+        "The account holder's name from their Presscart profile, or from their sign-in details if that lookup fails."
+      ),
     team_id: z.string().optional(),
   })
   .strict();

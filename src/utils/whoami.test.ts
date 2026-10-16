@@ -34,18 +34,18 @@ test('prefers the Presscart account name over MCP name claims', () => {
         token: 'token',
         extra: {
           source: 'mcp',
-          email: 'renz@presscart.com',
+          email: 'buyer@example.com',
           sub: 'user-1',
           first_name: 'Claim',
           last_name: 'Name',
         },
       },
-      'Renz Vallinas'
+      'Grace Hopper'
     ),
     {
       id: 'user-1',
-      name: 'Renz Vallinas',
-      email: 'renz@presscart.com',
+      name: 'Grace Hopper',
+      email: 'buyer@example.com',
     }
   );
 });

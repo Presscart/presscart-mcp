@@ -18,7 +18,7 @@ export function registerAuthTools(server: McpServer, options: ServerOptions) {
     {
       title: 'Get User',
       description:
-        'Return the current authenticated user. OAuth sessions include the name from their Presscart profile.',
+        'Return the current authenticated user. OAuth sessions are named from their Presscart profile when it has a name.',
       inputSchema: {},
       outputSchema: getUserOutputSchema,
       annotations: readOnlyTool,
