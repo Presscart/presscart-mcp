@@ -21,7 +21,7 @@ All ten tools are read-only. Each makes a single request for your own Presscart 
 
 | Tool | Returns |
 | --- | --- |
-| `get_user` | The connected account's id and name |
+| `get_user` | The connected account's id and your name |
 | `list_teams` | Your teams, your role on each, and each team's profiles |
 | `get_team` | One team and its profiles |
 | `list_profiles` | A team's profiles (brands) with type and website |
