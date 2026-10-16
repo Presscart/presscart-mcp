@@ -6,7 +6,6 @@ import {
   createAuthorizationServerMetadata,
   createProtectedResourceMetadata,
   parseAcceptedResource,
-  resolveDirectoryAudiences,
   resolveDirectoryResource,
   parseFacadeScope,
   resolveOAuthAudiences,
@@ -173,20 +172,6 @@ test('derives a directory resource from the canonical resource origin', () => {
   assert.equal(
     resolveDirectoryResource(new URL('https://mcp.presscart.com/mcp/'), '/mcp/claude-directory').href,
     'https://mcp.presscart.com/mcp/claude-directory',
-  );
-});
-
-test('directory routes accept their own audience and the canonical one only while the flag is on', () => {
-  const directory = new URL('https://mcp.presscart.com/mcp/openai');
-  assert.deepEqual(
-    resolveDirectoryAudiences({ resource: directory, canonicalResource: resource, acceptCanonicalAudience: true })
-      .map(value => value.href),
-    ['https://mcp.presscart.com/mcp/openai', 'https://mcp.presscart.com/mcp'],
-  );
-  assert.deepEqual(
-    resolveDirectoryAudiences({ resource: directory, canonicalResource: resource, acceptCanonicalAudience: false })
-      .map(value => value.href),
-    ['https://mcp.presscart.com/mcp/openai'],
   );
 });
 

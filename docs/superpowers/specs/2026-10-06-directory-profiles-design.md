@@ -324,23 +324,22 @@ canonical resource upstream instead. This design does not ship that fallback.
 
 - `/mcp` keeps its current accepted audiences (canonical resource plus the
   optional legacy origin audience).
-- A directory route accepts its own resource URL. While
-  `MCP_DIRECTORY_ACCEPT_CANONICAL_AUDIENCE` is `true` (default `true`), it also
-  accepts the canonical `/mcp` audience. The flag is needed because the API
-  token hook (`presscart-app`
-  `apps/api/src/controllers/oauth-grants/access-token-hook.ts`) currently sets
-  `aud` to `MCP_RESOURCE_AUDIENCE` for every token.
+- A directory route accepts only its own resource URL as the token audience.
+  A token whose audience is the canonical `/mcp` resource or the legacy origin
+  is refused there. The transitional `MCP_DIRECTORY_ACCEPT_CANONICAL_AUDIENCE`
+  flag, which let directory routes also accept the canonical audience, was
+  removed after presscart-app #910 began issuing directory audiences.
 
-### 6.4 Crossover (dependency, not solved here)
+### 6.4 Crossover
 
-A directory-issued token can currently call `/mcp` with full tool access,
-because every token carries `aud=/mcp`. Closing this requires the API to issue
-directory grants a directory audience (or equivalent grant binding). `/mcp`
-then rejects those tokens through its existing audience check, with no further
-MCP change, and `MCP_DIRECTORY_ACCEPT_CANONICAL_AUDIENCE` is turned off.
+Two changes close the crossover. The API gives tokens from a directory sign-in
+that route's audience (presscart-app #910), so `/mcp` refuses them through its
+existing audience check. A directory route accepts only its own
+audience (§6.3), so a canonical `/mcp` token is refused there.
 
-Until that API change ships, directory submission is blocked. This design does
-not claim crossover protection.
+Grants made before the API change keep the canonical audience, including on
+refresh, so a directory route refuses their tokens and the client must sign in
+again.
 
 ### 6.5 OAuth disabled
 
@@ -352,15 +351,15 @@ When `MCP_OAUTH_ENABLED=false`, directory routes use the existing
 | Variable | Default | Meaning |
 |---|---|---|
 | `MCP_DIRECTORY_PROFILES` | empty | Comma-separated profile ids to mount. Unknown id fails startup. |
-| `MCP_DIRECTORY_ACCEPT_CANONICAL_AUDIENCE` | `true` | Directory routes also accept the `/mcp` audience. Turn off after the API issues directory audiences. |
 
-Both are added to `src/env.ts` with Zod schemas. Rollback is removing a
+It is added to `src/env.ts` with a Zod schema. Rollback is removing a
 profile from `MCP_DIRECTORY_PROFILES` and redeploying; `/mcp` is unaffected.
 
 ## 8. Testing
 
 All tests use `node:test` with `fetch` stubbed at the network boundary. The
-MCP SDK, Zod, and internal utils are real.
+MCP SDK, Zod, and internal utils are real. The entry-point tests
+(`src/http.test.ts`) boot `src/http.ts` against a loopback JWKS server instead.
 
 **Exposure**
 - For each profile, `tools/list` via a real SDK client over the in-memory
@@ -412,7 +411,8 @@ MCP SDK, Zod, and internal utils are real.
 - Path-inserted authorization-server and OIDC aliases exist for each enabled
   profile and return the single canonical document; none exist for disabled
   profiles.
-- Audience acceptance follows §6.3 for both flag values.
+- Audience acceptance follows §6.3, checked through `createHttpApp` and through
+  the real entry point (`src/http.ts`) with signed JWTs.
 
 `npm run check` and `npm test` must pass.
 
@@ -420,6 +420,7 @@ MCP SDK, Zod, and internal utils are real.
 
 - Staging verification with synthetic accounts, including Supabase `resource`
   handling (§6.2).
-- API directory audience / grant binding (§6.4) before any directory submission.
+- API directory audience (§6.4): merged to presscart-app staging (#910); it must
+  reach production before directory routes are enabled there.
 - Plugin packaging, portal materials, behavioral checks, and policy
   clarifications as listed in the source spec.

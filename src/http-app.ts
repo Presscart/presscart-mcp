@@ -16,7 +16,7 @@ import {
   validateOAuthSessionAuth,
   type OAuthResourceGuard,
 } from './oauth-http.js';
-import { resolveDirectoryAudiences, resolveDirectoryResource } from './oauth-protocol.js';
+import { resolveDirectoryResource } from './oauth-protocol.js';
 import { createDirectoryMcpServer, createPresscartMcpServer } from './server.js';
 import type { ServerOptions } from './utils/tool-context.js';
 
@@ -31,8 +31,6 @@ export type HttpAppOAuthConfig = {
   audiences: readonly [URL, ...URL[]];
   translatorEnabled: boolean;
   upstreamTimeoutMs: number;
-  // Directory routes also accept the canonical /mcp audience while true (spec §6.3).
-  acceptCanonicalAudienceOnDirectoryRoutes: boolean;
   createVerifier: OAuthVerifierFactory;
 };
 
@@ -121,17 +119,8 @@ export function createHttpApp(config: HttpAppConfig): HttpApp {
     });
     const directoryResources = directoryProfiles.map(profile => {
       const resource = resolveDirectoryResource(oauth.resource, profile.path);
-      return {
-        resource,
-        verifier: oauth.createVerifier({
-          resource,
-          audiences: resolveDirectoryAudiences({
-            resource,
-            canonicalResource: oauth.resource,
-            acceptCanonicalAudience: oauth.acceptCanonicalAudienceOnDirectoryRoutes,
-          }),
-        }),
-      };
+      // A directory route accepts only its own resource as the token audience.
+      return { resource, verifier: oauth.createVerifier({ resource, audiences: [resource] }) };
     });
     const oauthLayer = createOAuthHttpLayer({
       serverUrl: config.mcpServerUrl,

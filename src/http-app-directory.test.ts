@@ -256,7 +256,6 @@ test('directory paths get CORS preflight, origin validation, and the 405 fallbac
 type TokenClaims = { aud: string; grant: string };
 
 function oauthConfig(args: {
-  acceptCanonical: boolean;
   tokens: Record<string, TokenClaims>;
   verifierCalls?: Array<{ resource: string; audiences: string[] }>;
   audiences?: OAuthConfig['audiences'];
@@ -267,7 +266,6 @@ function oauthConfig(args: {
     audiences: args.audiences ?? [CANONICAL],
     translatorEnabled: true,
     upstreamTimeoutMs: 1_000,
-    acceptCanonicalAudienceOnDirectoryRoutes: args.acceptCanonical,
     // Fake verifier that enforces audiences the way the JWT verifier does.
     createVerifier: ({ resource, audiences }) => {
       args.verifierCalls?.push({ resource: resource.href, audiences: audiences.map(value => value.href) });
@@ -302,7 +300,7 @@ const TOKENS: Record<string, TokenClaims> = {
 test('each directory route challenges with its own protected-resource metadata', async () => {
   const { base } = await start({
     directoryProfiles: [DIRECTORY_PROFILES.openai],
-    oauth: oauthConfig({ acceptCanonical: true, tokens: TOKENS }),
+    oauth: oauthConfig({ tokens: TOKENS }),
   });
 
   const directory = await sendMcp(base, '/mcp/openai', { body: initializeRequest() });
@@ -325,37 +323,42 @@ test('each directory route challenges with its own protected-resource metadata',
   assert.equal((await fetch(`${base}/.well-known/oauth-authorization-server/mcp/claude-directory`)).status, 404);
 });
 
-test('directory verifiers get their own audience plus the canonical one only while the flag is on', async () => {
-  for (const acceptCanonical of [true, false]) {
-    const verifierCalls: Array<{ resource: string; audiences: string[] }> = [];
-    const { base } = await start({
-      directoryProfiles: [DIRECTORY_PROFILES.openai],
-      oauth: oauthConfig({ acceptCanonical, tokens: TOKENS, verifierCalls }),
-    });
+test('a directory route accepts only its own audience while /mcp keeps the canonical one', async () => {
+  const verifierCalls: Array<{ resource: string; audiences: string[] }> = [];
+  const { base } = await start({
+    directoryProfiles: [DIRECTORY_PROFILES.openai],
+    oauth: oauthConfig({ tokens: TOKENS, verifierCalls }),
+  });
 
-    assert.deepEqual(verifierCalls, [
-      { resource: CANONICAL.href, audiences: [CANONICAL.href] },
-      { resource: OPENAI, audiences: acceptCanonical ? [OPENAI, CANONICAL.href] : [OPENAI] },
-    ]);
+  assert.deepEqual(verifierCalls, [
+    { resource: CANONICAL.href, audiences: [CANONICAL.href] },
+    { resource: OPENAI, audiences: [OPENAI] },
+  ]);
 
-    const canonicalTokenOnDirectory = await sendMcp(base, '/mcp/openai', {
-      body: initializeRequest(),
-      headers: { authorization: 'Bearer canonical-aud' },
-    });
-    assert.equal(canonicalTokenOnDirectory.status, acceptCanonical ? 200 : 401, `flag=${acceptCanonical}`);
+  const initializeWith = (path: string, token: string) =>
+    sendMcp(base, path, { body: initializeRequest(), headers: { authorization: `Bearer ${token}` } });
 
-    const directoryTokenOnLegacy = await sendMcp(base, '/mcp', {
-      body: initializeRequest(),
-      headers: { authorization: 'Bearer openai-aud' },
-    });
-    assert.equal(directoryTokenOnLegacy.status, 401, `flag=${acceptCanonical}`);
-  }
+  const canonicalTokenOnDirectory = await initializeWith('/mcp/openai', 'canonical-aud');
+  assert.equal(canonicalTokenOnDirectory.status, 401);
+  assert.match(
+    canonicalTokenOnDirectory.headers.get('www-authenticate') ?? '',
+    /resource_metadata="https:\/\/mcp\.presscart\.test\/\.well-known\/oauth-protected-resource\/mcp\/openai"/,
+  );
+  assert.equal((await initializeWith('/mcp/openai', 'openai-aud')).status, 200);
+
+  assert.equal((await initializeWith('/mcp', 'canonical-aud')).status, 200);
+  const directoryTokenOnLegacy = await initializeWith('/mcp', 'openai-aud');
+  assert.equal(directoryTokenOnLegacy.status, 401);
+  assert.match(
+    directoryTokenOnLegacy.headers.get('www-authenticate') ?? '',
+    /resource_metadata="https:\/\/mcp\.presscart\.test\/\.well-known\/oauth-protected-resource\/mcp"/,
+  );
 });
 
 test('an OAuth directory session rejects API-token headers and names its own metadata on grant mismatch', async () => {
   const { base } = await start({
     directoryProfiles: [DIRECTORY_PROFILES.openai],
-    oauth: oauthConfig({ acceptCanonical: true, tokens: TOKENS }),
+    oauth: oauthConfig({ tokens: TOKENS }),
   });
 
   const withApiToken = await sendMcp(base, '/mcp/openai', {
@@ -401,7 +404,7 @@ async function readMismatch(base: string, path: string, sessionId: string, token
 test('legacy /mcp with OAuth rejects a session reused with a different grant', async () => {
   const { base } = await start({
     directoryProfiles: [],
-    oauth: oauthConfig({ acceptCanonical: true, tokens: TOKENS }),
+    oauth: oauthConfig({ tokens: TOKENS }),
   });
   const sessionId = await initializeSession(base, '/mcp', { authorization: 'Bearer canonical-aud' });
 
@@ -419,7 +422,7 @@ test('legacy /mcp with OAuth rejects a session reused with a different grant', a
 test('directory route with OAuth rejects a session reused with a different grant', async () => {
   const { base } = await start({
     directoryProfiles: [DIRECTORY_PROFILES.openai],
-    oauth: oauthConfig({ acceptCanonical: true, tokens: TOKENS }),
+    oauth: oauthConfig({ tokens: TOKENS }),
   });
   const sessionId = await initializeSession(base, '/mcp/openai', { authorization: 'Bearer openai-aud' });
 
@@ -469,30 +472,28 @@ test('legacy /mcp verifies a repeated API token once within the cache TTL', asyn
 test('a directory route rejects a legacy-origin audience that /mcp still accepts', async () => {
   // Production: oauth.audiences = [resource, origin] when the legacy audience is configured.
   const legacyAudiences: OAuthConfig['audiences'] = [CANONICAL, new URL(ALLOWED_ORIGIN + '/')];
-  for (const acceptCanonical of [true, false]) {
-    const verifierCalls: Array<{ resource: string; audiences: string[] }> = [];
-    const { base } = await start({
-      directoryProfiles: [DIRECTORY_PROFILES.openai],
-      oauth: oauthConfig({ acceptCanonical, tokens: TOKENS, verifierCalls, audiences: legacyAudiences }),
-    });
+  const verifierCalls: Array<{ resource: string; audiences: string[] }> = [];
+  const { base } = await start({
+    directoryProfiles: [DIRECTORY_PROFILES.openai],
+    oauth: oauthConfig({ tokens: TOKENS, verifierCalls, audiences: legacyAudiences }),
+  });
 
-    assert.deepEqual(verifierCalls, [
-      { resource: CANONICAL.href, audiences: [CANONICAL.href, ALLOWED_ORIGIN + '/'] },
-      { resource: OPENAI, audiences: acceptCanonical ? [OPENAI, CANONICAL.href] : [OPENAI] },
-    ]);
+  assert.deepEqual(verifierCalls, [
+    { resource: CANONICAL.href, audiences: [CANONICAL.href, ALLOWED_ORIGIN + '/'] },
+    { resource: OPENAI, audiences: [OPENAI] },
+  ]);
 
-    const legacy = await sendMcp(base, '/mcp', {
-      body: initializeRequest(),
-      headers: { authorization: 'Bearer origin-aud' },
-    });
-    assert.equal(legacy.status, 200, `positive control flag=${acceptCanonical}`);
+  const legacy = await sendMcp(base, '/mcp', {
+    body: initializeRequest(),
+    headers: { authorization: 'Bearer origin-aud' },
+  });
+  assert.equal(legacy.status, 200, 'positive control');
 
-    const rejected = await sendMcp(base, '/mcp/openai', {
-      body: initializeRequest(),
-      headers: { authorization: 'Bearer origin-aud' },
-    });
-    assert.equal(rejected.status, 401, `flag=${acceptCanonical}`);
-  }
+  const rejected = await sendMcp(base, '/mcp/openai', {
+    body: initializeRequest(),
+    headers: { authorization: 'Bearer origin-aud' },
+  });
+  assert.equal(rejected.status, 401);
 });
 
 test('createHttpApp fails fast when the OAuth resource origin differs from the MCP server origin', () => {
@@ -506,7 +507,7 @@ test('createHttpApp fails fast when the OAuth resource origin differs from the M
         ...TEST_PRESSCART_API_SETTINGS,
         directoryProfiles: [DIRECTORY_PROFILES.openai],
         oauth: {
-          ...oauthConfig({ acceptCanonical: true, tokens: TOKENS }),
+          ...oauthConfig({ tokens: TOKENS }),
           resource: new URL('https://other.presscart.test/mcp'),
         },
       }),
@@ -559,7 +560,7 @@ test('directory MCP paths match exactly: case and trailing-slash variants 404 wi
 test('directory metadata and path-inserted AS/OIDC aliases match exactly', async () => {
   const { base } = await start({
     directoryProfiles: [DIRECTORY_PROFILES.openai],
-    oauth: oauthConfig({ acceptCanonical: true, tokens: TOKENS }),
+    oauth: oauthConfig({ tokens: TOKENS }),
   });
 
   for (const path of [
@@ -580,7 +581,7 @@ test('legacy and canonical routes keep their existing case-insensitive, slash-to
   stubApi();
   const { base } = await start({
     directoryProfiles: [DIRECTORY_PROFILES.openai],
-    oauth: oauthConfig({ acceptCanonical: true, tokens: TOKENS }),
+    oauth: oauthConfig({ tokens: TOKENS }),
   });
 
   // Pinned from the behavior at 8cd9d33, before directory routes became exact.

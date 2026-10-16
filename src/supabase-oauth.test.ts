@@ -1,92 +1,51 @@
 import assert from 'node:assert/strict';
-import { createServer } from 'node:http';
 import { after, before, test } from 'node:test';
-import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 
-import { resolveDirectoryAudiences } from './oauth-protocol.js';
+import { startTestJwks, type TestJwks } from './oauth-jwks.fixtures.js';
 import { SupabaseOAuthVerifier } from './supabase-oauth.js';
 
 const canonical = new URL('https://mcp.presscart.com/mcp');
 const legacy = new URL('https://mcp.presscart.com');
 const openai = new URL('https://mcp.presscart.com/mcp/openai');
+let jwks: TestJwks;
 let issuer: URL;
-let privateKey: Awaited<ReturnType<typeof generateKeyPair>>['privateKey'];
-let closeJwks: () => Promise<void>;
 
 before(async () => {
-  const keys = await generateKeyPair('ES256');
-  privateKey = keys.privateKey;
-  const jwk = { ...(await exportJWK(keys.publicKey)), kid: 'test-key', alg: 'ES256', use: 'sig' };
-  const server = createServer((req, res) => {
-    if (req.url !== '/.well-known/jwks.json') {
-      res.writeHead(404).end();
-      return;
-    }
-    res.setHeader('content-type', 'application/json');
-    res.end(JSON.stringify({ keys: [jwk] }));
-  });
-  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
-  const address = server.address();
-  assert(address && typeof address !== 'string');
-  issuer = new URL(`http://127.0.0.1:${address.port}/`);
-  closeJwks = () => new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+  jwks = await startTestJwks();
+  issuer = new URL(jwks.issuer);
 });
 
-after(async () => closeJwks());
-
-async function token(audience: string) {
-  return new SignJWT({ client_id: 'client-1', grant_id: '22222222-2222-2222-2222-222222222222' })
-    .setProtectedHeader({ alg: 'ES256', kid: 'test-key' })
-    .setIssuer(issuer.href.replace(/\/$/, ''))
-    .setSubject('11111111-1111-1111-1111-111111111111')
-    .setAudience(audience)
-    .setExpirationTime('5m')
-    .sign(privateKey);
-}
+after(async () => jwks.close());
 
 test('accepts the canonical audience and reports the canonical resource', async () => {
   const verifier = new SupabaseOAuthVerifier({ issuerUrl: issuer, audiences: [canonical], resource: canonical });
-  const auth = await verifier.verifyAccessToken(await token(canonical.href));
+  const auth = await verifier.verifyAccessToken(await jwks.sign(canonical.href));
   assert.equal(auth.resource?.href, canonical.href);
 });
 
 test('accepts a configured legacy audience but still reports the canonical resource', async () => {
   const verifier = new SupabaseOAuthVerifier({ issuerUrl: issuer, audiences: [canonical, legacy], resource: canonical });
-  const auth = await verifier.verifyAccessToken(await token(legacy.href.replace(/\/$/, '')));
+  const auth = await verifier.verifyAccessToken(await jwks.sign(legacy.href.replace(/\/$/, '')));
   assert.equal(auth.resource?.href, canonical.href);
 });
 
 test('rejects the legacy audience when compatibility is not configured', async () => {
   const verifier = new SupabaseOAuthVerifier({ issuerUrl: issuer, audiences: [canonical], resource: canonical });
-  const signed = await token(legacy.href.replace(/\/$/, ''));
+  const signed = await jwks.sign(legacy.href.replace(/\/$/, ''));
   await assert.rejects(() => verifier.verifyAccessToken(signed), /Invalid or expired token/);
 });
 
-test('a directory verifier accepts its own and the canonical audience while the flag is on', async () => {
-  const verifier = new SupabaseOAuthVerifier({
-    issuerUrl: issuer,
-    audiences: resolveDirectoryAudiences({ resource: openai, canonicalResource: canonical, acceptCanonicalAudience: true }),
-    resource: openai,
-  });
-  for (const audience of [openai.href, canonical.href]) {
-    const auth = await verifier.verifyAccessToken(await token(audience));
-    assert.equal(auth.resource?.href, openai.href, audience);
+test('a directory verifier accepts only its own audience', async () => {
+  const verifier = new SupabaseOAuthVerifier({ issuerUrl: issuer, audiences: [openai], resource: openai });
+  assert.equal((await verifier.verifyAccessToken(await jwks.sign(openai.href))).resource?.href, openai.href);
+  for (const audience of [canonical.href, legacy.href.replace(/\/$/, '')]) {
+    const signed = await jwks.sign(audience);
+    await assert.rejects(() => verifier.verifyAccessToken(signed), /Invalid or expired token/, audience);
   }
-});
-
-test('a directory verifier rejects the canonical audience once the flag is off', async () => {
-  const verifier = new SupabaseOAuthVerifier({
-    issuerUrl: issuer,
-    audiences: resolveDirectoryAudiences({ resource: openai, canonicalResource: canonical, acceptCanonicalAudience: false }),
-    resource: openai,
-  });
-  assert.equal((await verifier.verifyAccessToken(await token(openai.href))).resource?.href, openai.href);
-  const canonicalToken = await token(canonical.href);
-  await assert.rejects(() => verifier.verifyAccessToken(canonicalToken), /Invalid or expired token/);
 });
 
 test('the canonical verifier rejects a directory-audience token', async () => {
   const verifier = new SupabaseOAuthVerifier({ issuerUrl: issuer, audiences: [canonical], resource: canonical });
-  const directoryToken = await token(openai.href);
+  const directoryToken = await jwks.sign(openai.href);
   await assert.rejects(() => verifier.verifyAccessToken(directoryToken), /Invalid or expired token/);
 });
