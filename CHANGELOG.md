@@ -1,3 +1,35 @@
+# [1.2.0](https://github.com/Presscart/presscart-mcp/compare/v1.1.1...v1.2.0) (2026-10-20)
+
+
+### Bug Fixes
+
+* **directory:** encode every segment of article page links ([6af212e](https://github.com/Presscart/presscart-mcp/commit/6af212e7dde2677fe7096a6c7c54189d28511b99))
+* **directory:** encode team slug in article page links ([85b8167](https://github.com/Presscart/presscart-mcp/commit/85b816704d0439ed5574c6efafb6459d74e7c7e5))
+* **directory:** never return upstream status text from tool errors ([5aeb180](https://github.com/Presscart/presscart-mcp/commit/5aeb180c9bc1be4178279aaf4deea73f2b6d115e))
+* **directory:** only return http(s) URLs from directory tools ([ac85d68](https://github.com/Presscart/presscart-mcp/commit/ac85d686cc373d7661b5a64168be54c98ee0b6ba))
+* **directory:** reject dot-segment team slugs before calling the API ([8441728](https://github.com/Presscart/presscart-mcp/commit/84417289620c52c29b6f9cd2f439e1215120727f))
+* **directory:** request outlet data for get_order ([b41254b](https://github.com/Presscart/presscart-mcp/commit/b41254b419d4a30806dc697af57ec24fb0d02e33))
+* **directory:** validate team_slug before calling the API ([645c818](https://github.com/Presscart/presscart-mcp/commit/645c81869f192735fc4d7091dc8705f2e3eaa516))
+* **http:** match directory routes and metadata paths exactly ([e874374](https://github.com/Presscart/presscart-mcp/commit/e874374108d839f8ee444c0ac53500bdfa70bbc6))
+* **oauth:** directory routes accept only their own audience (PRE-1386) ([#17](https://github.com/Presscart/presscart-mcp/issues/17)) ([de3a385](https://github.com/Presscart/presscart-mcp/commit/de3a3853d951be4db44d001f8871c0fcd5eaf2ad)), closes [#910](https://github.com/Presscart/presscart-mcp/issues/910) [#910](https://github.com/Presscart/presscart-mcp/issues/910) [#910](https://github.com/Presscart/presscart-mcp/issues/910)
+* **oauth:** stop advertising openid in direct-Supabase metadata (PRE-1397) ([#20](https://github.com/Presscart/presscart-mcp/issues/20)) ([079a815](https://github.com/Presscart/presscart-mcp/commit/079a815240d222fbd6c1fa1f9ffe20ee4d1248a6))
+* **openai-plugin:** package the MCP server so Codex and ChatGPT load it (PRE-1388) ([#18](https://github.com/Presscart/presscart-mcp/issues/18)) ([77db3f7](https://github.com/Presscart/presscart-mcp/commit/77db3f7e2d2567a42da15c3998b422b6b0b9e456))
+* **orders:** match camelCase and invoice/payment variants in the sanitizer ([e2e2ad6](https://github.com/Presscart/presscart-mcp/commit/e2e2ad6c7245651b7ac85c48801390af32ab4b11))
+* **orders:** strip payment, Stripe, invoice and email fields from order tools ([5255520](https://github.com/Presscart/presscart-mcp/commit/525552039eea0f240b78237325b82fdf87fb5d05))
+
+
+### Features
+
+* **directory:** add allowlisting result builders with strict schemas ([59bd6cc](https://github.com/Presscart/presscart-mcp/commit/59bd6ccfe21282ec5b7b43953173411aff8bf4c8))
+* **directory:** add directory profile policy and configuration ([b346720](https://github.com/Presscart/presscart-mcp/commit/b346720d524f7353c59f9445682f84d9f09a17cb))
+* **directory:** get_user returns the account's display name (PRE-1388) ([#19](https://github.com/Presscart/presscart-mcp/issues/19)) ([99368f3](https://github.com/Presscart/presscart-mcp/commit/99368f3fe0a28c0a48fd5e8e5034de631d647399))
+* **directory:** register Stage A read tools on directory MCP servers ([9a46d14](https://github.com/Presscart/presscart-mcp/commit/9a46d146522d83b5684744db3edcff900f7fc25b))
+* **http:** mount directory MCP routes bound to their profile ([70fc258](https://github.com/Presscart/presscart-mcp/commit/70fc258b2d77028a9a724197a56ceeb01d9a2eed))
+* **http:** serve the OpenAI apps domain challenge ([#15](https://github.com/Presscart/presscart-mcp/issues/15)) ([06c6e9e](https://github.com/Presscart/presscart-mcp/commit/06c6e9e739f86f6ede5c7a58a0b100676db98b98))
+* **oauth:** accept several protected resources in the OAuth facade ([cf56bb8](https://github.com/Presscart/presscart-mcp/commit/cf56bb8e6b74027f95ce2e984091cf81421911c1))
+* **oauth:** add per-resource bearer guards and directory audiences ([3054a81](https://github.com/Presscart/presscart-mcp/commit/3054a81537446fe3de52d9d340841ab91f4bda2b))
+* **openai-plugin:** v0.2 connects to /mcp/openai (PRE-1388) ([#16](https://github.com/Presscart/presscart-mcp/issues/16)) ([5240e13](https://github.com/Presscart/presscart-mcp/commit/5240e1394c866a09af5fd31cdae3826dc7bc540e))
+
 ## [1.1.1](https://github.com/Presscart/presscart-mcp/compare/v1.1.0...v1.1.1) (2026-07-22)
 
 
