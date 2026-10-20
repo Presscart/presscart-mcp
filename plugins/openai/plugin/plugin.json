@@ -1,0 +1,40 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "presscart",
+  "version": "0.2.0",
+  "description": "Read-only access to your existing Presscart account: teams, orders, campaign progress, and published article links. No purchasing, prices, or account changes.",
+  "author": {
+    "name": "Presscart"
+  },
+  "homepage": "https://www.presscart.com",
+  "keywords": [
+    "press",
+    "pr",
+    "orders",
+    "campaigns",
+    "presscart"
+  ],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Presscart",
+        "shortDescription": "Track orders and campaigns",
+        "longDescription": "Check on press placements you already have with Presscart. After you connect your Presscart account, ask about your teams and brand profiles, the status of your orders and what each item includes, how your campaigns are progressing, and the links to articles that have gone live.\n\nPresscart arranges paid article placements with publishers. Published articles are paid placements, and this plugin describes them that way. It is read-only: it can't place or change orders, take payments, show prices, browse or recommend publications, or change anything in your account. It only sees the teams your Presscart account belongs to.\n\nNo placement can guarantee search rankings, AI-assistant citations, traffic, sales, or immigration outcomes.",
+        "developerName": "Presscart",
+        "category": "Business & Operations",
+        "capabilities": [
+          "Order status and items",
+          "Campaign progress by article status",
+          "Published article links",
+          "Team and brand profile lookup"
+        ],
+        "defaultPrompt": [
+          "What's the status of my recent Presscart orders?",
+          "How is my latest campaign going?",
+          "Give me the links to my published articles."
+        ],
+        "websiteURL": "https://www.presscart.com"
+      }
+    }
+  }
+}

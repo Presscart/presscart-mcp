@@ -1,0 +1,3 @@
+I can’t verify payment or progress because this session blocks access to your connected Presscart account.
+
+Paste your order references, statuses, paid dates, and campaign/article statuses here, and I can summarize what’s paid and what’s still in progress. Omit payment details and credentials.

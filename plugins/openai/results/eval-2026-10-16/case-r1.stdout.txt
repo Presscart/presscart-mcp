@@ -1,0 +1,1 @@
+The Presscart connection can’t purchase placements or generate checkout links. This session also prevents me from accessing your account, so I haven’t checked your last order or placed a new one.

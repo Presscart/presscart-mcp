@@ -123,9 +123,9 @@ export function parseFacadeScope(scope: string | undefined) {
   return { facade: FACADE_SCOPE, upstream: UPSTREAM_SCOPE } as const;
 }
 
-export function parseCanonicalResource(value: string | undefined, canonical: URL) {
+export function parseAcceptedResource(value: string | undefined, resources: readonly URL[]) {
   if (value === undefined) return undefined;
-  if (value !== canonical.href) {
+  if (!resources.some(resource => resource.href === value)) {
     throw new OAuthProtocolError('invalid_target', 'resource is not supported');
   }
   return value;
@@ -174,6 +174,10 @@ export function resolveOAuthAudiences(args: {
   return [args.resource, expectedLegacyAudience];
 }
 
+export function resolveDirectoryResource(canonicalResource: URL, profilePath: string) {
+  return new URL(profilePath, canonicalResource.origin);
+}
+
 export function createAuthorizationServerMetadata(authorizationServer: URL) {
   const issuer = authorizationServer.href.replace(/\/$/, '');
   return {
@@ -197,7 +201,8 @@ export function createProtectedResourceMetadata(args: {
   return {
     resource: args.resource.href,
     authorization_servers: [args.authorizationServer.href.replace(/\/$/, '')],
-    scopes_supported: args.translatorEnabled ? ['profile', 'offline_access'] : ['openid', 'profile'],
+    // Presscart's access token hook refuses a code exchange whose scope includes openid, so never advertise it.
+    scopes_supported: args.translatorEnabled ? ['profile', 'offline_access'] : ['profile'],
     bearer_methods_supported: ['header'],
     resource_name: 'Presscart MCP',
   };

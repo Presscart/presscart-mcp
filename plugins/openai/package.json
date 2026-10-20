@@ -1,0 +1,10 @@
+{
+  "name": "presscart",
+  "version": "0.2.0",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/",
+    "check:release": "node scripts/check-release.mjs",
+    "package": "sh scripts/package.sh"
+  }
+}

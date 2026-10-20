@@ -54,6 +54,18 @@ export MCP_OAUTH_LEGACY_AUDIENCE="https://mcp.presscart.com"
 export MCP_OAUTH_UPSTREAM_TIMEOUT_MS="10000"
 ```
 
+Optional directory integration settings:
+
+```bash
+export MCP_DIRECTORY_PROFILES="openai,claude-directory"
+```
+
+Optional OpenAI plugin domain verification:
+
+```bash
+export OPENAI_APPS_CHALLENGE_TOKEN="<challenge_token_from_openai_portal>"
+```
+
 Notes:
 - `PRESSCART_API_URL` must point at the app API base that exposes `/teams/*` routes, not a public-api-only base.
 - `PRESSCART_APP_URL` controls direct application links returned by tools such as `list_publisher_articles`. Set it per environment so staging MCP links open staging.
@@ -65,6 +77,7 @@ Notes:
 - MCP clients store their own refresh tokens, initiate refresh automatically, and replace rotated refresh and access tokens. This server handles the refresh request statelessly and does not store refresh tokens.
 - The translator changes only MCP OAuth. It does not change ordinary Presscart browser or app sessions, and disabling MCP OAuth still preserves legacy direct-token mode.
 - In legacy direct-token mode, send `X-Presscart-API-Token: <presscart_api_token>` on `initialize` and later requests that need to confirm the active session credential.
+- `OPENAI_APPS_CHALLENGE_TOKEN` is the domain-verification token shown in OpenAI's plugin portal. When set, `GET /.well-known/openai-apps-challenge` returns it as `text/plain` with no authentication, on the MCP hostname's origin (the portal ignores the `/mcp/openai` path). Surrounding whitespace is trimmed; when unset or blank, the route returns 404. If `MCP_ALLOWED_HOSTS` is set, it must include the public MCP hostname.
 
 ## Install
 
@@ -166,6 +179,29 @@ git push origin v0.2.0
 - `submit_article`
 - `request_article_writing`
 
+## Directory routes
+
+`/mcp` keeps the full tool set. The OpenAI and Claude directory integrations connect to separate URLs whose tool exposure is fixed by server configuration:
+
+| Profile | MCP path | Protected-resource metadata |
+|---|---|---|
+| `openai` | `/mcp/openai` | `/.well-known/oauth-protected-resource/mcp/openai` |
+| `claude-directory` | `/mcp/claude-directory` | `/.well-known/oauth-protected-resource/mcp/claude-directory` |
+
+- A route is mounted only when its id is listed in `MCP_DIRECTORY_PROFILES` (comma-separated, default empty). An unknown or duplicate id stops startup. Unlisted profile paths return `404`.
+- Both profiles expose the same ten read-only tools: `get_user`, `list_teams`, `get_team`, `list_profiles`, `list_profile_orders`, `get_order`, `list_campaigns`, `get_campaign`, `list_campaign_articles`, `get_campaign_article_status`. Every other tool is not registered on these routes, so calling it fails before any Presscart API request.
+- Directory tools return explicit field allowlists (no prices, payment or checkout fields, emails, writer names, internal document links, or add-ons), advertise strict output schemas, and cap `limit` at 25.
+- A session belongs to the route it was initialized on. Sending its `Mcp-Session-Id` to any other MCP route returns `404 Session not found`.
+- Exposure is not authorization: the Presscart API still authorizes every request.
+- With `MCP_OAUTH_ENABLED=true`, each directory route has its own protected-resource metadata and `WWW-Authenticate` challenge, the OAuth facade accepts its resource on `/oauth/authorize` and `/oauth/token`, and its verifier accepts only that route's resource as the token audience. A token whose audience is the canonical `/mcp` resource (or the legacy origin) is refused there, and a directory token is refused by `/mcp`.
+- With `MCP_OAUTH_ENABLED=false`, directory routes use `X-Presscart-API-Token` like `/mcp`. Use this only for local and staging testing.
+- Rollback: remove the profile from `MCP_DIRECTORY_PROFILES` and redeploy. `/mcp` is unaffected.
+
+Before submitting to a directory:
+
+1. Verify in staging that Supabase OAuth accepts the forwarded directory `resource` value.
+2. The Presscart API gives tokens from a directory sign-in that route's audience (presscart-app #910). Confirm this on staging before submission.
+
 ## Hosted deployment shape
 
 ### MCP OAuth mode
@@ -188,7 +224,7 @@ MCP_OAUTH_UPSTREAM_TIMEOUT_MS=10000
 
 The canonical resource and JWT audience must match `MCP_SERVER_URL`, allowing only a trailing-slash difference. Both public OAuth URLs and the upstream issuer must use HTTPS except for loopback-only local development. `MCP_OAUTH_LEGACY_AUDIENCE` is needed only during the migration window, must match the MCP server origin exactly, and should otherwise be unset.
 
-With the translator disabled, the server exposes direct-Supabase protected-resource metadata at:
+With the translator disabled, the server exposes direct-Supabase protected-resource metadata (advertising only the `profile` scope, because Presscart's access token hook refuses any code exchange that asks for `openid`) at:
 
 - `/.well-known/oauth-protected-resource`
 - `/.well-known/oauth-protected-resource/mcp`
@@ -350,3 +386,9 @@ https://mcp.presscart.com/mcp
 Notes:
 - ChatGPT currently supports remote servers only, not local MCP servers.
 - Business and Enterprise/Edu have the fullest MCP app support; availability differs by plan.
+
+## OpenAI plugin
+
+`plugins/openai/` holds the skills-only Presscart Placement Advisor 0.1.1 package for the OpenAI plugin directory. It has no MCP connection yet.
+Test and package it with `cd plugins/openai && npm test && npm run package` (output goes to the gitignored `dist/`). To rebuild, run `rm -rf dist && npm run package`; the packager intentionally refuses to overwrite an existing archive.
+Release blockers and portal submission notes are in `plugins/openai/SUBMISSION.md`.

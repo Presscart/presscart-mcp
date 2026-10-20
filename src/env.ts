@@ -6,6 +6,12 @@ export const booleanEnvSchema = z.preprocess(value => {
   return value;
 }, z.boolean());
 
+// Blank values count as unset; surrounding whitespace (e.g. a pasted newline) is dropped.
+export const optionalTrimmedEnvSchema = z.preprocess(
+  value => (typeof value === 'string' ? value.trim() || undefined : value),
+  z.string().min(1).optional(),
+);
+
 const envSchema = z.object({
   PRESSCART_API_URL: z.string().url(),
   PRESSCART_APP_URL: z.string().url().optional(),
@@ -23,6 +29,8 @@ const envSchema = z.object({
   MCP_INTERNAL_AUTH_TOKEN: z.string().min(1).optional(),
   MCP_SESSION_IDLE_TTL_MS: z.coerce.number().int().positive().default(12 * 60 * 60 * 1000),
   PRESSCART_API_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
+  MCP_DIRECTORY_PROFILES: z.string().default(''),
+  OPENAI_APPS_CHALLENGE_TOKEN: optionalTrimmedEnvSchema,
 });
 
 export const env = envSchema.parse({
@@ -43,4 +51,6 @@ export const env = envSchema.parse({
   MCP_INTERNAL_AUTH_TOKEN: process.env.MCP_INTERNAL_AUTH_TOKEN,
   MCP_SESSION_IDLE_TTL_MS: process.env.MCP_SESSION_IDLE_TTL_MS,
   PRESSCART_API_TIMEOUT_MS: process.env.PRESSCART_API_TIMEOUT_MS,
+  MCP_DIRECTORY_PROFILES: process.env.MCP_DIRECTORY_PROFILES,
+  OPENAI_APPS_CHALLENGE_TOKEN: process.env.OPENAI_APPS_CHALLENGE_TOKEN,
 });

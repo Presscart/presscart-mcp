@@ -1,38 +1,59 @@
+export type SanitizeSensitiveFieldsOptions = {
+  /** create_order keeps checkout_link: it is how the buyer pays for the order just created. */
+  keepCheckoutLink?: boolean;
+};
+
 const exactSensitiveKeys = new Set([
-  'client_secret',
-  'payment_client_secret',
-  'payment_intent_client_secret',
-  'stripe_client_secret',
-  'stripe_payment_intent_client_secret',
-  'stripe_setup_intent_client_secret',
-  'guest_stripe_customer_id',
-  'stripe_customer_id',
-  'stripe_payment_intent_id',
-  'stripe_checkout_session_id',
-  'stripe_session_id',
-  'customer_invoice_id',
-  'customer_invoice_source',
-  'customer_invoice_url',
-  'vendor_invoice_id',
-  'vendor_invoice_url',
+  'checkout_link',
+  'checkout_session_id',
+  'metadata',
+  'posthog_distinct_id',
+  'charge_id',
+  'receipt_url',
 ]);
+
+const sensitiveSubstrings = [
+  'secret',
+  'stripe',
+  'payment_intent',
+  'setup_intent',
+  'payment_method',
+];
+
+const sensitiveTokenPatterns = [/(^|_)customer(_|$)/, /(^|_)invoices?(_|$)/, /(^|_)emails?(_|$)/];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function isSensitiveKey(key: string) {
-  const normalized = key.toLowerCase();
+/** paymentIntentId, PaymentIntentID and payment-intent-id all become payment_intent_id. */
+function toSnakeCase(key: string) {
+  return key
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')
+    .replace(/-/g, '_')
+    .toLowerCase();
+}
+
+function isSensitiveKey(key: string, options: SanitizeSensitiveFieldsOptions) {
+  const normalized = toSnakeCase(key);
+  if (options.keepCheckoutLink && normalized === 'checkout_link') {
+    return false;
+  }
+
   return (
     exactSensitiveKeys.has(normalized) ||
-    normalized.endsWith('_client_secret') ||
-    normalized.includes('secret')
+    sensitiveSubstrings.some((substring) => normalized.includes(substring)) ||
+    sensitiveTokenPatterns.some((pattern) => pattern.test(normalized))
   );
 }
 
-export function sanitizeSensitiveFields(data: unknown): unknown {
+export function sanitizeSensitiveFields(
+  data: unknown,
+  options: SanitizeSensitiveFieldsOptions = {}
+): unknown {
   if (Array.isArray(data)) {
-    return data.map((item) => sanitizeSensitiveFields(item));
+    return data.map((item) => sanitizeSensitiveFields(item, options));
   }
 
   if (!isRecord(data)) {
@@ -41,11 +62,11 @@ export function sanitizeSensitiveFields(data: unknown): unknown {
 
   const sanitized: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(data)) {
-    if (isSensitiveKey(key)) {
+    if (isSensitiveKey(key, options)) {
       continue;
     }
 
-    sanitized[key] = sanitizeSensitiveFields(value);
+    sanitized[key] = sanitizeSensitiveFields(value, options);
   }
 
   return sanitized;

@@ -1,0 +1,3 @@
+ZIP matches all 7 package files byte for byte; CRC check passed.
+Installed CLI cache matches all 7 package files byte for byte.
+ZIP SHA256: f1f7857cc694ade7bd1f6478acb48cc0dbc2b218aae872588ddd83324d6e48fc

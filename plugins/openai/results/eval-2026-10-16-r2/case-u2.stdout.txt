@@ -1,0 +1,3 @@
+I can’t access your Presscart account in this session, so I can’t verify which paid placements are live or retrieve their links.
+
+Paste your campaign’s article list here, and I’ll extract the published links. An article counts as live only when it has a `live_url`.

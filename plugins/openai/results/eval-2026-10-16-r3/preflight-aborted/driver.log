@@ -1,0 +1,19 @@
+05:31:17 starting
+{"exists":true,"bytes":10364,"sha256":"8c2fb5f94c4e76f4087a167e73cb9ad29f7fdf74fcc0cd35eb9272d8846d2d24"}
+marketplaces-before: exit=0, signal=null, timedOut=false
+Exact output: /Users/renz/waverly/presscart-mcp/.worktrees/openai-plugin-v02/plugins/openai/results/eval-2026-10-16-r3/marketplaces-before.stdout.txt and /Users/renz/waverly/presscart-mcp/.worktrees/openai-plugin-v02/plugins/openai/results/eval-2026-10-16-r3/marketplaces-before.stderr.txt
+plugins-before: exit=0, signal=null, timedOut=false
+Exact output: /Users/renz/waverly/presscart-mcp/.worktrees/openai-plugin-v02/plugins/openai/results/eval-2026-10-16-r3/plugins-before.stdout.txt and /Users/renz/waverly/presscart-mcp/.worktrees/openai-plugin-v02/plugins/openai/results/eval-2026-10-16-r3/plugins-before.stderr.txt
+codex-version: exit=0, signal=null, timedOut=false
+Exact output: /Users/renz/waverly/presscart-mcp/.worktrees/openai-plugin-v02/plugins/openai/results/eval-2026-10-16-r3/codex-version.stdout.txt and /Users/renz/waverly/presscart-mcp/.worktrees/openai-plugin-v02/plugins/openai/results/eval-2026-10-16-r3/codex-version.stderr.txt
+isolated-marketplace-add: exit=0, signal=null, timedOut=false
+Exact output: /Users/renz/waverly/presscart-mcp/.worktrees/openai-plugin-v02/plugins/openai/results/eval-2026-10-16-r3/isolated-marketplace-add.stdout.txt and /Users/renz/waverly/presscart-mcp/.worktrees/openai-plugin-v02/plugins/openai/results/eval-2026-10-16-r3/isolated-marketplace-add.stderr.txt
+isolated-plugin-add: exit=0, signal=null, timedOut=false
+Exact output: /Users/renz/waverly/presscart-mcp/.worktrees/openai-plugin-v02/plugins/openai/results/eval-2026-10-16-r3/isolated-plugin-add.stdout.txt and /Users/renz/waverly/presscart-mcp/.worktrees/openai-plugin-v02/plugins/openai/results/eval-2026-10-16-r3/isolated-plugin-add.stderr.txt
+isolated-plugin-list: exit=0, signal=null, timedOut=false
+Exact output: /Users/renz/waverly/presscart-mcp/.worktrees/openai-plugin-v02/plugins/openai/results/eval-2026-10-16-r3/isolated-plugin-list.stdout.txt and /Users/renz/waverly/presscart-mcp/.worktrees/openai-plugin-v02/plugins/openai/results/eval-2026-10-16-r3/isolated-plugin-list.stderr.txt
+codex debug prompt-input with the runner plugin overrides and features.remote_plugin=false (user config loaded; prompt-input has no --ignore-user-config)
+check-order-status SKILL.md mentions: 0
+report-campaign-progress SKILL.md mentions: 0
+openai-curated-remote mentions: 0
+isolation preflight failed; cleaning up without running cases

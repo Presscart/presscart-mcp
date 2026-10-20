@@ -11,7 +11,11 @@ const canonicalResource = 'https://mcp.presscart.com/mcp';
 const publicDcrClientId = 'a7f2616f-caf6-47d6-8f46-fabf13f11397';
 const confidentialDcrClientId = '849f3adf-54e5-4fff-936c-5939fe05a666';
 
+const openaiResource = 'https://mcp.presscart.com/mcp/openai';
+const claudeDirectoryResource = 'https://mcp.presscart.com/mcp/claude-directory';
+
 type StartRouterOptions = {
+  directoryResources?: string[];
   fetchImpl?: typeof fetch;
   remoteAddress?: string;
   translatorEnabled?: boolean;
@@ -19,6 +23,7 @@ type StartRouterOptions = {
 };
 
 async function startRouter({
+  directoryResources = [],
   fetchImpl = globalThis.fetch,
   remoteAddress,
   translatorEnabled = true,
@@ -36,7 +41,7 @@ async function startRouter({
     });
   }
   app.use(createOAuthRouter({
-    resource: new URL(canonicalResource),
+    resources: [new URL(canonicalResource), ...directoryResources.map(value => new URL(value))],
     authorizationServer: new URL('https://mcp.presscart.com'),
     upstreamIssuer: new URL('https://project.supabase.co/auth/v1'),
     translatorEnabled,
@@ -165,7 +170,7 @@ test('publishes facade metadata only when enabled and caches both resource route
   assert.deepEqual(direct, {
     resource: canonicalResource,
     authorization_servers: ['https://project.supabase.co/auth/v1'],
-    scopes_supported: ['openid', 'profile'],
+    scopes_supported: ['profile'],
     bearer_methods_supported: ['header'],
     resource_name: 'Presscart MCP',
   });
@@ -1050,4 +1055,123 @@ test('never writes codes, tokens, secrets, or registration credentials to consol
 
   const combined = output.join('\n');
   for (const sentinel of sentinels) assert.equal(combined.includes(sentinel), false);
+});
+
+test('publishes protected-resource metadata for each enabled directory resource only', async () => {
+  for (const translatorEnabled of [true, false]) {
+    const base = await startRouter({ directoryResources: [openaiResource], translatorEnabled });
+    const canonical = await (await fetch(`${base}/.well-known/oauth-protected-resource/mcp`)).json() as Record<string, unknown>;
+    const root = await (await fetch(`${base}/.well-known/oauth-protected-resource`)).json() as Record<string, unknown>;
+    assert.equal(canonical.resource, canonicalResource);
+    assert.equal(root.resource, canonicalResource);
+
+    const directory = await fetch(`${base}/.well-known/oauth-protected-resource/mcp/openai`);
+    assert.equal(directory.status, 200);
+    assertOAuthJson(directory);
+    assert.equal(directory.headers.get('cache-control'), 'public, max-age=300');
+    assert.deepEqual(await directory.json(), { ...canonical, resource: openaiResource });
+
+    const disabled = await fetch(`${base}/.well-known/oauth-protected-resource/mcp/claude-directory`);
+    assert.equal(disabled.status, 404);
+  }
+});
+
+test('serves the canonical authorization server document on enabled directory aliases only', async () => {
+  const base = await startRouter({ directoryResources: [openaiResource] });
+  const canonical = await (await fetch(`${base}/.well-known/oauth-authorization-server`)).json();
+  for (const alias of [
+    '/.well-known/oauth-authorization-server/mcp/openai',
+    '/.well-known/openid-configuration/mcp/openai',
+  ]) {
+    const response = await fetch(`${base}${alias}`);
+    assert.equal(response.status, 200, alias);
+    assert.equal(response.headers.get('cache-control'), 'public, max-age=300');
+    assert.deepEqual(await response.json(), canonical, alias);
+  }
+  for (const alias of [
+    '/.well-known/oauth-authorization-server/mcp/claude-directory',
+    '/.well-known/openid-configuration/mcp/claude-directory',
+  ]) {
+    assert.equal((await fetch(`${base}${alias}`)).status, 404, alias);
+  }
+
+  const translatorOff = await startRouter({ directoryResources: [openaiResource], translatorEnabled: false });
+  assert.equal(
+    (await fetch(`${translatorOff}/.well-known/oauth-authorization-server/mcp/openai`)).status,
+    404,
+  );
+});
+
+test('authorize forwards an enabled directory resource unchanged and rejects a disabled one', async () => {
+  const base = await startRouter({ directoryResources: [openaiResource] });
+  const accepted = await fetch(
+    `${base}/oauth/authorize?${authorizationQuery({ resource: openaiResource })}`,
+    { redirect: 'manual' },
+  );
+  assert.equal(accepted.status, 302);
+  const location = accepted.headers.get('location');
+  assert(location);
+  assert.equal(new URL(location).searchParams.get('resource'), openaiResource);
+
+  const rejected = await fetch(
+    `${base}/oauth/authorize?${authorizationQuery({ resource: claudeDirectoryResource })}`,
+    { redirect: 'manual' },
+  );
+  assert.equal(rejected.status, 400);
+  assert.equal(rejected.headers.get('location'), null);
+  assert.deepEqual(await rejected.json(), {
+    error: 'invalid_target',
+    error_description: 'resource is not supported',
+  });
+});
+
+test('token forwards an enabled directory resource unchanged and rejects a disabled one', async () => {
+  const forwarded: URLSearchParams[] = [];
+  const fetchImpl: typeof fetch = async (_input, init) => {
+    forwarded.push(new URLSearchParams(String(init?.body)));
+    return jsonResponse(tokenResponse());
+  };
+  const base = await startRouter({ directoryResources: [openaiResource], fetchImpl });
+  const refresh = (resource: string) => fetch(`${base}/oauth/token`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: 'refresh-current',
+      client_id: 'client-1',
+      resource,
+    }),
+  });
+
+  const accepted = await refresh(openaiResource);
+  assert.equal(accepted.status, 200);
+  assert.equal(forwarded.length, 1);
+  assert.equal(forwarded[0]?.get('resource'), openaiResource);
+
+  const rejected = await refresh(claudeDirectoryResource);
+  assert.equal(rejected.status, 400);
+  assert.deepEqual(await rejected.json(), {
+    error: 'invalid_target',
+    error_description: 'resource is not supported',
+  });
+  assert.equal(forwarded.length, 1);
+});
+
+test('rejects resources whose metadata paths would collide', () => {
+  const options = {
+    authorizationServer: new URL('https://mcp.presscart.com'),
+    upstreamIssuer: new URL('https://project.supabase.co/auth/v1'),
+    translatorEnabled: true,
+    upstreamTimeoutMs: 1_000,
+  };
+  for (const resources of [
+    [new URL(canonicalResource), new URL(openaiResource), new URL(openaiResource)],
+    [new URL(canonicalResource), new URL('https://mcp.presscart.com/mcp/')],
+    [new URL(canonicalResource), new URL('https://mcp.presscart.com/')],
+  ] as const) {
+    assert.throws(
+      () => createOAuthRouter({ ...options, resources }),
+      /OAuth resources must have distinct, non-root paths\./,
+    );
+  }
 });
