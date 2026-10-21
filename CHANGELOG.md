@@ -1,3 +1,15 @@
+# [1.3.0](https://github.com/Presscart/presscart-mcp/compare/v1.2.0...v1.3.0) (2026-10-21)
+
+
+### Bug Fixes
+
+* **openai-plugin:** skills never offer new purchases; reviewer prompts name the brand ([#21](https://github.com/Presscart/presscart-mcp/issues/21)) ([731767f](https://github.com/Presscart/presscart-mcp/commit/731767fc9f5db0f387ad452fa97254ff661479a4))
+
+
+### Features
+
+* **openai-plugin:** add listing URLs, logo and composer icon ([#22](https://github.com/Presscart/presscart-mcp/issues/22)) ([55d5ac4](https://github.com/Presscart/presscart-mcp/commit/55d5ac47cfa8de9f37f9732743b2fd6c09fbfad7))
+
 # [1.2.0](https://github.com/Presscart/presscart-mcp/compare/v1.1.1...v1.2.0) (2026-10-20)
 
 
