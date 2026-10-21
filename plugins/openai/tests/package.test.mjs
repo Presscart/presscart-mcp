@@ -1,5 +1,6 @@
 // Offline package checks. Instruction text is not proof of model behavior;
 // manually graded CLI runs in results/ supply separate behavioral evidence.
+import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -17,11 +18,11 @@ const SKILLS = ['check-order-status', 'report-campaign-progress'];
 // Written only by `npm run package -- --mcp-url <url> --write-local-config`; gitignored.
 const LOCAL_MCP_CONFIG = 'mcp.json';
 const EXPECTED_FILES = [
-  'README.md', 'plugin.json',
+  'README.md', 'plugin.json', 'assets/icon.png', 'assets/logo.png',
   ...SKILLS.flatMap((name) => [`skills/${name}/SKILL.md`, `skills/${name}/agents/openai.yaml`]),
 ].sort();
 const EXPECTED_DIRS = [
-  'skills',
+  'assets', 'skills',
   ...SKILLS.flatMap((name) => [`skills/${name}`, `skills/${name}/agents`]),
 ].sort();
 const SCHEMA = 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json';
@@ -39,6 +40,8 @@ const json = (path) => JSON.parse(text(path));
 const skill = (name) => text(`skills/${name}/SKILL.md`);
 const length = (value) => [...value].length;
 const packaged = () => walk().files.filter((path) => path !== LOCAL_MCP_CONFIG);
+// Text checks skip the listing images, which are binary PNGs.
+const packagedText = () => packaged().filter((path) => !path.endsWith('.png'));
 
 // The plugin must describe exactly the tools the /mcp/openai profile exposes.
 const DIRECTORY_TOOLS = (() => {
@@ -221,7 +224,7 @@ function copyPackage(root) {
 
 function zipEntries(path) {
   const script = 'import json,sys,zipfile\nz=zipfile.ZipFile(sys.argv[1])\nassert z.testzip() is None\n'
-    + 'print(json.dumps({i.filename:[z.read(i).decode(),oct(i.external_attr>>16),i.date_time] for i in z.infolist()}))';
+    + "import hashlib\nprint(json.dumps({i.filename:[hashlib.sha256(z.read(i)).hexdigest() if i.filename.endswith('.png') else z.read(i).decode(),oct(i.external_attr>>16),i.date_time] for i in z.infolist()}))";
   const result = spawnSync('python3', ['-I', '-c', script, path], { encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);
   return JSON.parse(result.stdout);
@@ -358,7 +361,7 @@ test('skills and README describe exactly the ten /mcp/openai tools and nothing m
   assert.deepEqual([...covered].sort(), DIRECTORY_TOOLS, 'skills must cover every exposed tool');
   const readme = text('README.md');
   assert.deepEqual([...toolMentions(readme)].sort(), DIRECTORY_TOOLS, 'README must list exactly the exposed tools');
-  for (const path of packaged()) {
+  for (const path of packagedText()) {
     for (const tool of toolMentions(text(path))) assert.ok(DIRECTORY_TOOLS.includes(tool), `${path}: ${tool}`);
   }
 });
@@ -385,7 +388,7 @@ test('both skills carry the scope, price, outcome, disclosure, injection, commer
 
 test('package text makes no skills-only or offline claims and no purchase calls to action', () => {
   const listing = JSON.stringify(json('plugin.json'));
-  for (const [path, body] of [...packaged().map((p) => [p, text(p)]), ['listing', listing]]) {
+  for (const [path, body] of [...packagedText().map((p) => [p, text(p)]), ['listing', listing]]) {
     assert.doesNotMatch(body, /no (?:live|account) connection|skills-only|works entirely from the conversation|does not connect to a provider|has no (?:account|API) connection/i, `${path}: stale offline claim`);
     assert.doesNotMatch(body, /^(?:[-*]\s+)?(?:buy|purchase|book|pay|order|sign up|visit checkout)\b/im, `${path}: imperative purchase CTA`);
     assert.doesNotMatch(body, /(?:^|[.!?]\s+)(?:you should|you can|go to|head to|visit|use your)[^\n.]*(?:purchase|buy|checkout|payment link|upgrade)/im, `${path}: indirect purchase CTA`);
@@ -408,15 +411,18 @@ test('package contains no credentials, personal email addresses, UUIDs or record
     /"(?:prices|unit_amount|product_id|outlet_id|profile_id|team_slug)"\s*:/,
     /railway\.app|\.internal\b|localhost/i,
   ];
-  const bodies = [...packaged().map((path) => [path, text(path)]), ['mcp.template.json', readFileSync(join(ROOT, 'mcp.template.json'), 'utf8')]];
+  const bodies = [...packagedText().map((path) => [path, text(path)]), ['mcp.template.json', readFileSync(join(ROOT, 'mcp.template.json'), 'utf8')]];
   for (const [path, body] of bodies) {
     patterns.forEach((pattern) => assert.doesNotMatch(body, pattern, `${path}: sensitive pattern detected`));
   }
 });
 
 test('all outbound package URLs are HTTPS schema/homepage links, never checkout or pricing links', () => {
-  const allowed = new Set([SCHEMA, 'https://www.presscart.com', 'https://www.presscart.com/']);
-  for (const path of packaged()) {
+  const allowed = new Set([
+    SCHEMA, 'https://www.presscart.com', 'https://www.presscart.com/',
+    'https://www.presscart.com/support', 'https://www.presscart.com/privacy', 'https://www.presscart.com/terms',
+  ]);
+  for (const path of packagedText()) {
     const body = text(path);
     assert.doesNotMatch(body, /\b(?:http|ftp|file):\/\/|\bmailto:/i, `${path}: non-HTTPS URL`);
     for (const link of body.match(/[a-z][a-z0-9+.-]*:\/\/[^\s)"'`<>]+/gi) ?? []) {
@@ -473,11 +479,16 @@ test('build packages the source tree plus a generated mcp.json for the given /mc
     const url = 'https://mcp.example.com/mcp/openai';
     const first = build(['--mcp-url', url, '--dist', dist]);
     assert.equal(first.status, 0, first.stderr);
-    assert.match(first.stdout, /\/presscart-0\.2\.0\.zip \(7 files\) for MCP server https:\/\/mcp\.example\.com\/mcp\/openai/);
+    assert.match(first.stdout, /\/presscart-0\.2\.0\.zip \(9 files\) for MCP server https:\/\/mcp\.example\.com\/mcp\/openai/);
     const zip = join(dist, 'mcp.example.com', `${NAME}-${VERSION}.zip`);
     const entries = zipEntries(zip);
     assert.deepEqual(Object.keys(entries).sort(), [...EXPECTED_FILES, 'mcp.json'].sort());
-    for (const path of EXPECTED_FILES) assert.equal(entries[path][0], text(path), `${path} differs from plugin/`);
+    for (const path of EXPECTED_FILES) {
+      const source = path.endsWith('.png')
+        ? createHash('sha256').update(readFileSync(join(PLUGIN, path))).digest('hex')
+        : text(path);
+      assert.equal(entries[path][0], source, `${path} differs from plugin/`);
+    }
     for (const [, mode, date] of Object.values(entries)) {
       assert.equal(mode, '0o100644');
       assert.deepEqual(date, [1980, 1, 1, 0, 0, 0]);
@@ -545,16 +556,24 @@ test('build refuses missing or unsafe MCP URLs', () => {
   }
 });
 
-test('release gate fails without approved assets and listing URLs, and passes once they exist', () => {
+test('release gate passes for the approved assets and listing URLs, and fails without them', () => {
   const gate = (dir) => spawnSync(process.execPath, [join(ROOT, 'scripts/check-release.mjs'), dir], { encoding: 'utf8' });
   const current = gate(PLUGIN);
-  assert.equal(current.status, 1);
-  for (const item of ['logo', 'composerIcon', 'supportURL', 'privacyPolicyURL', 'termsOfServiceURL']) {
-    assert.match(current.stderr, new RegExp(`- ${item}:`), `release gate must report ${item}`);
-  }
+  assert.equal(current.status, 0, current.stderr);
   const work = mkdtempSync(join(tmpdir(), 'presscart-plugin-release-'));
   try {
     cpSync(PLUGIN, work, { recursive: true });
+    const stripped = JSON.parse(readFileSync(join(work, 'plugin.json'), 'utf8'));
+    for (const item of ['logo', 'composerIcon', 'supportURL', 'privacyPolicyURL', 'termsOfServiceURL']) {
+      delete stripped.extensions['com.openai'].interface[item];
+    }
+    writeFileSync(join(work, 'plugin.json'), JSON.stringify(stripped, null, 2));
+    rmSync(join(work, 'assets'), { recursive: true, force: true });
+    const missing = gate(work);
+    assert.equal(missing.status, 1);
+    for (const item of ['logo', 'composerIcon', 'supportURL', 'privacyPolicyURL', 'termsOfServiceURL']) {
+      assert.match(missing.stderr, new RegExp(`- ${item}:`), `release gate must report ${item}`);
+    }
     const png = (size) => {
       const bytes = Buffer.alloc(33);
       Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).copy(bytes, 0);
