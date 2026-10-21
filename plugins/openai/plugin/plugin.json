@@ -33,7 +33,12 @@
           "How is my latest campaign going?",
           "Give me the links to my published articles."
         ],
-        "websiteURL": "https://www.presscart.com"
+        "websiteURL": "https://www.presscart.com",
+        "supportURL": "https://www.presscart.com/support",
+        "privacyPolicyURL": "https://www.presscart.com/privacy",
+        "termsOfServiceURL": "https://www.presscart.com/terms",
+        "logo": "./assets/logo.png",
+        "composerIcon": "./assets/icon.png"
       }
     }
   }

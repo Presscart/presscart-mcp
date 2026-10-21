@@ -100,10 +100,10 @@ Values are copied from `plugin/plugin.json` (`extensions.com.openai.interface`).
 | Developer name | Presscart | 9 / 80 (the directory shows the verified identity's name) |
 | Category | Business & Operations | supported value |
 | Website URL | https://www.presscart.com | 25 / 1,024 |
-| Support URL | **missing — blocker** | required for MCP review |
-| Privacy policy URL | **missing — blocker** | required for MCP review |
-| Terms of service URL | **missing — blocker** | required for MCP review |
-| Logo / composer icon | **missing — blocker** | square PNG ≥48×48, <5 MiB |
+| Support URL | https://www.presscart.com/support | required for MCP review |
+| Privacy policy URL | https://www.presscart.com/privacy (must cover the ChatGPT connection before submitting) | required for MCP review |
+| Terms of service URL | https://www.presscart.com/terms | required for MCP review |
+| Logo / composer icon | `assets/logo.png` (1024×1024), `assets/icon.png` (256×256), from presscart-mark.svg | square PNG ≥48×48, <5 MiB |
 | License | **undecided — blocker** | optional field; Presscart must choose before public distribution |
 
 The package name is `presscart` (renamed from 0.1.x's `presscart-placement-advisor`; Renz, 2026-10-16). It is the stable identifier and cannot change after the first upload, so this rename had to happen before it.
