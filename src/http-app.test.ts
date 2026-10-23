@@ -339,3 +339,33 @@ test('serves the OpenAI apps challenge only on GET and HEAD at the exact path', 
     assert.equal((await fetch(`${base}${variant}`)).status, 404, variant);
   }
 });
+
+test('serves the MCP Server Card publicly at /mcp/server-card, with caching and open CORS, even with OAuth on', async () => {
+  const { base } = await start(baseConfig({ oauth: oauthConfig() }));
+
+  const response = await fetch(`${base}/mcp/server-card`, {
+    headers: { accept: 'application/mcp-server-card+json', origin: 'https://not-allowed.example' },
+  });
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('content-type') ?? '', /^application\/mcp-server-card\+json/);
+  assert.equal(response.headers.get('access-control-allow-origin'), '*');
+  assert.equal(response.headers.get('cache-control'), 'public, max-age=3600');
+  const card = (await response.json()) as { name: string; remotes: Array<{ url: string }> };
+  assert.equal(card.name, 'com.presscart/presscart');
+  assert.deepEqual(card.remotes.map(remote => remote.url), [MCP_SERVER_URL.href]);
+
+  const etag = response.headers.get('etag');
+  assert.ok(etag);
+  const revalidated = await fetch(`${base}/mcp/server-card`, { headers: { 'if-none-match': etag } });
+  assert.equal(revalidated.status, 304);
+
+  const preflight = await fetch(`${base}/mcp/server-card`, { method: 'OPTIONS', headers: { origin: 'https://not-allowed.example' } });
+  assert.equal(preflight.status, 204);
+  assert.equal(preflight.headers.get('access-control-allow-origin'), '*');
+});
+
+test('the Server Card route does not open the MCP endpoint itself', async () => {
+  const { base } = await start(baseConfig({ oauth: oauthConfig() }));
+  const response = await sendMcp(base, '/mcp', { method: 'POST', body: initializeRequest() });
+  assert.equal(response.status, 401);
+});
