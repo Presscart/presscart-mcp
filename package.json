@@ -21,7 +21,7 @@
     "release:staging:dry-run": "PRESSCART_RELEASE_TARGET=staging semantic-release --dry-run"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.23.4"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.4",
