@@ -1,3 +1,10 @@
+## [1.3.1](https://github.com/Presscart/presscart-mcp/compare/v1.3.0...v1.3.1) (2026-10-24)
+
+
+### Bug Fixes
+
+* **security:** bump Node runtime for CVE-2026-111497 (Brotli RCE) ([#24](https://github.com/Presscart/presscart-mcp/issues/24)) ([9841020](https://github.com/Presscart/presscart-mcp/commit/9841020bf1134a29d8796aaa397af13956d464b1))
+
 # [1.3.0](https://github.com/Presscart/presscart-mcp/compare/v1.2.0...v1.3.0) (2026-10-21)
 
 
