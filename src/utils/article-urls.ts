@@ -33,7 +33,7 @@ export function omitInternalArticleUrls<T extends Record<string, unknown>>(artic
   ) as Omit<T, 'brief_google_doc_url' | 'draft_google_doc_url' | 'google_doc_url'>;
 }
 
-function getPresscartAppUrl() {
+export function getPresscartAppUrl() {
   if (env.PRESSCART_APP_URL) return env.PRESSCART_APP_URL;
 
   const apiUrl = new URL(env.PRESSCART_API_URL);
