@@ -405,4 +405,28 @@ export function registerProductTools(server: McpServer, options: ServerOptions) 
       return jsonResult(normalizePriceFields(response));
     }
   );
+
+  server.registerTool(
+    'set_product_active',
+    {
+      title: 'Set Product Active',
+      description:
+        'Switch a publisher-owned product on (active=true) or off (active=false) without sending the full product payload. A product only goes active when every outlet it is linked to is ACTIVE; otherwise the API keeps it inactive. Report the returned active value, and if it is false after asking for true, explain that the outlet still needs approval.',
+      inputSchema: {
+        team_slug: teamSlugSchema,
+        product_id: z.string().uuid(),
+        active: z.boolean(),
+      },
+      annotations: updateTool,
+    },
+    async (input, extra) => {
+      requirePermission(extra, options, 'products.update');
+      const api = createPresscartApiClient(extra, options);
+      const response = await api.patch(
+        teamRoute(input.team_slug, `/products/${input.product_id}/status`),
+        { active: input.active }
+      );
+      return jsonResult(response);
+    }
+  );
 }
