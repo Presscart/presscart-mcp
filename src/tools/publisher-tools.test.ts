@@ -293,13 +293,26 @@ test('get_publisher_agreement_status hands an unsigned publisher the dashboard l
   );
 });
 
-test('update_outlet tells agents to check the agreement before setting an outlet ACTIVE', async () => {
+async function getToolDescription(name: string) {
   const { client, close } = await connectInMemoryClient(createPresscartMcpServer({}));
   try {
     const { tools } = await client.listTools();
-    const updateOutlet = tools.find(tool => tool.name === 'update_outlet');
-    assert.match(updateOutlet?.description ?? '', /get_publisher_agreement_status/);
+    return tools.find(tool => tool.name === name)?.description ?? '';
   } finally {
     await close();
   }
+}
+
+test('update_outlet tells agents to check the agreement before setting an outlet ACTIVE', async () => {
+  assert.match(await getToolDescription('update_outlet'), /get_publisher_agreement_status/);
+});
+
+test('set_product_active explains that a product with no linked outlet stays inactive', async () => {
+  assert.match(await getToolDescription('set_product_active'), /no linked outlet/i);
+});
+
+test('submit_outlet_authorization sends large documents to the dashboard instead', async () => {
+  const description = await getToolDescription('submit_outlet_authorization');
+  assert.match(description, /70 KB/);
+  assert.match(description, /dashboard/);
 });

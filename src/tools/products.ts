@@ -411,7 +411,7 @@ export function registerProductTools(server: McpServer, options: ServerOptions) 
     {
       title: 'Set Product Active',
       description:
-        'Switch a publisher-owned product on (active=true) or off (active=false) without sending the full product payload. A product only goes active when every outlet it is linked to is ACTIVE; otherwise the API keeps it inactive. Report the returned active value, and if it is false after asking for true, explain that the outlet still needs approval.',
+        'Switch a publisher-owned product on (active=true) or off (active=false) without sending the full product payload. A product only goes active when it is linked to at least one outlet and every linked outlet is ACTIVE; otherwise the API keeps it inactive. Report the returned active value. If it is false after asking for true, check the product: with no linked outlet, the publisher needs to link one; otherwise a linked outlet still needs approval.',
       inputSchema: {
         team_slug: teamSlugSchema,
         product_id: z.string().uuid(),

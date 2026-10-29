@@ -231,7 +231,7 @@ export function registerOutletTools(server: McpServer, options: ServerOptions) {
     {
       title: 'Submit Outlet Authorization',
       description:
-        "Submit proof that the publisher may represent an outlet when they can't verify its domain: a signed letter or saved email from the outlet's owner or editor (PDF, DOC, or DOCX), plus that person's name, work email, and role. The Presscart team reviews it. Use only the details the publisher gave you; never infer or fill in the authorizer's name, email, or role.",
+        "Submit proof that the publisher may represent an outlet when they can't verify its domain: a signed letter or saved email from the outlet's owner or editor (PDF, DOC, or DOCX), plus that person's name, work email, and role. The Presscart team reviews it. Use only the details the publisher gave you; never infer or fill in the authorizer's name, email, or role. The MCP connection only carries documents up to about 70 KB; for a larger file, ask the publisher to upload it on the publication's page in the Presscart dashboard.",
       inputSchema: {
         team_slug: teamSlugSchema,
         outlet_id: z.string().uuid(),
