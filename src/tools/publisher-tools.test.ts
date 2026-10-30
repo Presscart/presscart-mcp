@@ -267,6 +267,22 @@ const agreementTemplate = {
   acceptance_label: 'I agree to the Presscart Publisher Agreement.',
 };
 
+test('create_product sends null delivery days when the agent leaves them out', async () => {
+  const { result, calls } = await callTool('create_product', {
+    team_slug: TEAM_SLUG,
+    name: 'Feature article',
+    type_id: PRODUCT_ID,
+    active: false,
+    internal_cost: 100,
+    outlet_channel_ids: [OUTLET_ID],
+  });
+
+  assert.notEqual(result.isError, true);
+  const body = getJsonBody(calls[0]);
+  assert.equal(body.min_delivery_days, null);
+  assert.equal(body.max_delivery_days, null);
+});
+
 test('get_publisher_agreement_status reports a signed agreement without signer details', async () => {
   const { result, calls } = await callTool(
     'get_publisher_agreement_status',
