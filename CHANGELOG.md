@@ -1,3 +1,10 @@
+## [1.3.2](https://github.com/Presscart/presscart-mcp/compare/v1.3.1...v1.3.2) (2026-10-30)
+
+
+### Bug Fixes
+
+* **tools:** clearer publisher tool errors found in staging QA (PRE-1414) ([#26](https://github.com/Presscart/presscart-mcp/issues/26)) ([70704f1](https://github.com/Presscart/presscart-mcp/commit/70704f151c061bbc59bf4924650da75de401ef51))
+
 ## [1.3.1](https://github.com/Presscart/presscart-mcp/compare/v1.3.0...v1.3.1) (2026-10-24)
 
 
