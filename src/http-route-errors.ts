@@ -37,15 +37,26 @@ export function createHttpRouteErrorHandler(
       jsonrpc: '2.0',
       error: {
         code: -32000,
-        message: formatServerError(error, { exposeMessage }),
+        message: isBodyTooLarge(error)
+          ? BODY_TOO_LARGE_MESSAGE
+          : formatServerError(error, { exposeMessage }),
       },
       id: null,
     });
   };
 }
 
+// The SDK app parses JSON with express.json() defaults, which rejects bodies over 100 KB with this type.
+const BODY_TOO_LARGE_MESSAGE =
+  'The request is larger than the 100 KB the MCP connection accepts. For a large file, ask the user to upload it in the Presscart dashboard instead.';
+
+function isBodyTooLarge(error: unknown) {
+  return typeof error === 'object' && error !== null && (error as { type?: unknown }).type === 'entity.too.large';
+}
+
 function resolveErrorStatus(error: unknown) {
   if (error instanceof HttpError) return error.statusCode;
+  if (isBodyTooLarge(error)) return 413;
   if (error instanceof OAuthSessionAuthError) return error.statusCode;
   if (error instanceof PresscartApiError && (error.status === 401 || error.status === 403)) {
     return 401;
