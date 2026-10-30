@@ -92,7 +92,7 @@ test('each route lists only its own tool surface', async () => {
   const openai = await initializeSession(base, '/mcp/openai', tokenHeader);
   const claude = await initializeSession(base, '/mcp/claude-directory', tokenHeader);
 
-  assert.equal((await listToolNames(base, '/mcp', legacy)).length, 54);
+  assert.equal((await listToolNames(base, '/mcp', legacy)).length, 61);
   assert.deepEqual(await listToolNames(base, '/mcp/openai', openai), STAGE_A);
   assert.deepEqual(await listToolNames(base, '/mcp/claude-directory', claude), STAGE_A);
   assert.equal(httpApp.sessions.get(legacy)?.profile, 'legacy');
@@ -132,7 +132,7 @@ test('a session cannot be driven through another route in any direction', async 
   }
 
   assert.equal(httpApp.sessions.size, 3);
-  assert.equal((await listToolNames(base, '/mcp', sessions['/mcp'])).length, 54);
+  assert.equal((await listToolNames(base, '/mcp', sessions['/mcp'])).length, 61);
   assert.deepEqual(await listToolNames(base, '/mcp/openai', sessions['/mcp/openai']), STAGE_A);
 });
 
@@ -190,7 +190,7 @@ test('no header, query parameter, user agent, or body field changes the session 
   const legacySession = legacy.headers.get('mcp-session-id');
   assert.ok(legacySession);
   assert.equal(httpApp.sessions.get(legacySession)?.profile, 'legacy');
-  assert.equal((await listToolNames(base, '/mcp', legacySession)).length, 54);
+  assert.equal((await listToolNames(base, '/mcp', legacySession)).length, 61);
 });
 
 test('directory tools run through HTTP and excluded tools never reach the API', async () => {
@@ -415,7 +415,7 @@ test('legacy /mcp with OAuth rejects a session reused with a different grant', a
   assert.match(message, IDENTITY_MISMATCH);
   assert.equal(
     (await listToolNames(base, '/mcp', sessionId, { authorization: 'Bearer canonical-aud' })).length,
-    54,
+    61,
   );
 });
 

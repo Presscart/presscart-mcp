@@ -1,3 +1,5 @@
+import { isRecord } from './is-record.js';
+
 export function normalizePriceFields(data: unknown): unknown {
   if (Array.isArray(data)) {
     return data.map(item => normalizePriceFields(item));
@@ -95,6 +97,3 @@ function formatDisplayPrice(price: number, currency: unknown) {
   }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}

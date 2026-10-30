@@ -147,6 +147,11 @@ git push origin v0.2.0
 - `get_outlet`
 - `create_outlet`
 - `update_outlet`
+- `get_outlet_statistics`
+- `start_outlet_domain_verification`
+- `verify_outlet_domain`
+- `get_outlet_authorization`
+- `submit_outlet_authorization`
 - `list_outlet_channels`
 - `create_outlet_channel`
 - `update_outlet_channel`
@@ -161,6 +166,7 @@ git push origin v0.2.0
 - `get_product`
 - `create_product`
 - `update_product`
+- `set_product_active`
 - `create_order`
 - `get_order`
 - `list_order_items`
@@ -178,6 +184,7 @@ git push origin v0.2.0
 - `replace_article_file`
 - `submit_article`
 - `request_article_writing`
+- `get_publisher_agreement_status`
 
 ## Directory routes
 

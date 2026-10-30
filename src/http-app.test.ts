@@ -100,14 +100,14 @@ function oauthConfig(verifiedTokens: string[] = ['access-good']): NonNullable<Ht
   };
 }
 
-test('legacy /mcp initializes, lists 54 tools, calls a tool, streams, and deletes with an API token', async () => {
+test('legacy /mcp initializes, lists 61 tools, calls a tool, streams, and deletes with an API token', async () => {
   const api = stubApi();
   const { base, httpApp } = await start(baseConfig());
   const tokenHeader = { 'x-presscart-api-token': API_TOKEN };
 
   const sessionId = await initializeSession(base, '/mcp', tokenHeader);
   assert.equal(httpApp.sessions.size, 1);
-  assert.equal((await listToolNames(base, '/mcp', sessionId)).length, 54);
+  assert.equal((await listToolNames(base, '/mcp', sessionId)).length, 61);
 
   const call = await sendMcp(base, '/mcp', {
     body: { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'list_teams', arguments: {} } },
@@ -194,6 +194,20 @@ test('legacy /mcp keeps its request validation errors', async () => {
   assert.equal((await fetch(`${base}/elsewhere`)).status, 404);
 });
 
+test('legacy /mcp explains a request body over the size limit', async () => {
+  stubApi();
+  const { base } = await start(baseConfig());
+
+  const request = initializeRequest();
+  const response = await sendMcp(base, '/mcp', {
+    body: { ...request, params: { ...request.params, padding: 'x'.repeat(150_000) } },
+  });
+
+  assert.equal(response.status, 413);
+  const body = response.body as { error: { message: string } };
+  assert.match(body.error.message, /100 KB/);
+});
+
 test('legacy /mcp keeps CORS preflight and origin validation', async () => {
   stubApi();
   const { base } = await start(baseConfig());
@@ -255,7 +269,7 @@ test('legacy /mcp with OAuth challenges with the canonical metadata URL and acce
   const sessionId = await initializeSession(base, '/mcp', { authorization: 'Bearer access-good' });
   assert.equal(
     (await listToolNames(base, '/mcp', sessionId, { authorization: 'Bearer access-good' })).length,
-    54,
+    61,
   );
 
   const metadata = await fetch(`${base}/.well-known/oauth-protected-resource/mcp`);

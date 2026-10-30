@@ -376,7 +376,12 @@ export function registerProductTools(server: McpServer, options: ServerOptions) 
       requirePermission(extra, options, 'products.create');
       const api = createPresscartApiClient(extra, options);
       const { team_slug, ...body } = input;
-      const response = await api.post(teamRoute(team_slug, '/products/listings'), body);
+      // The create route requires both delivery-day keys but accepts null, so a missing value is sent as null.
+      const response = await api.post(teamRoute(team_slug, '/products/listings'), {
+        ...body,
+        min_delivery_days: body.min_delivery_days ?? null,
+        max_delivery_days: body.max_delivery_days ?? null,
+      });
       return jsonResult(normalizePriceFields(response));
     }
   );
@@ -403,6 +408,30 @@ export function registerProductTools(server: McpServer, options: ServerOptions) 
         body
       );
       return jsonResult(normalizePriceFields(response));
+    }
+  );
+
+  server.registerTool(
+    'set_product_active',
+    {
+      title: 'Set Product Active',
+      description:
+        'Switch a publisher-owned product on (active=true) or off (active=false) without sending the full product payload. A product only goes active when it is linked to at least one outlet and every linked outlet is ACTIVE; otherwise the API keeps it inactive. Report the returned active value. If it is false after asking for true, check the product: with no linked outlet, the publisher needs to link one; otherwise a linked outlet still needs approval.',
+      inputSchema: {
+        team_slug: teamSlugSchema,
+        product_id: z.string().uuid(),
+        active: z.boolean(),
+      },
+      annotations: updateTool,
+    },
+    async (input, extra) => {
+      requirePermission(extra, options, 'products.update');
+      const api = createPresscartApiClient(extra, options);
+      const response = await api.patch(
+        teamRoute(input.team_slug, `/products/${input.product_id}/status`),
+        { active: input.active }
+      );
+      return jsonResult(response);
     }
   );
 }

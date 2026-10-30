@@ -31,6 +31,11 @@ const LEGACY_TOOL_NAMES = [
   'get_outlet',
   'create_outlet',
   'update_outlet',
+  'get_outlet_statistics',
+  'start_outlet_domain_verification',
+  'verify_outlet_domain',
+  'get_outlet_authorization',
+  'submit_outlet_authorization',
   'list_outlet_channels',
   'create_outlet_channel',
   'update_outlet_channel',
@@ -46,6 +51,7 @@ const LEGACY_TOOL_NAMES = [
   'get_product',
   'create_product',
   'update_product',
+  'set_product_active',
   'create_order',
   'get_order',
   'list_order_items',
@@ -71,6 +77,7 @@ const LEGACY_TOOL_NAMES = [
   'replace_article_file',
   'submit_article',
   'request_article_writing',
+  'get_publisher_agreement_status',
 ];
 
 const EXPECTED_ANNOTATIONS = {
@@ -91,8 +98,8 @@ function directoryServer(profileId: (typeof DIRECTORY_PROFILE_IDS)[number]) {
   });
 }
 
-test('legacy server still lists exactly the current 54 tools', async () => {
-  assert.equal(LEGACY_TOOL_NAMES.length, 54);
+test('legacy server still lists exactly the current 61 tools', async () => {
+  assert.equal(LEGACY_TOOL_NAMES.length, 61);
   const { client, close } = await connectInMemoryClient(createPresscartMcpServer({}));
   try {
     const { tools } = await client.listTools();

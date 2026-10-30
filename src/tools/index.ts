@@ -1,6 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 import type { ServerOptions } from '../utils/tool-context.js';
+import { registerAgreementTools } from './agreements.js';
 import { registerArticleTools } from './articles.js';
 import { registerAuthTools } from './auth.js';
 import { registerCampaignTools } from './campaigns.js';
@@ -27,4 +28,5 @@ export function registerPresscartTools(server: McpServer, options: ServerOptions
   registerCommentTools(server, options);
   registerQuestionnaireTools(server, options);
   registerArticleTools(server, options);
+  registerAgreementTools(server, options);
 }
