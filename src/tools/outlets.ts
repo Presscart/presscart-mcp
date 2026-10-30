@@ -1,7 +1,9 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
+import { PresscartApiError } from '../api.js';
 import { buildUploadFormData } from '../utils/file-upload.js';
+import { isRecord } from '../utils/is-record.js';
 import {
   createPresscartApiClient,
   requirePermission,
@@ -51,6 +53,18 @@ const authorizationDocumentSchema = z.object({
 type UploadedFilesResponse = {
   files?: Array<{ file_key?: string }>;
 };
+
+// Matches the NotFoundError text in the API's data/outlet-authorization/get-outlet-authorization.ts.
+const AUTHORIZATION_NOT_FOUND_MESSAGE = 'Outlet authorization not found.';
+
+function isAuthorizationNotSubmitted(error: unknown) {
+  return (
+    error instanceof PresscartApiError &&
+    error.status === 404 &&
+    isRecord(error.body) &&
+    error.body.message === AUTHORIZATION_NOT_FOUND_MESSAGE
+  );
+}
 
 export function registerOutletTools(server: McpServer, options: ServerOptions) {
   server.registerTool(
@@ -209,7 +223,7 @@ export function registerOutletTools(server: McpServer, options: ServerOptions) {
     {
       title: 'Get Outlet Authorization',
       description:
-        "Get the ownership authorization document submitted for an outlet owned by the selected publisher team, with its review status and any review notes from the Presscart team. Relay review_notes when the status needs the publisher's attention.",
+        "Get the ownership authorization document submitted for an outlet owned by the selected publisher team, with its review status and any review notes from the Presscart team. Relay review_notes when the status needs the publisher's attention. When nothing has been submitted yet, it returns submitted=false and the next step.",
       inputSchema: {
         team_slug: teamSlugSchema,
         outlet_id: z.string().uuid(),
@@ -219,10 +233,22 @@ export function registerOutletTools(server: McpServer, options: ServerOptions) {
     async (input, extra) => {
       requirePermission(extra, options, 'outlets.read');
       const api = createPresscartApiClient(extra, options);
-      const response = await api.get(
-        teamRoute(input.team_slug, `/outlets/${input.outlet_id}/authorization`)
-      );
-      return jsonResult(response);
+      try {
+        const response = await api.get(
+          teamRoute(input.team_slug, `/outlets/${input.outlet_id}/authorization`)
+        );
+        return jsonResult(response);
+      } catch (error) {
+        // A missing outlet is also a 404, so only the API's no-authorization reason means nothing was submitted yet.
+        if (isAuthorizationNotSubmitted(error)) {
+          return jsonResult({
+            submitted: false,
+            next_step:
+              'No ownership authorization has been submitted for this outlet yet. Ask the publisher for a signed authorization letter and send it with submit_outlet_authorization.',
+          });
+        }
+        throw error;
+      }
     }
   );
 

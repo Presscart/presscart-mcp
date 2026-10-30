@@ -376,7 +376,12 @@ export function registerProductTools(server: McpServer, options: ServerOptions) 
       requirePermission(extra, options, 'products.create');
       const api = createPresscartApiClient(extra, options);
       const { team_slug, ...body } = input;
-      const response = await api.post(teamRoute(team_slug, '/products/listings'), body);
+      // The create route requires both delivery-day keys but accepts null, so a missing value is sent as null.
+      const response = await api.post(teamRoute(team_slug, '/products/listings'), {
+        ...body,
+        min_delivery_days: body.min_delivery_days ?? null,
+        max_delivery_days: body.max_delivery_days ?? null,
+      });
       return jsonResult(normalizePriceFields(response));
     }
   );

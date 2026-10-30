@@ -132,3 +132,18 @@ test('production handler hides unrelated internal error messages', async () => {
     id: null,
   });
 });
+
+test('production handler explains a request body over the size limit', async () => {
+  const { response } = await requestThroughHandler(() =>
+    Object.assign(new Error('request entity too large'), {
+      type: 'entity.too.large',
+      status: 413,
+      statusCode: 413,
+    })
+  );
+
+  assert.equal(response.status, 413);
+  const body = (await response.json()) as { error: { message: string } };
+  assert.match(body.error.message, /100 KB/);
+  assert.match(body.error.message, /dashboard/);
+});

@@ -118,6 +118,28 @@ test('get_outlet_authorization reads the outlet ownership authorization', async 
   assert.equal(calls[0]?.url.pathname, `/teams/${TEAM_SLUG}/outlets/${OUTLET_ID}/authorization`);
 });
 
+test('get_outlet_authorization reports that nothing was submitted when the API has no authorization', async () => {
+  const { result } = await callTool(
+    'get_outlet_authorization',
+    { team_slug: TEAM_SLUG, outlet_id: OUTLET_ID },
+    () => jsonResponse({ name: 'NotFoundError', message: 'Outlet authorization not found.' }, 404)
+  );
+
+  assert.notEqual(result.isError, true);
+  assert.equal(result.structuredContent?.submitted, false);
+  assert.match(String(result.structuredContent?.next_step), /submit_outlet_authorization/);
+});
+
+test('get_outlet_authorization still reports a missing outlet as an error', async () => {
+  const { result } = await callTool(
+    'get_outlet_authorization',
+    { team_slug: TEAM_SLUG, outlet_id: OUTLET_ID },
+    () => jsonResponse({ name: 'NotFoundError', message: 'Outlet not found.' }, 404)
+  );
+
+  assert.equal(result.isError, true);
+});
+
 test('submit_outlet_authorization uploads the document as authorization evidence, then submits it', async () => {
   const { result, calls } = await callTool(
     'submit_outlet_authorization',
@@ -244,6 +266,22 @@ const agreementTemplate = {
   content_markdown: 'Full publisher agreement text.',
   acceptance_label: 'I agree to the Presscart Publisher Agreement.',
 };
+
+test('create_product sends null delivery days when the agent leaves them out', async () => {
+  const { result, calls } = await callTool('create_product', {
+    team_slug: TEAM_SLUG,
+    name: 'Feature article',
+    type_id: PRODUCT_ID,
+    active: false,
+    internal_cost: 100,
+    outlet_channel_ids: [OUTLET_ID],
+  });
+
+  assert.notEqual(result.isError, true);
+  const body = getJsonBody(calls[0]);
+  assert.equal(body.min_delivery_days, null);
+  assert.equal(body.max_delivery_days, null);
+});
 
 test('get_publisher_agreement_status reports a signed agreement without signer details', async () => {
   const { result, calls } = await callTool(
