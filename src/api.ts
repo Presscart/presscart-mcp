@@ -1,3 +1,5 @@
+import { isRecord } from './utils/is-record.js';
+
 type QueryValue = string | number | boolean | undefined | null;
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
@@ -145,8 +147,8 @@ export class PresscartApiClient {
     const body = tryParseJson(text);
 
     if (!response.ok) {
-      // Names only the request fields that failed validation, so the agent can fix its input without seeing backend text.
-      const invalidFields = isRejectedRequest(response.status) ? getInvalidFields(body) : [];
+      // Request validation failures name their fields so the agent can fix its input; no backend text is copied.
+      const invalidFields = response.status === 400 ? getInvalidFields(body) : [];
       const reason = invalidFields.length > 0 ? `: invalid fields: ${invalidFields.join(', ')}` : '';
       throw new PresscartApiError(
         `Presscart API request failed: ${response.status} ${response.statusText}${reason}`,
@@ -173,10 +175,6 @@ function ensureTrailingSlash(url: string) {
 const MAX_INVALID_FIELDS = 5;
 const FIELD_NAME_PATTERN = /^[A-Za-z0-9_]{1,64}$/;
 
-function isRejectedRequest(status: number) {
-  return status >= 400 && status < 500 && status !== 401 && status !== 403;
-}
-
 function getInvalidFields(body: unknown): string[] {
   const issues = isRecord(body) && isRecord(body.error) ? body.error.issues : undefined;
   if (!Array.isArray(issues)) return [];
@@ -202,9 +200,6 @@ function getFieldPath(path: unknown): string | null {
   return segments.every(segment => segment !== null) ? segments.join('.') : null;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 function tryParseJson(text: string): unknown {
   if (!text) return null;

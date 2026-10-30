@@ -1,6 +1,4 @@
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
+import { isRecord } from './is-record.js';
 
 export function toTeamDetailsResponse(team: unknown) {
   const record = isRecord(team) ? team : {};

@@ -1,3 +1,5 @@
+import { isRecord } from './is-record.js';
+
 export type SanitizeSensitiveFieldsOptions = {
   /** create_order keeps checkout_link: it is how the buyer pays for the order just created. */
   keepCheckoutLink?: boolean;
@@ -22,9 +24,6 @@ const sensitiveSubstrings = [
 
 const sensitiveTokenPatterns = [/(^|_)customer(_|$)/, /(^|_)invoices?(_|$)/, /(^|_)emails?(_|$)/];
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 /** paymentIntentId, PaymentIntentID and payment-intent-id all become payment_intent_id. */
 function toSnakeCase(key: string) {
