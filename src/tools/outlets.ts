@@ -1,6 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
+import { PresscartApiError } from '../api.js';
 import { buildUploadFormData } from '../utils/file-upload.js';
 import {
   createPresscartApiClient,
@@ -51,6 +52,16 @@ const authorizationDocumentSchema = z.object({
 type UploadedFilesResponse = {
   files?: Array<{ file_key?: string }>;
 };
+
+const AUTHORIZATION_NOT_FOUND_MESSAGE = 'Outlet authorization not found.';
+
+function isAuthorizationNotSubmitted(error: unknown) {
+  return (
+    error instanceof PresscartApiError &&
+    error.status === 404 &&
+    (error.body as { message?: unknown } | null)?.message === AUTHORIZATION_NOT_FOUND_MESSAGE
+  );
+}
 
 export function registerOutletTools(server: McpServer, options: ServerOptions) {
   server.registerTool(
@@ -219,10 +230,22 @@ export function registerOutletTools(server: McpServer, options: ServerOptions) {
     async (input, extra) => {
       requirePermission(extra, options, 'outlets.read');
       const api = createPresscartApiClient(extra, options);
-      const response = await api.get(
-        teamRoute(input.team_slug, `/outlets/${input.outlet_id}/authorization`)
-      );
-      return jsonResult(response);
+      try {
+        const response = await api.get(
+          teamRoute(input.team_slug, `/outlets/${input.outlet_id}/authorization`)
+        );
+        return jsonResult(response);
+      } catch (error) {
+        // A missing outlet is also a 404, so only the API's no-authorization reason means nothing was submitted yet.
+        if (isAuthorizationNotSubmitted(error)) {
+          return jsonResult({
+            submitted: false,
+            next_step:
+              'No ownership authorization has been submitted for this outlet yet. Ask the publisher for a signed authorization letter and send it with submit_outlet_authorization.',
+          });
+        }
+        throw error;
+      }
     }
   );
 

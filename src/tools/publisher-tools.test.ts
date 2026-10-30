@@ -118,6 +118,28 @@ test('get_outlet_authorization reads the outlet ownership authorization', async 
   assert.equal(calls[0]?.url.pathname, `/teams/${TEAM_SLUG}/outlets/${OUTLET_ID}/authorization`);
 });
 
+test('get_outlet_authorization reports that nothing was submitted when the API has no authorization', async () => {
+  const { result } = await callTool(
+    'get_outlet_authorization',
+    { team_slug: TEAM_SLUG, outlet_id: OUTLET_ID },
+    () => jsonResponse({ name: 'NotFoundError', message: 'Outlet authorization not found.' }, 404)
+  );
+
+  assert.notEqual(result.isError, true);
+  assert.equal(result.structuredContent?.submitted, false);
+  assert.match(String(result.structuredContent?.next_step), /submit_outlet_authorization/);
+});
+
+test('get_outlet_authorization still reports a missing outlet as an error', async () => {
+  const { result } = await callTool(
+    'get_outlet_authorization',
+    { team_slug: TEAM_SLUG, outlet_id: OUTLET_ID },
+    () => jsonResponse({ name: 'NotFoundError', message: 'Outlet not found.' }, 404)
+  );
+
+  assert.equal(result.isError, true);
+});
+
 test('submit_outlet_authorization uploads the document as authorization evidence, then submits it', async () => {
   const { result, calls } = await callTool(
     'submit_outlet_authorization',
