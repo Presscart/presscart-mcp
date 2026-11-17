@@ -19,6 +19,7 @@ import {
 import { resolveDirectoryResource } from './oauth-protocol.js';
 import { createDirectoryMcpServer, createPresscartMcpServer } from './server.js';
 import type { ServerOptions } from './utils/tool-context.js';
+import { createServerCardHandler, SERVER_CARD_PATH_SUFFIX } from './server-card.js';
 
 export type OAuthVerifierFactory = (args: {
   resource: URL;
@@ -173,6 +174,12 @@ export function createHttpApp(config: HttpAppConfig): HttpApp {
     app.use(router);
     return router;
   }
+
+  // Public discovery metadata for the canonical endpoint. Mounted before the /mcp CORS and Origin
+  // checks, which would refuse the cross-origin browser reads the Server Card spec requires.
+  const serverCard = createServerCardHandler(config.mcpServerUrl);
+  app.get(`/mcp${SERVER_CARD_PATH_SUFFIX}`, serverCard);
+  app.options(`/mcp${SERVER_CARD_PATH_SUFFIX}`, serverCard);
 
   // app.use('/mcp') also matches every /mcp/<profile> path.
   app.use('/mcp', applyMcpCorsHeaders(allowedOrigins));
