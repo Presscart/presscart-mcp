@@ -296,6 +296,10 @@ full upstream responses.
 - Preserve upstream OAuth errors such as `invalid_client`, `invalid_grant`,
   `invalid_scope`, and `unauthorized_client`, including their appropriate 4xx
   status, while limiting the response to standard public OAuth fields.
+- Map Supabase Auth's native `{code, error_code, msg}` 4xx token errors to
+  `invalid_grant` with fixed public text, except `invalid_credentials` to
+  `invalid_client` and hook timeouts, refresh conflicts, and rate limits to
+  `temporarily_unavailable`. Never echo the upstream `msg`.
 - Map an upstream timeout or unavailable service to `temporarily_unavailable`.
 - Map malformed or unexpected upstream responses to `server_error`.
 - Do not turn an expected refresh rejection into a generic 500.
