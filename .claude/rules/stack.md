@@ -10,10 +10,11 @@
 - Auth: MCP OAuth (Supabase issuer, `jose` for JWT verification) or `X-Presscart-API-Token` header when OAuth is disabled
 - Tests: built-in `node:test` + `node:assert/strict`, run via `npm test` (`node --import tsx --test "src/**/*.test.ts"`)
 - Dev: `tsx` (`npm run dev`) · Build: `tsc` → `dist/` · Typecheck: `npm run check`
-- Deploy: Railway (injects `PORT`) · Release: semantic-release from Conventional Commits (enforced by commitlint + husky)
+- Deploy: Cloudflare Worker (`cloudflare/`, `wrangler.jsonc`) fronting a Cloudflare Container built from the `Dockerfile`; the Worker sets `PORT=8080` · Release: semantic-release from Conventional Commits (enforced by commitlint + husky)
 
 ## Project layout
 
+- `cloudflare/` — Worker front (Durable Object `McpContainer` that starts the container, forwards requests, and pings `/health` on a cron); typechecked with `@cloudflare/workers-types`, deployed with `wrangler.jsonc`.
 - `src/http.ts` — entrypoint: env resolution, listen, signals, cleanup timer.
 - `src/http-app.ts` — `createHttpApp`: Express app, transports, sessions (bound to their route's profile), OAuth wiring, legacy and directory MCP endpoints.
 - `src/server.ts` — MCP server assembly.
