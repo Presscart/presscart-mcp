@@ -127,6 +127,20 @@ function assertOAuthJson(response: Response) {
   assert.match(response.headers.get('content-type') ?? '', /^application\/json(?:;|$)/i);
 }
 
+function supabaseAuthErrorResponse(status: number, errorCode: string, sentinel: string) {
+  const response = jsonResponse({ code: status, error_code: errorCode, msg: sentinel, error_id: sentinel }, status);
+  response.headers.set('x-sb-error-code', errorCode);
+  return response;
+}
+
+function refreshTokenForm() {
+  return new URLSearchParams({
+    grant_type: 'refresh_token',
+    refresh_token: 'refresh-current',
+    client_id: 'client-1',
+  });
+}
+
 test('publishes facade metadata only when enabled and caches both resource routes', async () => {
   const enabled = await startRouter();
   const authorizationMetadata = await fetch(`${enabled}/.well-known/oauth-authorization-server`);
@@ -989,6 +1003,150 @@ test('maps timeout/network, redirects, and malformed successes to safe facade er
     assert.match(text, new RegExp(`"error":"${expectedError}"`));
     assert.equal(text.includes(rawSentinel), false);
     assert.equal(text.includes('network includes raw secret'), false);
+  }
+});
+
+test('maps Supabase-native token rejections to invalid_grant without leaking upstream text', async () => {
+  const rawSentinel = 'raw-supabase-token-detail-must-not-escape';
+  const refreshRejections = [
+    [400, 'refresh_token_not_found'],
+    [400, 'refresh_token_already_used'],
+    [400, 'session_expired'],
+    [400, 'session_not_found'],
+    [403, 'bad_jwt'],
+    [403, 'unknown'],
+    [422, 'unknown'],
+    [401, 'no_authorization'],
+  ] as const;
+  const responses = [
+    ...refreshRejections.map(([status, errorCode]) =>
+      supabaseAuthErrorResponse(status, errorCode, rawSentinel)),
+    supabaseAuthErrorResponse(400, 'validation_failed', rawSentinel),
+  ];
+  const fetchImpl: typeof fetch = async () => {
+    const response = responses.shift();
+    assert(response);
+    return response;
+  };
+  const base = await startRouter({ fetchImpl });
+  const authorizationCodeForm = new URLSearchParams({
+    grant_type: 'authorization_code',
+    code: 'authorization-code-sentinel',
+    code_verifier: 'v'.repeat(43),
+    redirect_uri: 'https://client.example/callback?return=%2Fexact path',
+    client_id: 'public-client-1',
+    resource: canonicalResource,
+    scope: 'profile offline_access',
+  });
+  for (const { body, description } of [
+    ...refreshRejections.map(() => ({
+      body: refreshTokenForm(),
+      description: 'refresh token is invalid, expired, or revoked',
+    })),
+    { body: authorizationCodeForm, description: 'authorization code is invalid, expired, or already used' },
+  ]) {
+    const response = await fetch(`${base}/oauth/token`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body,
+    });
+    assert.equal(response.status, 400);
+    assertOAuthJson(response);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+    assert.equal(response.headers.get('x-sb-error-code'), null);
+    const text = await response.text();
+    assert.equal(text.includes(rawSentinel), false);
+    assert.deepEqual(JSON.parse(text), { error: 'invalid_grant', error_description: description });
+  }
+  assert.equal(responses.length, 0);
+});
+
+test('maps Supabase hook timeouts, refresh conflicts, rate limits, and 5xx to temporarily_unavailable', async () => {
+  const rawSentinel = 'raw-supabase-transient-detail-must-not-escape';
+  const responses = [
+    supabaseAuthErrorResponse(422, 'hook_timeout', rawSentinel),
+    supabaseAuthErrorResponse(422, 'hook_timeout_after_retry', rawSentinel),
+    supabaseAuthErrorResponse(409, 'conflict', rawSentinel),
+    supabaseAuthErrorResponse(429, 'over_request_rate_limit', rawSentinel),
+    supabaseAuthErrorResponse(500, 'unexpected_failure', rawSentinel),
+  ];
+  const fetchImpl: typeof fetch = async () => {
+    const response = responses.shift();
+    assert(response);
+    return response;
+  };
+  const base = await startRouter({ fetchImpl });
+  for (let index = 0; index < 5; index += 1) {
+    const response = await fetch(`${base}/oauth/token`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: refreshTokenForm(),
+    });
+    assert.equal(response.status, 503);
+    assertOAuthJson(response);
+    const text = await response.text();
+    assert.equal(text.includes(rawSentinel), false);
+    assert.deepEqual(JSON.parse(text), {
+      error: 'temporarily_unavailable',
+      error_description: 'upstream authorization server is temporarily unavailable',
+    });
+  }
+});
+
+test('maps Supabase invalid_credentials to invalid_client and challenges only Basic callers', async () => {
+  const rawSentinel = 'raw-supabase-client-auth-detail-must-not-escape';
+  const fetchImpl: typeof fetch = async () =>
+    supabaseAuthErrorResponse(400, 'invalid_credentials', rawSentinel);
+  const base = await startRouter({ fetchImpl });
+  const basic = `Basic ${Buffer.from('client-1:wrong-secret').toString('base64')}`;
+  for (const { headers, body, challenge } of [
+    { headers: {}, body: refreshTokenForm(), challenge: null },
+    {
+      headers: { authorization: basic },
+      body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: 'refresh-current' }),
+      challenge: 'Basic realm="oauth/token"',
+    },
+  ]) {
+    const response = await fetch(`${base}/oauth/token`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded', ...headers },
+      body,
+    });
+    assert.equal(response.status, 401);
+    assert.equal(response.headers.get('www-authenticate'), challenge);
+    const text = await response.text();
+    assert.equal(text.includes(rawSentinel), false);
+    assert.deepEqual(JSON.parse(text), {
+      error: 'invalid_client',
+      error_description: 'client authentication failed',
+    });
+  }
+});
+
+test('keeps unrecognised upstream token error bodies as server_error without leaking upstream text', async () => {
+  const rawSentinel = 'raw-upstream-token-error-must-not-escape';
+  const responses = [
+    new Response(rawSentinel, { status: 400, headers: { 'content-type': 'text/plain' } }),
+    new Response(`{${rawSentinel}`, { status: 400, headers: { 'content-type': 'application/json' } }),
+    jsonResponse({ message: rawSentinel }, 400),
+    jsonResponse({ code: 400, msg: rawSentinel }, 400),
+  ];
+  const fetchImpl: typeof fetch = async () => {
+    const response = responses.shift();
+    assert(response);
+    return response;
+  };
+  const base = await startRouter({ fetchImpl });
+  for (let index = 0; index < 4; index += 1) {
+    const response = await fetch(`${base}/oauth/token`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: refreshTokenForm(),
+    });
+    assert.equal(response.status, 502);
+    const text = await response.text();
+    assert.match(text, /"error":"server_error"/);
+    assert.equal(text.includes(rawSentinel), false);
   }
 });
 

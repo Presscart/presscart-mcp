@@ -88,6 +88,21 @@ const supabaseDcrValidationErrorSchema = z.object({
   error_code: z.literal('validation_failed'),
   msg: z.string().min(1).max(2_048),
 }).passthrough();
+// Supabase Auth's native error body; the refresh path returns it instead of an OAuth error.
+const supabaseAuthErrorSchema = z.object({
+  code: z.number().int(),
+  error_code: z.string().min(1),
+  msg: z.string(),
+}).passthrough();
+// Supabase runs the access-token hook inside the refresh transaction, so a hook
+// timeout or a concurrent-refresh conflict leaves the refresh token unconsumed:
+// these are retryable, not a dead grant.
+const retryableSupabaseTokenErrorCodes = new Set([
+  'hook_timeout',
+  'hook_timeout_after_retry',
+  'conflict',
+  'over_request_rate_limit',
+]);
 
 type OAuthErrorPayload = {
   error: string;
@@ -292,6 +307,7 @@ export function createOAuthRouter(options: OAuthRouterOptions): Router {
           fetchImpl,
           url: upstreamToken,
           timeoutMs: options.upstreamTimeoutMs,
+          supabaseTokenGrantType: tokenRequest.grant_type,
           init: {
             method: 'POST',
             headers,
@@ -460,6 +476,7 @@ async function fetchUpstreamJson(args: {
   url: URL;
   timeoutMs: number;
   translateSupabaseDcrValidationErrors?: boolean;
+  supabaseTokenGrantType?: TokenRequest['grant_type'];
   init: RequestInit;
 }) {
   let response: globalThis.Response;
@@ -470,22 +487,14 @@ async function fetchUpstreamJson(args: {
       signal: AbortSignal.timeout(args.timeoutMs),
     });
   } catch {
-    throw new FacadeOAuthError(
-      'temporarily_unavailable',
-      'upstream authorization server is temporarily unavailable',
-      503,
-    );
+    throw upstreamUnavailableError();
   }
 
   if (response.status >= 300 && response.status < 400) {
     throw upstreamServerError();
   }
   if (response.status >= 500) {
-    throw new FacadeOAuthError(
-      'temporarily_unavailable',
-      'upstream authorization server is temporarily unavailable',
-      503,
-    );
+    throw upstreamUnavailableError();
   }
   if (!((response.status >= 200 && response.status < 300)
     || (response.status >= 400 && response.status < 500))) {
@@ -507,7 +516,15 @@ async function fetchUpstreamJson(args: {
     }
 
     const parsed = upstreamOAuthErrorSchema.safeParse(body);
-    if (!parsed.success) throw upstreamServerError();
+    if (!parsed.success) {
+      if (args.supabaseTokenGrantType !== undefined) {
+        const supabaseError = supabaseAuthErrorSchema.safeParse(body);
+        if (supabaseError.success) {
+          throw supabaseTokenError(supabaseError.data.error_code, args.supabaseTokenGrantType);
+        }
+      }
+      throw upstreamServerError();
+    }
     throw new UpstreamOAuthError(response.status, {
       error: parsed.data.error,
       ...(parsed.data.error_description === undefined
@@ -695,6 +712,32 @@ function upstreamServerError() {
     'server_error',
     'upstream authorization server response is invalid',
     502,
+  );
+}
+
+function upstreamUnavailableError() {
+  return new FacadeOAuthError(
+    'temporarily_unavailable',
+    'upstream authorization server is temporarily unavailable',
+    503,
+  );
+}
+
+// Fixed public text only: Supabase's msg, error_code, and error_id never reach the client.
+function supabaseTokenError(errorCode: string, grantType: TokenRequest['grant_type']) {
+  if (retryableSupabaseTokenErrorCodes.has(errorCode)) return upstreamUnavailableError();
+  // Supabase's client-auth middleware reports an unknown client or bad secret this way.
+  if (errorCode === 'invalid_credentials') {
+    return new FacadeOAuthError('invalid_client', 'client authentication failed', 401);
+  }
+  // RFC 6749 §5.2: a rejected grant is invalid_grant, so the client re-authorizes
+  // instead of retrying.
+  return new FacadeOAuthError(
+    'invalid_grant',
+    grantType === 'refresh_token'
+      ? 'refresh token is invalid, expired, or revoked'
+      : 'authorization code is invalid, expired, or already used',
+    400,
   );
 }
 
