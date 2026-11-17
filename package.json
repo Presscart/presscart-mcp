@@ -10,8 +10,8 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/http.js",
     "start:http": "node dist/http.js",
-    "check": "tsc --noEmit -p tsconfig.json",
-    "test": "node --import tsx --test \"src/**/*.test.ts\"",
+    "check": "tsc --noEmit -p tsconfig.json && tsc -p cloudflare/tsconfig.json && tsc -p cloudflare/tsconfig.test.json",
+    "test": "node --import tsx --test \"src/**/*.test.ts\" \"cloudflare/**/*.test.ts\"",
     "prepare": "husky",
     "sync:version": "node scripts/sync-version.mjs",
     "release": "semantic-release",
@@ -29,6 +29,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261117.1",
     "@commitlint/cli": "^21.1.0",
     "@commitlint/config-conventional": "^21.1.0",
     "@semantic-release/changelog": "^6.0.3",

@@ -263,6 +263,33 @@ Deploy the audience migration and translator in this order:
 
 To roll back the facade, set `MCP_OAUTH_TRANSLATOR_ENABLED=false`; direct Supabase metadata returns without changing legacy direct-token MCP or ordinary Presscart sessions. Keep canonical audience issuance and temporary legacy verification in place until the rollback window is complete. Clients registered against the facade may need to reconnect through the direct Supabase flow.
 
+### Cloudflare Workers deploy
+
+Production runs as the `presscart-mcp` Cloudflare Worker. The Worker in `cloudflare/` is a Durable Object (`McpContainer`) that starts the server from the `Dockerfile` in a Cloudflare Container and forwards every request to it. `wrangler.jsonc` holds the Worker settings and non-secret vars. Routes and custom domains stay in the Cloudflare dashboard, so they are not in the config.
+
+Needs Docker with buildx and a Wrangler login (or `CLOUDFLARE_API_TOKEN`) with access to the account.
+
+```bash
+export CLOUDFLARE_ACCOUNT_ID=<account-id>
+npx -y wrangler@4.163.0 deploy --dry-run --outdir /tmp/presscart-mcp-dry   # builds the image and lists bindings
+npx -y wrangler@4.163.0 deploy --message "vX.Y.Z (<sha>) deploy" --tag "vX.Y.Z-on-<sha>"
+npx -y wrangler@4.163.0 deployments list --name presscart-mcp
+npx -y wrangler@4.163.0 containers list                                     # then `containers info <id>` for rollout and image
+curl -s -o /dev/null -w '%{http_code}\n' https://mcp.presscart.com/health
+```
+
+`MCP_INTERNAL_AUTH_TOKEN` is a Worker secret. Deploys keep it, so only set it on purpose with `npx -y wrangler@4.163.0 secret put MCP_INTERNAL_AUTH_TOKEN` (this deploys a new version right away). Vars in the config replace the deployed vars on every deploy.
+
+`wrangler rollback` only moves the Worker back. The container application keeps the newest image, so a broken server stays broken. To roll back the server, deploy the previous release again, either from its tag or with `image` pinned to its registry digest (`containers info <id>` shows the current one):
+
+```bash
+git checkout vX.Y.Z   # the last good release, with this wrangler.jsonc
+npx -y wrangler@4.163.0 deploy --message "rollback to vX.Y.Z" --tag "vX.Y.Z-rollback"
+# or set "image": "registry.cloudflare.com/<account-id>/presscart-mcp-mcpcontainer@sha256:<previous-digest>" and deploy
+```
+
+Use `npx -y wrangler@4.163.0 rollback <version-id> --name presscart-mcp` only when the problem is in the Worker code in `cloudflare/`.
+
 ### Legacy direct-token mode
 
 If `MCP_OAUTH_ENABLED` is unset or `false`, hosted clients can still connect to `/mcp` directly and provide the user's Presscart API token via `X-Presscart-API-Token`.
