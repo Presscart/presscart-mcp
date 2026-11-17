@@ -1,0 +1,45 @@
+// Production Worker that fronts the presscart-mcp container.
+// Set CLOUDFLARE_ACCOUNT_ID in the shell or CI instead of committing an account id.
+// The secret MCP_INTERNAL_AUTH_TOKEN is set with `wrangler secret put` and is kept across deploys.
+// Routes and custom domains are managed in the Cloudflare dashboard, so none are listed here.
+{
+  "name": "presscart-mcp",
+  "main": "cloudflare/worker.ts",
+  "compatibility_date": "2026-10-22",
+  "compatibility_flags": [],
+  "workers_dev": true,
+  "preview_urls": false,
+  "triggers": { "crons": ["*/30 * * * *"] },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "logs": { "enabled": true, "head_sampling_rate": 1, "persist": true, "invocation_logs": true },
+    "traces": { "enabled": false, "persist": true, "head_sampling_rate": 1 }
+  },
+  "upload_source_maps": true,
+  "vars": {
+    "MCP_ALLOWED_HOSTS": "mcp.presscart.com,presscart-mcp.edgar-e6b.workers.dev",
+    "MCP_DIRECTORY_PROFILES": "openai",
+    "MCP_HOST": "0.0.0.0",
+    "MCP_OAUTH_AUDIENCE": "https://mcp.presscart.com/mcp",
+    "MCP_OAUTH_ENABLED": "true",
+    "MCP_OAUTH_ISSUER_URL": "https://xojetpszsbycuqvjfege.supabase.co/auth/v1",
+    "MCP_OAUTH_TRANSLATOR_ENABLED": "true",
+    "MCP_OAUTH_UPSTREAM_TIMEOUT_MS": "10000",
+    "MCP_SERVER_URL": "https://mcp.presscart.com/mcp",
+    "PRESSCART_API_URL": "https://api.presscart.com"
+  },
+  "durable_objects": { "bindings": [{ "name": "MCP_CONTAINER", "class_name": "McpContainer" }] },
+  // Declarative export instead of migrations: the live Worker has no migration tag.
+  "exports": { "McpContainer": { "type": "durable-object", "storage": "sqlite" } },
+  "containers": [
+    {
+      "class_name": "McpContainer",
+      "name": "presscart-mcp-mcpcontainer",
+      "image": "./Dockerfile",
+      "instance_type": "basic",
+      "max_instances": 20,
+      "constraints": { "regions": ["ENAM"], "tiers": [1, 2] }
+    }
+  ]
+}
