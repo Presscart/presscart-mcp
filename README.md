@@ -280,7 +280,15 @@ curl -s -o /dev/null -w '%{http_code}\n' https://mcp.presscart.com/health
 
 `MCP_INTERNAL_AUTH_TOKEN` is a Worker secret. Deploys keep it, so only set it on purpose with `npx -y wrangler@4.163.0 secret put MCP_INTERNAL_AUTH_TOKEN` (this deploys a new version right away). Vars in the config replace the deployed vars on every deploy.
 
-Roll back to an earlier version with `npx -y wrangler@4.163.0 rollback <version-id> --name presscart-mcp`.
+`wrangler rollback` only moves the Worker back. The container application keeps the newest image, so a broken server stays broken. To roll back the server, deploy the previous release again, either from its tag or with `image` pinned to its registry digest (`containers info <id>` shows the current one):
+
+```bash
+git checkout vX.Y.Z   # the last good release, with this wrangler.jsonc
+npx -y wrangler@4.163.0 deploy --message "rollback to vX.Y.Z" --tag "vX.Y.Z-rollback"
+# or set "image": "registry.cloudflare.com/<account-id>/presscart-mcp-mcpcontainer@sha256:<previous-digest>" and deploy
+```
+
+Use `npx -y wrangler@4.163.0 rollback <version-id> --name presscart-mcp` only when the problem is in the Worker code in `cloudflare/`.
 
 ### Legacy direct-token mode
 
