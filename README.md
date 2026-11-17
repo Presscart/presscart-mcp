@@ -76,6 +76,7 @@ Notes:
 - The translator changes only MCP OAuth. It does not change ordinary Presscart browser or app sessions, and disabling MCP OAuth still preserves legacy direct-token mode.
 - In legacy direct-token mode, send `X-Presscart-API-Token: <presscart_api_token>` on `initialize` and later requests that need to confirm the active session credential.
 - `OPENAI_APPS_CHALLENGE_TOKEN` is the domain-verification token shown in OpenAI's plugin portal. When set, `GET /.well-known/openai-apps-challenge` returns it as `text/plain` with no authentication, on the MCP hostname's origin (the portal ignores the `/mcp/openai` path). Surrounding whitespace is trimmed; when unset or blank, the route returns 404. If `MCP_ALLOWED_HOSTS` is set, it must include the public MCP hostname.
+- `GET /mcp/server-card` returns the MCP Server Card (SEP-2127) for the canonical endpoint as `application/mcp-server-card+json`, with no authentication: name, version, the `MCP_SERVER_URL` endpoint and the supported protocol versions, never the tool list (tools are listed per user at runtime). It sends `Access-Control-Allow-Origin: *`, `Cache-Control: public, max-age=3600` and an `ETag` (304 on a matching `If-None-Match`). presscart.com's `/.well-known/ai-catalog.json` can point at it instead of embedding a copy.
 
 ## Install
 
