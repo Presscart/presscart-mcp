@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/Presscart/presscart-mcp/compare/v1.3.3...v1.4.0) (2026-11-17)
+
+
+### Features
+
+* **discovery:** serve the MCP Server Card at /mcp/server-card ([#23](https://github.com/Presscart/presscart-mcp/issues/23)) ([5f020bf](https://github.com/Presscart/presscart-mcp/commit/5f020bffa5d5b2ed0b55cd41724317f1e621a05a))
+
 ## [1.3.3](https://github.com/Presscart/presscart-mcp/compare/v1.3.2...v1.3.3) (2026-11-17)
 
 
