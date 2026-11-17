@@ -1,3 +1,10 @@
+## [1.3.3](https://github.com/Presscart/presscart-mcp/compare/v1.3.2...v1.3.3) (2026-11-17)
+
+
+### Bug Fixes
+
+* **oauth:** map Supabase token errors to invalid_grant (PRE-1669) ([#27](https://github.com/Presscart/presscart-mcp/issues/27)) ([4e6c2aa](https://github.com/Presscart/presscart-mcp/commit/4e6c2aa5f56f15a0d1b1192491298bb33f0b4722))
+
 ## [1.3.2](https://github.com/Presscart/presscart-mcp/compare/v1.3.1...v1.3.2) (2026-10-30)
 
 
