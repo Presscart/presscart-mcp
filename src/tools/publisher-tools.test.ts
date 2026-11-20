@@ -317,13 +317,21 @@ test('get_publisher_agreement_status reports a signed agreement without signer d
   assert.doesNotMatch(text, /Full publisher agreement text/);
 });
 
+const unsignedAgreement = {
+  template: agreementTemplate,
+  acceptance: null,
+  is_accepted: false,
+  pdf_url: null,
+};
+
 test('get_publisher_agreement_status hands an unsigned publisher the dashboard link to sign', async () => {
   const { result } = await callTool('get_publisher_agreement_status', { team_id: TEAM_ID }, () =>
-    jsonResponse({ template: agreementTemplate, acceptance: null, is_accepted: false, pdf_url: null })
+    jsonResponse(unsignedAgreement)
   );
 
   assert.notEqual(result.isError, true);
   assert.equal(result.structuredContent?.is_accepted, false);
+  assert.equal(result.structuredContent?.signature_check, 'complete');
   assert.equal(result.structuredContent?.accepted_at, null);
   assert.equal(
     result.structuredContent?.agreement_page_url,
@@ -353,4 +361,190 @@ test('submit_outlet_authorization sends large documents to the dashboard instead
   const description = await getToolDescription('submit_outlet_authorization');
   assert.match(description, /70 KB/);
   assert.match(description, /dashboard/);
+});
+
+const CHANNEL_ID = '2d7a9c10-3b4e-4f58-a6c1-8e9d0b1c2d3e';
+
+test('get_publisher_agreement_status reports a team Presscart recorded as signed', async () => {
+  const { result, calls } = await callTool(
+    'get_publisher_agreement_status',
+    { team_id: TEAM_ID },
+    call =>
+      call.url.pathname === `/teams/${TEAM_ID}`
+        ? jsonResponse({
+            id: TEAM_ID,
+            agreement_signed_at: '2026-09-15T12:00:00.000Z',
+            billing_email: 'billing@acme.example',
+          })
+        : jsonResponse(unsignedAgreement)
+  );
+
+  assert.notEqual(result.isError, true);
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1]?.method, 'GET');
+  assert.equal(calls[1]?.url.pathname, `/teams/${TEAM_ID}`);
+  assert.equal(result.structuredContent?.is_accepted, true);
+  assert.equal(result.structuredContent?.signed_via, 'recorded_by_presscart');
+  assert.equal(result.structuredContent?.signature_check, 'complete');
+  assert.equal(result.structuredContent?.signed_at, '2026-09-15T12:00:00.000Z');
+  assert.equal(result.structuredContent?.accepted_at, null);
+  assert.equal(result.structuredContent?.next_step, null);
+  assert.doesNotMatch(readTextContent(result), /billing@acme\.example/);
+});
+
+test('get_publisher_agreement_status makes one request when the click-through acceptance exists', async () => {
+  const { result, calls } = await callTool(
+    'get_publisher_agreement_status',
+    { team_id: TEAM_ID },
+    () =>
+      jsonResponse({
+        template: agreementTemplate,
+        acceptance: { accepted_at: '2026-10-01T00:00:00.000Z' },
+        is_accepted: true,
+        pdf_url: null,
+      })
+  );
+
+  assert.equal(calls.length, 1);
+  assert.equal(result.structuredContent?.signed_via, 'in_app');
+  assert.equal(result.structuredContent?.signed_at, '2026-10-01T00:00:00.000Z');
+});
+
+test('get_publisher_agreement_status stays unsigned when the team has no recorded date', async () => {
+  const { result, calls } = await callTool(
+    'get_publisher_agreement_status',
+    { team_id: TEAM_ID },
+    call =>
+      call.url.pathname === `/teams/${TEAM_ID}`
+        ? jsonResponse({ id: TEAM_ID, agreement_signed_at: null })
+        : jsonResponse(unsignedAgreement)
+  );
+
+  assert.equal(calls.length, 2);
+  assert.equal(result.structuredContent?.is_accepted, false);
+  assert.equal(result.structuredContent?.signed_at, null);
+  assert.equal(result.structuredContent?.signed_via, null);
+  assert.match(String(result.structuredContent?.next_step), /agreement_page_url/);
+});
+
+for (const [label, value] of [
+  ['an empty string', ''],
+  ['whitespace', '   '],
+  ['false', false],
+  ['an object', { at: '2026-09-15' }],
+  ['null', null],
+  ['a missing key', undefined],
+] as const) {
+  test(`get_publisher_agreement_status does not trust agreement_signed_at that is ${label}`, async () => {
+    const team =
+      value === undefined ? { id: TEAM_ID } : { id: TEAM_ID, agreement_signed_at: value };
+    const { result } = await callTool(
+      'get_publisher_agreement_status',
+      { team_id: TEAM_ID },
+      call =>
+        call.url.pathname === `/teams/${TEAM_ID}`
+          ? jsonResponse(team)
+          : jsonResponse(unsignedAgreement)
+    );
+
+    assert.equal(result.structuredContent?.is_accepted, false);
+    assert.equal(result.structuredContent?.signed_at, null);
+    assert.equal(result.structuredContent?.signed_via, null);
+    assert.equal(result.structuredContent?.signature_check, 'complete');
+  });
+}
+
+for (const status of [403, 500]) {
+  test(`get_publisher_agreement_status does not call the team unsigned when the team read returns ${status}`, async () => {
+    const { result } = await callTool(
+      'get_publisher_agreement_status',
+      { team_id: TEAM_ID },
+      call =>
+        call.url.pathname === `/teams/${TEAM_ID}`
+          ? jsonResponse({ message: 'internal details' }, status)
+          : jsonResponse(unsignedAgreement)
+    );
+
+    assert.notEqual(result.isError, true);
+    assert.equal(result.structuredContent?.is_accepted, false);
+    assert.equal(result.structuredContent?.signed_at, null);
+    assert.equal(result.structuredContent?.signed_via, null);
+    assert.equal(result.structuredContent?.signature_check, 'incomplete');
+    const nextStep = String(result.structuredContent?.next_step);
+    assert.match(nextStep, /could not be checked/);
+    assert.match(nextStep, /do not tell the publisher/i);
+    assert.doesNotMatch(nextStep, /ask the publisher to (read and )?sign/i);
+    assert.doesNotMatch(readTextContent(result), /internal details/);
+    assert.doesNotMatch(readTextContent(result), new RegExp(String(status)));
+  });
+}
+
+test('get_publisher_agreement_status description covers both ways of signing', async () => {
+  assert.match(
+    await getToolDescription('get_publisher_agreement_status'),
+    /recorded.*Presscart|Presscart.*recorded/i
+  );
+});
+
+const channelCalls = {
+  create_outlet_channel: { channel_type: 'WEBSITE' },
+  update_outlet_channel: {
+    channel_id: CHANNEL_ID,
+    channel_url: 'https://example.com',
+  },
+} as const;
+
+for (const [name, extra] of Object.entries(channelCalls)) {
+  test(`${name} never sends DR or DA`, async () => {
+    const { result, calls } = await callTool(name, {
+      team_slug: TEAM_SLUG,
+      outlet_id: OUTLET_ID,
+      ...extra,
+      domain_authority: 80,
+      domain_ranking: 70,
+    });
+
+    assert.notEqual(result.isError, true);
+    const body = getJsonBody(calls[0]);
+    for (const [key, value] of Object.entries(extra)) {
+      if (key !== 'channel_id') assert.equal(body[key], value);
+    }
+    assert.equal('domain_authority' in body, false);
+    assert.equal('domain_ranking' in body, false);
+  });
+}
+
+test('channel tool descriptions say Presscart measures DR and DA itself', async () => {
+  for (const name of ['create_outlet_channel', 'update_outlet_channel']) {
+    assert.match(await getToolDescription(name), /Presscart measures DR and DA itself/, name);
+  }
+});
+
+test('update_outlet and create_outlet say ACTIVE submits for review and is not live', async () => {
+  const update = await getToolDescription('update_outlet');
+  assert.match(update, /submit it for review/);
+  assert.match(update, /PENDING_REVIEW/);
+  assert.match(update, /PENDING_AGREEMENT/);
+  assert.match(update, /not live until Presscart approves/);
+  assert.match(update, /do not say it is live/i);
+  assert.match(update, /every linked product is switched on/);
+  assert.match(update, /set_product_active/);
+  assert.match(update, /get_publisher_agreement_status/);
+  assert.doesNotMatch(await getToolDescription('create_outlet'), /publishing/);
+});
+
+test('create_product description tells agents to ask for turnaround', async () => {
+  const description = await getToolDescription('create_product');
+  assert.match(description, /ask the publisher for the turnaround/i);
+  assert.match(description, /min_delivery_days and max_delivery_days/);
+  assert.match(description, /no delivery time/);
+});
+
+test('create_order description warns about the card fee and the credit rule', async () => {
+  const description = await getToolDescription('create_order');
+  assert.match(description, /3% processing fee/);
+  assert.match(description, /no fee/i);
+  assert.match(description, /paid at creation with no checkout step/);
+  assert.match(description, /confirm the purchase with the user/);
+  assert.match(description, /credits_applied: 0 does not mean the team has no credits/);
 });

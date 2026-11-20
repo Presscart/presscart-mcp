@@ -39,8 +39,6 @@ const channelPayloadSchema = {
   social_links: z.array(z.string().trim().min(1)).optional(),
   is_do_follow: z.boolean().optional(),
   do_follow_links_allowed: z.string().trim().nullable().optional(),
-  domain_authority: z.number().nullable().optional(),
-  domain_ranking: z.number().nullable().optional(),
   disclaimer_id: z.string().uuid().nullable().optional(),
 };
 
@@ -72,7 +70,7 @@ export function registerOutletChannelTools(server: McpServer, options: ServerOpt
     {
       title: 'Create Outlet Channel',
       description:
-        'Create a distribution channel for an outlet owned by the selected publisher team. Website channels should usually include placement_type, channel_url, SEO metrics, do-follow settings, and disclaimer_id. Non-website channels should use placement_type=null.',
+        'Create a distribution channel for an outlet owned by the selected publisher team. Website channels should usually include placement_type, channel_url, do-follow settings, and disclaimer_id. Non-website channels should use placement_type=null. Presscart measures DR and DA itself, so they cannot be set here.',
       inputSchema: {
         team_slug: teamSlugSchema,
         outlet_id: z.string().uuid(),
@@ -94,7 +92,7 @@ export function registerOutletChannelTools(server: McpServer, options: ServerOpt
     {
       title: 'Update Outlet Channel',
       description:
-        'Update a distribution channel for an outlet owned by the selected publisher team. Use list_outlet_channels first if the user only wants to change one value.',
+        'Update a distribution channel for an outlet owned by the selected publisher team. Use list_outlet_channels first if the user only wants to change one value. Presscart measures DR and DA itself, so they cannot be set here.',
       inputSchema: {
         team_slug: teamSlugSchema,
         outlet_id: z.string().uuid(),
@@ -107,8 +105,6 @@ export function registerOutletChannelTools(server: McpServer, options: ServerOpt
         social_links: z.array(z.string().trim().min(1)).optional(),
         is_do_follow: z.boolean().optional(),
         do_follow_links_allowed: z.string().trim().nullable().optional(),
-        domain_authority: z.number().nullable().optional(),
-        domain_ranking: z.number().nullable().optional(),
         disclaimer_id: z.string().uuid().nullable().optional(),
       },
       annotations: updateTool,
