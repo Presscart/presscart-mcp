@@ -544,6 +544,7 @@ test('create_order description warns about the card fee and the credit rule', as
   const description = await getToolDescription('create_order');
   assert.match(description, /3% processing fee/);
   assert.match(description, /no fee/i);
-  assert.match(description, /spend allowance/);
+  assert.match(description, /paid at creation with no checkout step/);
+  assert.match(description, /confirm the purchase with the user/);
   assert.match(description, /credits_applied: 0 does not mean the team has no credits/);
 });
