@@ -26,6 +26,7 @@ export type RecordedRequest = {
   method: string;
   url: URL;
   headers: Headers;
+  body: string | FormData | undefined;
 };
 
 export type FetchResponder = (request: RecordedRequest) => Response | Promise<Response>;
@@ -43,6 +44,7 @@ export async function withStubbedFetch<T>(
       method: init?.method ?? (input instanceof Request ? input.method : 'GET'),
       url,
       headers: new Headers(init?.headers),
+      body: init?.body as RecordedRequest['body'],
     };
     requests.push(request);
     return responder(request);

@@ -9,6 +9,7 @@ const { createPresscartMcpServer } = await import('../server.js');
 const { connectInMemoryClient, jsonResponse, readTextContent } = await import(
   '../directory/mcp-client.fixtures.js'
 );
+const { callTool, getJsonBody } = await import('../directory/mcp-tool-call.fixtures.js');
 
 const TEAM_SLUG = 'acme-media';
 const TEAM_ID = '0f9c2a52-1d7b-4c55-9b0e-3f4f6c1a2b3c';
@@ -16,59 +17,6 @@ const OUTLET_ID = '6b2f4eb8-46db-4ef2-9c44-46b94a7049c7';
 const PRODUCT_ID = 'c5d1e8a0-7f3b-4a62-8d19-2b4e6f7a9c01';
 const DOCUMENT_KEY = `outlet-authorizations/${TEAM_ID}/abcdefghijklmnopqrstu.pdf`;
 const PDF_BASE64 = Buffer.from('%PDF-1.4 authorization letter').toString('base64');
-
-const oauthAuthInfo = {
-  token: 'oauth-access-token',
-  extra: { source: 'mcp', sub: 'user-1', oauth_grant_id: 'grant-1' },
-};
-
-type RecordedCall = {
-  method: string;
-  url: URL;
-  body: string | FormData | undefined;
-};
-
-type ToolResult = {
-  isError?: boolean;
-  structuredContent?: Record<string, unknown>;
-};
-
-async function callTool(
-  name: string,
-  args: Record<string, unknown>,
-  respond: (call: RecordedCall) => Response = () => jsonResponse({ ok: true })
-) {
-  const calls: RecordedCall[] = [];
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = (async (input, init) => {
-    const call: RecordedCall = {
-      method: init?.method ?? 'GET',
-      url: new URL(String(input)),
-      body: init?.body as RecordedCall['body'],
-    };
-    calls.push(call);
-    return respond(call);
-  }) as typeof fetch;
-
-  const { client, close } = await connectInMemoryClient(
-    createPresscartMcpServer({ getSessionAuthInfo: () => oauthAuthInfo })
-  );
-
-  try {
-    const result = (await client
-      .callTool({ name, arguments: args })
-      .catch((error: unknown) => ({ isError: true, error }))) as ToolResult;
-    return { result, calls };
-  } finally {
-    await close();
-    globalThis.fetch = originalFetch;
-  }
-}
-
-function getJsonBody(call: RecordedCall | undefined) {
-  assert.equal(typeof call?.body, 'string');
-  return JSON.parse(call?.body as string);
-}
 
 test('get_outlet_statistics reads the publisher team outlet counts by status', async () => {
   const { result, calls } = await callTool('get_outlet_statistics', { team_slug: TEAM_SLUG });
