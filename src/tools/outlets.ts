@@ -115,7 +115,7 @@ export function registerOutletTools(server: McpServer, options: ServerOptions) {
     {
       title: 'Create Outlet',
       description:
-        'Create an outlet for the selected team. The API associates it with the authenticated publisher provider team. Collect the outlet name, website URL, location fields, index/date/author flags, and tag IDs before calling this tool. Use status=DRAFT when the user wants to save without submitting/publishing.',
+        'Create an outlet for the selected team. The API associates it with the authenticated publisher provider team. Collect the outlet name, website URL, location fields, index/date/author flags, and tag IDs before calling this tool. Use status=DRAFT when the user wants to save without submitting for review.',
       inputSchema: {
         team_slug: teamSlugSchema,
         ...outletPayloadSchema,
@@ -137,7 +137,7 @@ export function registerOutletTools(server: McpServer, options: ServerOptions) {
     {
       title: 'Update Outlet',
       description:
-        'Update an outlet owned by the selected team. Send the full outlet payload, not just changed fields. Use get_outlet first if the user only wants to change one value. Use status=DRAFT to keep it as a draft, or status=ACTIVE only when the user explicitly wants to publish and get_publisher_agreement_status shows the publisher agreement is signed.',
+        'Update an outlet owned by the selected team. Send the full outlet payload, not just changed fields. Use get_outlet first if the user only wants to change one value. Use status=DRAFT to keep it as a draft, or status=ACTIVE only when the user explicitly wants to submit it for review and get_publisher_agreement_status shows the publisher agreement is signed. It is not live until Presscart approves it. Report the returned status to the user (for example PENDING_REVIEW, or PENDING_AGREEMENT when the agreement is unsigned) and do not say it is live. When Presscart approves, every linked product is switched on, so use set_product_active afterwards for any product that should stay off.',
       inputSchema: {
         team_slug: teamSlugSchema,
         outlet_id: z.string().uuid(),

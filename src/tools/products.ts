@@ -49,8 +49,20 @@ const productPayloadSchema = {
     .boolean()
     .describe('Set false for a draft/inactive product. Set true only when the user wants it active.'),
   requirements: z.string().optional().default(''),
-  min_delivery_days: z.number().int().nonnegative().nullable().optional(),
-  max_delivery_days: z.number().int().nonnegative().nullable().optional(),
+  min_delivery_days: z
+    .number()
+    .int()
+    .nonnegative()
+    .nullable()
+    .optional()
+    .describe('Fastest turnaround in days. Ask the publisher for it.'),
+  max_delivery_days: z
+    .number()
+    .int()
+    .nonnegative()
+    .nullable()
+    .optional()
+    .describe('Slowest turnaround in days. Ask the publisher for it.'),
   is_featured: z.boolean().optional().default(false),
   llm_aeo: z.string().nullable().optional().default(null),
   internal_cost: z
@@ -365,7 +377,7 @@ export function registerProductTools(server: McpServer, options: ServerOptions) 
     {
       title: 'Create Product',
       description:
-        'Create a publisher-owned product under the selected team. Use list_product_types for type_id and list_outlet_channels for outlet_channel_ids before calling this tool. Provide internal_cost as the publisher Your Cost in USD dollars only; the API automatically calculates marketplace Price and Pro Price. Do not send prices[], unit_amount, or Stripe-style cent amounts. Set active=false unless the user explicitly wants the product active.',
+        'Create a publisher-owned product under the selected team. Use list_product_types for type_id and list_outlet_channels for outlet_channel_ids before calling this tool. Provide internal_cost as the publisher Your Cost in USD dollars only; the API automatically calculates marketplace Price and Pro Price. Do not send prices[], unit_amount, or Stripe-style cent amounts. Set active=false unless the user explicitly wants the product active. Ask the publisher for the turnaround and send both min_delivery_days and max_delivery_days; without them the listing shows no delivery time.',
       inputSchema: {
         team_slug: teamSlugSchema,
         ...productPayloadSchema,
