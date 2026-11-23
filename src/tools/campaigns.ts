@@ -20,6 +20,7 @@ import {
   readOnlyTool,
   updateTool,
 } from './metadata.js';
+import { orderItemRefSchema } from '../directory/output-schemas.js';
 import { paginationSchema, sortSchema, teamSlugSchema } from './schemas.js';
 
 export function registerCampaignTools(server: McpServer, options: ServerOptions) {
@@ -276,25 +277,44 @@ type AddedCampaign = {
   campaign_id: string;
 };
 
-type OrderLineItemsResponse = {
-  line_items?: {
-    is_add_on?: boolean | null;
-    order_items?: { id?: string; campaign_id?: string | null }[] | null;
-  }[] | null;
-};
+const orderLineItemsResponseSchema = z
+  .object({
+    line_items: z
+      .array(
+        z
+          .object({
+            is_add_on: z.boolean().nullable().optional(),
+            order_items: z
+              .array(
+                orderItemRefSchema
+                  .partial()
+                  .extend({ is_add_on: z.boolean().nullable().optional() })
+                  .passthrough()
+              )
+              .nullable()
+              .optional(),
+          })
+          .passthrough()
+      )
+      .nullable()
+      .optional(),
+  })
+  .passthrough();
+
+type OrderLineItemsResponse = z.infer<typeof orderLineItemsResponseSchema>;
 
 // The API requires the upload to cover every pending placement exactly once, and attaches
 // add-on items itself, so only unassigned base (non add-on) order items are sent.
-// The team order route has no item-level add-on flag, so this uses the line item's is_add_on;
-// the server applies the rule per item and answers 400 if the two ever disagree.
+// Prefer each item's is_add_on; if that field is missing (older API), fall back to the line item.
 export function collectPendingBaseOrderItemIds(
   order: OrderLineItemsResponse | null | undefined
 ): string[] {
   const ids: string[] = [];
   for (const lineItem of order?.line_items ?? []) {
-    if (lineItem?.is_add_on === true) continue;
     for (const item of lineItem?.order_items ?? []) {
-      if (typeof item?.id === 'string' && !item.campaign_id) ids.push(item.id);
+      if (typeof item?.id !== 'string' || item.campaign_id) continue;
+      if ((item.is_add_on ?? lineItem?.is_add_on) === true) continue;
+      ids.push(item.id);
     }
   }
   return ids;

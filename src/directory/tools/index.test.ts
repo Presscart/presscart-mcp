@@ -360,6 +360,35 @@ test('error boundary maps API failures to fixed messages without bodies, URLs, o
   }
 });
 
+test('error boundary includes a sanitized 400 reason from the API body', async () => {
+  await withStubbedFetch(
+    () =>
+      new Response(
+        JSON.stringify({
+          name: 'BadRequestError',
+          message: 'Order items must be covered exactly once',
+          secret: 'should-not-leak',
+        }),
+        { status: 400, statusText: 'Bad Request', headers: { 'content-type': 'application/json' } },
+      ),
+    async () => {
+      const { client, close } = await connectInMemoryClient(directoryServer());
+      try {
+        const result = await client.callTool({
+          name: 'get_team',
+          arguments: { team_slug: ids.teamSlug },
+        });
+        assert.equal(result.isError, true);
+        assert.match(readTextContent(result), /Presscart API request failed: 400/);
+        assert.match(readTextContent(result), /Order items must be covered exactly once/);
+        assert.doesNotMatch(readTextContent(result), /should-not-leak/);
+      } finally {
+        await close();
+      }
+    },
+  );
+});
+
 test('error boundary maps API timeouts and unexpected errors to fixed messages', async () => {
   await withStubbedFetch(
     () => {

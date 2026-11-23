@@ -37,12 +37,14 @@ const orderLineItemShape = {
 
 const orderLineItemSchema = z.object(orderLineItemShape).strict();
 
+export const orderItemRefSchema = z
+  .object({ id: nullableString, campaign_id: nullableString })
+  .strict();
+
 const orderDetailLineItemSchema = z
   .object({
     ...orderLineItemShape,
-    order_items: z
-      .array(z.object({ id: nullableString, campaign_id: nullableString }).strict())
-      .nullable(),
+    order_items: z.array(orderItemRefSchema).nullable(),
   })
   .strict();
 

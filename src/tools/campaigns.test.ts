@@ -294,6 +294,31 @@ test('collectPendingBaseOrderItemIds returns unassigned base items and skips add
   assert.deepEqual(collectPendingBaseOrderItemIds(orderResponse), [BASE_ITEM, BASE_ITEM_2]);
 });
 
+test('collectPendingBaseOrderItemIds prefers each item is_add_on and falls back to the line item', () => {
+  assert.deepEqual(
+    collectPendingBaseOrderItemIds({
+      line_items: [
+        {
+          is_add_on: false,
+          order_items: [
+            { id: 'item-base', campaign_id: null, is_add_on: false },
+            { id: 'item-add-on', campaign_id: null, is_add_on: true },
+          ],
+        },
+        {
+          is_add_on: true,
+          order_items: [{ id: 'line-add-on', campaign_id: null, is_add_on: false }],
+        },
+        {
+          is_add_on: true,
+          order_items: [{ id: 'legacy-add-on', campaign_id: null }],
+        },
+      ],
+    }),
+    ['item-base', 'line-add-on']
+  );
+});
+
 test('collectPendingBaseOrderItemIds tolerates missing arrays and junk', () => {
   assert.deepEqual(collectPendingBaseOrderItemIds({}), []);
   assert.deepEqual(collectPendingBaseOrderItemIds({ line_items: [{}, { order_items: null }] }), []);
@@ -420,4 +445,5 @@ test('add_order_items_to_campaign returns a backend 400 on the upload as a tool 
 
   assert.equal(result.isError, true);
   assert.match(readTextContent(result), /Presscart API request failed: 400/);
+  assert.match(readTextContent(result), /Order items must be covered exactly once/);
 });
