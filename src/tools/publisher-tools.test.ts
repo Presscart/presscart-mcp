@@ -472,7 +472,9 @@ test('update_outlet and create_outlet say ACTIVE submits for review and is not l
   const update = await getToolDescription('update_outlet');
   assert.match(update, /submit it for review/);
   assert.match(update, /PENDING_REVIEW/);
-  assert.match(update, /PENDING_AGREEMENT/);
+  assert.match(update, /a submit returns PENDING_REVIEW/);
+  assert.match(update, /PENDING_AGREEMENT is set later/);
+  assert.doesNotMatch(update, /PENDING_AGREEMENT when the agreement is unsigned/);
   assert.match(update, /not live until Presscart approves/);
   assert.match(update, /do not say it is live/i);
   assert.match(update, /every linked product is switched on/);
@@ -495,4 +497,11 @@ test('create_order description warns about the card fee and the credit rule', as
   assert.match(description, /paid at creation with no checkout step/);
   assert.match(description, /confirm the purchase with the user/);
   assert.match(description, /credits_applied: 0 does not mean the team has no credits/);
+  assert.match(description, /If payment is still due/);
+  assert.match(description, /If payment_status is PAID/);
+  assert.doesNotMatch(description, /Give the user the returned checkout_link right away so they can pay/);
+  assert.match(description, /Never retry the same purchase as a new order/);
+  assert.match(description, /DUPLICATE_CREDIT_ORDER/);
+  assert.match(description, /order_id and reference_number/);
+  assert.match(description, /If a call times out/);
 });

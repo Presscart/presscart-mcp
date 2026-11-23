@@ -132,6 +132,45 @@ test('includes the API 400 message and code so the agent can fix the request', a
   assert.match(error.message, /code EXACT_COVER/);
 });
 
+test('includes a 409 DUPLICATE_CREDIT_ORDER code and meta so the agent can reuse the order', async t => {
+  const error = await rejectedApiError(t, 409, {
+    name: 'ConflictError',
+    message:
+      'This cart was already ordered and paid with Team Credits in the last 10 minutes (order PC12345678). Nothing was charged again. Check that order instead of retrying.',
+    code: 'DUPLICATE_CREDIT_ORDER',
+    meta: {
+      order_id: '0f9f6c55-4f8c-4c55-9a0a-3a7c1b2d4e5f',
+      reference_number: 'PC12345678',
+    },
+  });
+
+  assert.match(error.message, /409/);
+  assert.match(error.message, /code DUPLICATE_CREDIT_ORDER/);
+  assert.match(error.message, /order_id 0f9f6c55-4f8c-4c55-9a0a-3a7c1b2d4e5f/);
+  assert.match(error.message, /reference_number PC12345678/);
+  assert.match(error.message, /already ordered and paid with Team Credits/);
+});
+
+test('keeps unsafe 409 meta and secrets out of the error message', async t => {
+  const error = await rejectedApiError(t, 409, {
+    name: 'ConflictError',
+    message: 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.aaabbb.ccc',
+    code: 'DUPLICATE_CREDIT_ORDER',
+    meta: {
+      order_id: 'not-a-uuid',
+      reference_number: 'PC12345678',
+      token: 'sk_test_leak',
+    },
+  });
+
+  assert.match(error.message, /409/);
+  assert.match(error.message, /code DUPLICATE_CREDIT_ORDER/);
+  assert.match(error.message, /reference_number PC12345678/);
+  assert.doesNotMatch(error.message, /not-a-uuid/);
+  assert.doesNotMatch(error.message, /sk_test_leak/);
+  assert.doesNotMatch(error.message, /Bearer/i);
+});
+
 test('reads a 400 message and issues from a nested error object', async t => {
   const error = await rejectedApiError(t, 400, {
     success: false,

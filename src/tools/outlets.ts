@@ -137,7 +137,7 @@ export function registerOutletTools(server: McpServer, options: ServerOptions) {
     {
       title: 'Update Outlet',
       description:
-        'Update an outlet owned by the selected team. Send the full outlet payload, not just changed fields. Use get_outlet first if the user only wants to change one value. Use status=DRAFT to keep it as a draft, or status=ACTIVE only when the user explicitly wants to submit it for review and get_publisher_agreement_status shows the publisher agreement is signed. It is not live until Presscart approves it. Report the returned status to the user (for example PENDING_REVIEW, or PENDING_AGREEMENT when the agreement is unsigned) and do not say it is live. When Presscart approves, every linked product is switched on, so use set_product_active afterwards for any product that should stay off.',
+        'Update an outlet owned by the selected team. Send the full outlet payload, not just changed fields. Use get_outlet first if the user only wants to change one value. Use status=DRAFT to keep it as a draft, or status=ACTIVE only when the user explicitly wants to submit it for review and get_publisher_agreement_status shows the publisher agreement is signed. It is not live until Presscart approves it. Report the returned status to the user: a submit returns PENDING_REVIEW, whether or not the agreement is signed. PENDING_AGREEMENT is set later, only if Presscart approves the outlet while the agreement is still unsigned. Do not say it is live. When Presscart approves, every linked product is switched on, so use set_product_active afterwards for any product that should stay off.',
       inputSchema: {
         team_slug: teamSlugSchema,
         outlet_id: z.string().uuid(),

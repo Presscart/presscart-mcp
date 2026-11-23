@@ -1,7 +1,7 @@
 import { isRecord } from './is-record.js';
 
 export type SanitizeSensitiveFieldsOptions = {
-  /** create_order keeps checkout_link: it is how the buyer pays for the order just created. */
+  /** create_order keeps checkout_link when payment is still due: it is how the buyer pays. */
   keepCheckoutLink?: boolean;
 };
 
