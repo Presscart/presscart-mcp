@@ -140,15 +140,15 @@ test('includes a 409 DUPLICATE_CREDIT_ORDER code and meta so the agent can reuse
     code: 'DUPLICATE_CREDIT_ORDER',
     meta: {
       order_id: '0f9f6c55-4f8c-4c55-9a0a-3a7c1b2d4e5f',
-      reference_number: 'PC12345678',
+      reference_number: 'NXT0D6VV',
     },
   });
 
   assert.match(error.message, /409/);
   assert.match(error.message, /code DUPLICATE_CREDIT_ORDER/);
   assert.match(error.message, /order_id 0f9f6c55-4f8c-4c55-9a0a-3a7c1b2d4e5f/);
-  assert.match(error.message, /reference_number PC12345678/);
-  assert.match(error.message, /already ordered and paid with Team Credits/);
+  assert.match(error.message, /reference_number NXT0D6VV/);
+  assert.doesNotMatch(error.message, /already ordered and paid with Team Credits/);
 });
 
 test('keeps unsafe 409 meta and secrets out of the error message', async t => {
@@ -158,17 +158,67 @@ test('keeps unsafe 409 meta and secrets out of the error message', async t => {
     code: 'DUPLICATE_CREDIT_ORDER',
     meta: {
       order_id: 'not-a-uuid',
-      reference_number: 'PC12345678',
+      reference_number: 'NXT0D6VV',
       token: 'sk_test_leak',
     },
   });
 
   assert.match(error.message, /409/);
   assert.match(error.message, /code DUPLICATE_CREDIT_ORDER/);
-  assert.match(error.message, /reference_number PC12345678/);
+  assert.match(error.message, /reference_number NXT0D6VV/);
   assert.doesNotMatch(error.message, /not-a-uuid/);
   assert.doesNotMatch(error.message, /sk_test_leak/);
   assert.doesNotMatch(error.message, /Bearer/i);
+});
+
+test('rejects a Stripe-like reference_number on a 409', async t => {
+  const error = await rejectedApiError(t, 409, {
+    name: 'ConflictError',
+    message: 'Duplicate credit order',
+    code: 'DUPLICATE_CREDIT_ORDER',
+    meta: {
+      order_id: '0f9f6c55-4f8c-4c55-9a0a-3a7c1b2d4e5f',
+      reference_number: 'sk_test_leakvalue',
+    },
+  });
+
+  assert.match(error.message, /409/);
+  assert.match(error.message, /code DUPLICATE_CREDIT_ORDER/);
+  assert.match(error.message, /order_id 0f9f6c55-4f8c-4c55-9a0a-3a7c1b2d4e5f/);
+  assert.doesNotMatch(error.message, /reference_number/);
+  assert.doesNotMatch(error.message, /sk_test_/);
+  assert.doesNotMatch(error.message, /leakvalue/);
+});
+
+test('keeps a hostile 409 message and invalid fields out of the tool error', async t => {
+  const error = await rejectedApiError(t, 409, {
+    name: 'ConflictError',
+    message:
+      "Query failed: SELECT * FROM access.api_keys WHERE token='whsec_live_abc' STACK: at fulfill (/var/app/checkout.ts:104) See http://10.0.0.8:5432/admin ENV DATABASE_URL=postgres-internal",
+    code: 'DUPLICATE_CREDIT_ORDER',
+    meta: {
+      order_id: '0f9f6c55-4f8c-4c55-9a0a-3a7c1b2d4e5f',
+      reference_number: 'NXT0D6VV',
+    },
+    issues: [
+      { path: ['SELECT * FROM access.api_keys'], message: 'http://10.0.0.8:5432/admin' },
+      { path: ['DATABASE_URL'], message: 'postgres-internal' },
+    ],
+  });
+
+  assert.match(error.message, /409/);
+  assert.match(error.message, /code DUPLICATE_CREDIT_ORDER/);
+  assert.match(error.message, /order_id 0f9f6c55-4f8c-4c55-9a0a-3a7c1b2d4e5f/);
+  assert.match(error.message, /reference_number NXT0D6VV/);
+  assert.doesNotMatch(error.message, /SELECT/);
+  assert.doesNotMatch(error.message, /access\.api_keys/);
+  assert.doesNotMatch(error.message, /whsec_live/);
+  assert.doesNotMatch(error.message, /\/var\/app\/checkout\.ts/);
+  assert.doesNotMatch(error.message, /10\.0\.0\.8/);
+  assert.doesNotMatch(error.message, /5432/);
+  assert.doesNotMatch(error.message, /DATABASE_URL/);
+  assert.doesNotMatch(error.message, /postgres-internal/);
+  assert.doesNotMatch(error.message, /invalid fields/);
 });
 
 test('reads a 400 message and issues from a nested error object', async t => {

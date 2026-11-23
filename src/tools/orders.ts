@@ -143,8 +143,18 @@ function isCheckoutPaymentDue(order: unknown): boolean {
   if (typeof order.payment_status === 'string' && order.payment_status.toUpperCase() === 'PAID') {
     return false;
   }
-  if (typeof order.total === 'number' && order.total <= 0) {
+  const total = parseOrderTotal(order.total);
+  if (total !== null && total <= 0) {
     return false;
   }
   return true;
+}
+
+function parseOrderTotal(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && /^-?\d+(\.\d+)?$/.test(value.trim())) {
+    const total = Number(value);
+    return Number.isFinite(total) ? total : null;
+  }
+  return null;
 }

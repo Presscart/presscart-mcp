@@ -152,6 +152,39 @@ test('create_order omits checkout_link when the order is already paid', async ()
   }
 });
 
+test('create_order omits checkout_link when total is a zero numeric string', async () => {
+  const originalFetch = globalThis.fetch;
+  const totals = ['0', '0.00'];
+
+  try {
+    for (const total of totals) {
+      globalThis.fetch = (async () =>
+        jsonResponse({
+          ...apiOrder(),
+          payment_status: 'requires_payment_method',
+          total,
+        })) as typeof fetch;
+
+      const result = await registerTools()
+        .get('create_order')
+        ?.handler(
+          {
+            team_slug: 'raintech',
+            profile_id: ids.profileId,
+            line_items: [{ product_id: ids.productId, quantity: 1, is_add_on: false }],
+          },
+          apiTokenExtra()
+        );
+
+      const order = toolOutput(result);
+      assert.equal(collectKeys(order).has('checkout_link'), false, `total ${total} should hide checkout_link`);
+      assert.equal(order.total, total);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('create_order surfaces a 409 DUPLICATE_CREDIT_ORDER with the existing order ids', async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = (async () =>
@@ -159,9 +192,9 @@ test('create_order surfaces a 409 DUPLICATE_CREDIT_ORDER with the existing order
       JSON.stringify({
         name: 'ConflictError',
         message:
-          'This cart was already ordered and paid with Team Credits in the last 10 minutes (order ABC123). Nothing was charged again. Check that order instead of retrying.',
+          'This cart was already ordered and paid with Team Credits in the last 10 minutes (order NXT0D6VV). Nothing was charged again. Check that order instead of retrying.',
         code: 'DUPLICATE_CREDIT_ORDER',
-        meta: { order_id: ids.orderId, reference_number: 'ABC123' },
+        meta: { order_id: ids.orderId, reference_number: 'NXT0D6VV' },
       }),
       { status: 409, statusText: 'Conflict', headers: { 'content-type': 'application/json' } }
     )) as typeof fetch;
@@ -184,7 +217,8 @@ test('create_order surfaces a 409 DUPLICATE_CREDIT_ORDER with the existing order
         assert.match(error.message, /409/);
         assert.match(error.message, /code DUPLICATE_CREDIT_ORDER/);
         assert.match(error.message, new RegExp(`order_id ${ids.orderId}`));
-        assert.match(error.message, /reference_number ABC123/);
+        assert.match(error.message, /reference_number NXT0D6VV/);
+        assert.doesNotMatch(error.message, /already ordered and paid with Team Credits/);
         return true;
       }
     );
