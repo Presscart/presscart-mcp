@@ -120,14 +120,51 @@ async function rejectedApiError(t: { after: (fn: () => void) => void }, status: 
   return error;
 }
 
-test('keeps the API message text out of a rejected request error', async t => {
+test('includes the API 400 message and code so the agent can fix the request', async t => {
   const error = await rejectedApiError(t, 400, {
     name: 'BadRequestError',
-    message: 'internal detail sentinel',
+    message: 'Order items must be covered exactly once',
+    code: 'EXACT_COVER',
   });
 
   assert.match(error.message, /400/);
-  assert.doesNotMatch(error.message, /sentinel/);
+  assert.match(error.message, /Order items must be covered exactly once/);
+  assert.match(error.message, /code EXACT_COVER/);
+});
+
+test('reads a 400 message and issues from a nested error object', async t => {
+  const error = await rejectedApiError(t, 400, {
+    success: false,
+    error: {
+      message: 'Validation failed',
+      issues: [{ path: ['campaign_id'], message: 'Required' }],
+    },
+  });
+
+  assert.match(error.message, /Validation failed/);
+  assert.match(error.message, /invalid fields: campaign_id/);
+});
+
+test('keeps secrets and headers out of a 400 error message', async t => {
+  const error = await rejectedApiError(t, 400, {
+    name: 'BadRequestError',
+    message: 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.aaabbb.ccc',
+  });
+
+  assert.match(error.message, /400/);
+  assert.doesNotMatch(error.message, /Bearer/i);
+  assert.doesNotMatch(error.message, /eyJ/);
+});
+
+test('caps a long 400 error message', async t => {
+  const error = await rejectedApiError(t, 400, {
+    name: 'BadRequestError',
+    message: `Please fix this request. ${'x'.repeat(400)}`,
+  });
+
+  assert.ok(error.message.length <= 'Presscart API request failed: 400 Bad Request: '.length + 300);
+  assert.match(error.message, /Please fix this request/);
+  assert.match(error.message, /\.\.\.$/);
 });
 
 test('names the invalid fields when the API rejects the request body', async t => {

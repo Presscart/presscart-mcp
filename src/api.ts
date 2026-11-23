@@ -147,11 +147,8 @@ export class PresscartApiClient {
     const body = tryParseJson(text);
 
     if (!response.ok) {
-      // Request validation failures name their fields so the agent can fix its input; no backend text is copied.
-      const invalidFields = response.status === 400 ? getInvalidFields(body) : [];
-      const reason = invalidFields.length > 0 ? `: invalid fields: ${invalidFields.join(', ')}` : '';
       throw new PresscartApiError(
-        `Presscart API request failed: ${response.status} ${response.statusText}${reason}`,
+        `Presscart API request failed: ${response.status} ${response.statusText}${getClientErrorReason(response.status, body)}`,
         response.status,
         body
       );
@@ -173,10 +170,55 @@ function ensureTrailingSlash(url: string) {
 }
 
 const MAX_INVALID_FIELDS = 5;
+const MAX_ERROR_REASON_LENGTH = 300;
 const FIELD_NAME_PATTERN = /^[A-Za-z0-9_]{1,64}$/;
+const ERROR_CODE_PATTERN = /^[A-Za-z0-9_.-]{1,64}$/;
+const SENSITIVE_ERROR_TEXT =
+  /(authorization\s*[:=]|bearer\s+[a-z0-9._\-]+|sk_(live|test)_[a-z0-9]+|eyj[a-z0-9_-]{20,}\.[a-z0-9_-]+\.|postgres(ql)?:\/\/|password\s*[:=]|api[_-]?key\s*[:=]|x-presscart-)/i;
+
+function getClientErrorReason(status: number, body: unknown): string {
+  if (status !== 400) return '';
+
+  const parts: string[] = [];
+  const message = getSafeErrorMessage(body);
+  const code = getSafeErrorCode(body);
+  const invalidFields = getInvalidFields(body);
+
+  if (message) parts.push(message);
+  if (code) parts.push(`code ${code}`);
+  if (invalidFields.length > 0) parts.push(`invalid fields: ${invalidFields.join(', ')}`);
+  if (parts.length === 0) return '';
+
+  const reason = parts.join('; ');
+  const clipped =
+    reason.length > MAX_ERROR_REASON_LENGTH
+      ? `${reason.slice(0, MAX_ERROR_REASON_LENGTH - 3).trimEnd()}...`
+      : reason;
+  return `: ${clipped}`;
+}
+
+function readErrorField(body: unknown, key: string): unknown {
+  if (!isRecord(body)) return undefined;
+  if (isRecord(body.error) && body.error[key] !== undefined) return body.error[key];
+  return body[key];
+}
+
+function getSafeErrorMessage(body: unknown): string | null {
+  const message = readErrorField(body, 'message');
+  if (typeof message !== 'string') return null;
+
+  const trimmed = message.replace(/\s+/g, ' ').trim();
+  if (!trimmed || SENSITIVE_ERROR_TEXT.test(trimmed)) return null;
+  return trimmed;
+}
+
+function getSafeErrorCode(body: unknown): string | null {
+  const code = readErrorField(body, 'code');
+  return typeof code === 'string' && ERROR_CODE_PATTERN.test(code) ? code : null;
+}
 
 function getInvalidFields(body: unknown): string[] {
-  const issues = isRecord(body) && isRecord(body.error) ? body.error.issues : undefined;
+  const issues = readErrorField(body, 'issues');
   if (!Array.isArray(issues)) return [];
 
   const fields = new Set<string>();
