@@ -182,13 +182,16 @@ function getClientErrorReason(status: number, body: unknown): string {
   const parts: string[] = [];
   const code = getSafeErrorCode(body);
   const meta = getSafeErrorMeta(body);
-  const message = getSafeErrorMessage(body);
-  const invalidFields = getInvalidFields(body);
 
   if (code) parts.push(`code ${code}`);
   if (meta) parts.push(meta);
-  if (message) parts.push(message);
-  if (invalidFields.length > 0) parts.push(`invalid fields: ${invalidFields.join(', ')}`);
+
+  if (status === 400) {
+    const message = getSafeErrorMessage(body);
+    const invalidFields = getInvalidFields(body);
+    if (message) parts.push(message);
+    if (invalidFields.length > 0) parts.push(`invalid fields: ${invalidFields.join(', ')}`);
+  }
   if (parts.length === 0) return '';
 
   const reason = parts.join('; ');
@@ -221,7 +224,7 @@ function getSafeErrorCode(body: unknown): string | null {
 
 const ORDER_ID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const REFERENCE_NUMBER_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+const REFERENCE_NUMBER_PATTERN = /^[A-Z0-9]{8}$/;
 
 function getSafeErrorMeta(body: unknown): string | null {
   const meta = readErrorField(body, 'meta');
