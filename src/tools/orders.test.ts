@@ -120,6 +120,79 @@ test('create_order keeps the checkout link but removes payment secrets and Strip
   }
 });
 
+test('create_order omits checkout_link when the order is already paid', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () =>
+    jsonResponse({
+      ...apiOrder(),
+      payment_status: 'PAID',
+      total: 0,
+      processing_fee: 0,
+      credits_applied: 3800,
+    })) as typeof fetch;
+
+  try {
+    const result = await registerTools()
+      .get('create_order')
+      ?.handler(
+        {
+          team_slug: 'raintech',
+          profile_id: ids.profileId,
+          line_items: [{ product_id: ids.productId, quantity: 1, is_add_on: false }],
+        },
+        apiTokenExtra()
+      );
+
+    const order = toolOutput(result);
+    assert.equal(collectKeys(order).has('checkout_link'), false);
+    assert.equal(order.payment_status, 'PAID');
+    assert.equal(order.credits_applied, 3800);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('create_order surfaces a 409 DUPLICATE_CREDIT_ORDER with the existing order ids', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () =>
+    new Response(
+      JSON.stringify({
+        name: 'ConflictError',
+        message:
+          'This cart was already ordered and paid with Team Credits in the last 10 minutes (order ABC123). Nothing was charged again. Check that order instead of retrying.',
+        code: 'DUPLICATE_CREDIT_ORDER',
+        meta: { order_id: ids.orderId, reference_number: 'ABC123' },
+      }),
+      { status: 409, statusText: 'Conflict', headers: { 'content-type': 'application/json' } }
+    )) as typeof fetch;
+
+  try {
+    const handler = registerTools().get('create_order')?.handler;
+    assert.ok(handler);
+    await assert.rejects(
+      () =>
+        handler(
+            {
+              team_slug: 'raintech',
+              profile_id: ids.profileId,
+              line_items: [{ product_id: ids.productId, quantity: 1, is_add_on: false }],
+            },
+            apiTokenExtra()
+          ),
+      (error: unknown) => {
+        assert.ok(error instanceof Error);
+        assert.match(error.message, /409/);
+        assert.match(error.message, /code DUPLICATE_CREDIT_ORDER/);
+        assert.match(error.message, new RegExp(`order_id ${ids.orderId}`));
+        assert.match(error.message, /reference_number ABC123/);
+        return true;
+      }
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 const pagination = { total_records: 1, total_pages: 1, current_page: 1, next_page: null };
 
 test('list_profile_orders returns orders and pagination without payment, Stripe, invoice or email fields', async () => {

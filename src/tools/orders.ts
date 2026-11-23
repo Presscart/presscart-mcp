@@ -7,6 +7,7 @@ import {
   resolveProfileId,
   type ServerOptions,
 } from '../utils/tool-context.js';
+import { isRecord } from '../utils/is-record.js';
 import { sanitizeSensitiveFields } from '../utils/sensitive-fields.js';
 import { jsonResult } from '../utils/tool-result.js';
 import { teamRoute } from '../utils/team-routes.js';
@@ -19,7 +20,7 @@ export function registerOrderTools(server: McpServer, options: ServerOptions) {
     {
       title: 'Create Order',
       description:
-        'Create a Presscart checkout order for a profile and one or more line items. If profile_id is unknown, call list_teams first, choose the team_id, then call list_profiles with that team_id. If the user wants Presscart internal writers to write the article, call list_add_ons first and recommend a writing add-on. If the user does not want internal writers, explain the self-submitted story option: $0 add-on cost, but the user writes the story and must follow Presscart editorial guidelines plus the selected publisher/publication requirements. For a new checkout with an add-on, include the base publication line item and then the add-on line item with is_add_on=true and the same quantity; linked_order_line_item_id is only for attaching add-ons to existing order line items. Before checkout is created, refer to any summed item prices only as an estimated item subtotal, not the order total. After checkout is created, use the returned subtotal, discount, processing_fee, credits_applied, and total fields as the authoritative order amounts. A 3% processing fee is added when an order is paid by card (a $100 item returns total 103 and processing_fee 3); an order paid in full from the team credit balance has no fee. Whether team credit is applied depends on the team settings for this API key or MCP connection: an order the balance covers can be paid at creation with no checkout step, so confirm the purchase with the user before calling this tool, and credits_applied: 0 does not mean the team has no credits. Read credits_applied, processing_fee, total and payment_status from the response to tell the user what was paid and what is still due. Give the user the returned checkout_link right away so they can pay, because get_order and list_profile_orders do not return it.',
+        'Create a Presscart checkout order for a profile and one or more line items. If profile_id is unknown, call list_teams first, choose the team_id, then call list_profiles with that team_id. If the user wants Presscart internal writers to write the article, call list_add_ons first and recommend a writing add-on. If the user does not want internal writers, explain the self-submitted story option: $0 add-on cost, but the user writes the story and must follow Presscart editorial guidelines plus the selected publisher/publication requirements. For a new checkout with an add-on, include the base publication line item and then the add-on line item with is_add_on=true and the same quantity; linked_order_line_item_id is only for attaching add-ons to existing order line items. Before checkout is created, refer to any summed item prices only as an estimated item subtotal, not the order total. After checkout is created, use the returned subtotal, discount, processing_fee, credits_applied, and total fields as the authoritative order amounts. A 3% processing fee is added when an order is paid by card (a $100 item returns total 103 and processing_fee 3); an order paid in full from the team credit balance has no fee. Whether team credit is applied depends on the team settings for this API key or MCP connection: an order the balance covers can be paid at creation with no checkout step, so confirm the purchase with the user before calling this tool, and credits_applied: 0 does not mean the team has no credits. Read credits_applied, processing_fee, total and payment_status from the response to tell the user what was paid and what is still due. If payment is still due, give the user the returned checkout_link so they can pay, because get_order and list_profile_orders do not return it. If payment_status is PAID, for example when Team Credits paid the order, do not share checkout_link as a way to pay. Never retry the same purchase as a new order. A 409 with code DUPLICATE_CREDIT_ORDER means the order was already placed and paid: use the order_id and reference_number in the error meta and do not order again. If a call times out, check the existing order with get_order or list_profile_orders before trying again.',
       inputSchema: {
         team_slug: teamSlugSchema,
         profile_id: z.string().uuid(),
@@ -44,7 +45,9 @@ export function registerOrderTools(server: McpServer, options: ServerOptions) {
         profile_id: profileId,
         line_items: input.line_items,
       });
-      return jsonResult(sanitizeSensitiveFields(response, { keepCheckoutLink: true }));
+      return jsonResult(
+        sanitizeSensitiveFields(response, { keepCheckoutLink: isCheckoutPaymentDue(response) })
+      );
     }
   );
 
@@ -133,4 +136,15 @@ export function registerOrderTools(server: McpServer, options: ServerOptions) {
       return jsonResult(sanitizeSensitiveFields(response));
     }
   );
+}
+
+function isCheckoutPaymentDue(order: unknown): boolean {
+  if (!isRecord(order)) return false;
+  if (typeof order.payment_status === 'string' && order.payment_status.toUpperCase() === 'PAID') {
+    return false;
+  }
+  if (typeof order.total === 'number' && order.total <= 0) {
+    return false;
+  }
+  return true;
 }

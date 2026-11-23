@@ -177,15 +177,17 @@ const SENSITIVE_ERROR_TEXT =
   /(authorization\s*[:=]|bearer\s+[a-z0-9._\-]+|sk_(live|test)_[a-z0-9]+|eyj[a-z0-9_-]{20,}\.[a-z0-9_-]+\.|postgres(ql)?:\/\/|password\s*[:=]|api[_-]?key\s*[:=]|x-presscart-)/i;
 
 function getClientErrorReason(status: number, body: unknown): string {
-  if (status !== 400) return '';
+  if (status !== 400 && status !== 409) return '';
 
   const parts: string[] = [];
-  const message = getSafeErrorMessage(body);
   const code = getSafeErrorCode(body);
+  const meta = getSafeErrorMeta(body);
+  const message = getSafeErrorMessage(body);
   const invalidFields = getInvalidFields(body);
 
-  if (message) parts.push(message);
   if (code) parts.push(`code ${code}`);
+  if (meta) parts.push(meta);
+  if (message) parts.push(message);
   if (invalidFields.length > 0) parts.push(`invalid fields: ${invalidFields.join(', ')}`);
   if (parts.length === 0) return '';
 
@@ -215,6 +217,27 @@ function getSafeErrorMessage(body: unknown): string | null {
 function getSafeErrorCode(body: unknown): string | null {
   const code = readErrorField(body, 'code');
   return typeof code === 'string' && ERROR_CODE_PATTERN.test(code) ? code : null;
+}
+
+const ORDER_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const REFERENCE_NUMBER_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+
+function getSafeErrorMeta(body: unknown): string | null {
+  const meta = readErrorField(body, 'meta');
+  if (!isRecord(meta)) return null;
+
+  const parts: string[] = [];
+  if (typeof meta.order_id === 'string' && ORDER_ID_PATTERN.test(meta.order_id)) {
+    parts.push(`order_id ${meta.order_id}`);
+  }
+  if (
+    typeof meta.reference_number === 'string' &&
+    REFERENCE_NUMBER_PATTERN.test(meta.reference_number)
+  ) {
+    parts.push(`reference_number ${meta.reference_number}`);
+  }
+  return parts.length > 0 ? parts.join(', ') : null;
 }
 
 function getInvalidFields(body: unknown): string[] {

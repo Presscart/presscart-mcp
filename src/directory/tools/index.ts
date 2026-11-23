@@ -128,7 +128,7 @@ export function formatDirectoryToolError(error: unknown) {
     if (error.status === 404) return 'Presscart API resource not found';
     if (error.status === 504) return 'Presscart API request timed out';
     if (error.status >= 500) return 'Presscart API is unavailable';
-    if (error.status === 400) return error.message;
+    if (error.status === 400 || error.status === 409) return error.message;
     if (error.status >= 400 && error.status < 500) {
       return `Presscart API rejected the request (${error.status})`;
     }
