@@ -178,10 +178,13 @@ export function registerCampaignTools(server: McpServer, options: ServerOptions)
     {
       title: 'Add Order Items To Campaign',
       description:
-        'Add only eligible unassigned paid order items to a campaign. Do not call this tool for unpaid, pending, draft, or checkout-created orders; if an order is not paid, tell the user it must be paid before its items can be added to a campaign. If the user wants an existing campaign, call list_campaigns first and pass campaign_id. If the user wants a new campaign, pass campaign_name. If the user has not said whether to use a new or existing campaign, ask before calling this tool. Provide exactly one of campaign_id or campaign_name.',
+        'Add the paid order\'s pending placements (items not yet in a campaign) to a single campaign; add-ons attach automatically. All pending placements of the order go into that one campaign. Do not call this tool for unpaid, pending, draft, or checkout-created orders; if an order is not paid, tell the user it must be paid before its items can be added to a campaign. If the user wants an existing campaign, call list_campaigns first and pass campaign_id. If the user wants a new campaign, pass campaign_name. If the user has not said whether to use a new or existing campaign, ask before calling this tool. Provide exactly one of campaign_id or campaign_name.',
       inputSchema: {
         team_slug: teamSlugSchema,
-        profile_id: z.string().uuid(),
+        profile_id: z
+          .string()
+          .uuid()
+          .describe('Accepted for compatibility and not used: the API takes the profile from the order.'),
         order_id: z.string().uuid(),
         campaign_id: z.string().uuid().optional(),
         campaign_name: z.string().trim().min(1).optional(),
@@ -199,20 +202,45 @@ export function registerCampaignTools(server: McpServer, options: ServerOptions)
       }
 
       const api = createPresscartApiClient(extra, options);
-      const profileId = resolveProfileId(input.profile_id);
-      const response = await api.post<UploadContentResponse>(
+      // The team order route always returns each line's order_items, so no query param is needed.
+      const order = await api.get<OrderLineItemsResponse>(
+        teamRoute(input.team_slug, `/orders/${input.order_id}`)
+      );
+      const orderItemIds = collectPendingBaseOrderItemIds(order);
+
+      if (orderItemIds.length === 0) {
+        throw new Error(
+          'This order has no paid placements waiting to be added to a campaign. It may be unpaid, or its placements are already in a campaign. Use get_order to check the order status and its items, or list_campaigns to find the campaign they are already in.'
+        );
+      }
+
+      const response = await api.post<unknown>(
         teamRoute(input.team_slug, '/campaigns/upload-content'),
         {
-          profile_id: profileId,
           order_id: input.order_id,
-          ...(input.campaign_id
-            ? { campaign_id: input.campaign_id }
-            : { campaign_name: input.campaign_name }),
+          groups: [
+            {
+              ...(input.campaign_id
+                ? { campaign_id: input.campaign_id }
+                : { campaign_name: input.campaign_name }),
+              order_item_ids: orderItemIds,
+            },
+          ],
         }
       );
 
-      const articleQueue = await readCampaignArticleQueue(api, input.team_slug, response.campaign_id);
-      return jsonResult(buildAddOrderItemsToCampaignResult(response, articleQueue));
+      const parsed = uploadContentResponseSchema.safeParse(response);
+      if (!parsed.success) {
+        throw new Error(
+          'Presscart did not return a campaign id for the upload. Use list_campaigns to check whether the items were added before retrying.'
+        );
+      }
+
+      const [campaignId] = parsed.data.campaign_ids;
+      const articleQueue = await readCampaignArticleQueue(api, input.team_slug, campaignId);
+      return jsonResult(
+        buildAddOrderItemsToCampaignResult({ campaign_id: campaignId }, articleQueue)
+      );
     }
   );
 
@@ -239,9 +267,38 @@ export function registerCampaignTools(server: McpServer, options: ServerOptions)
   );
 }
 
-type UploadContentResponse = {
+// One campaign id per request group, in request order; this tool sends exactly one group.
+const uploadContentResponseSchema = z
+  .object({ campaign_ids: z.tuple([z.string().uuid()]) })
+  .passthrough();
+
+type AddedCampaign = {
   campaign_id: string;
 };
+
+type OrderLineItemsResponse = {
+  line_items?: {
+    is_add_on?: boolean | null;
+    order_items?: { id?: string; campaign_id?: string | null }[] | null;
+  }[] | null;
+};
+
+// The API requires the upload to cover every pending placement exactly once, and attaches
+// add-on items itself, so only unassigned base (non add-on) order items are sent.
+// The team order route has no item-level add-on flag, so this uses the line item's is_add_on;
+// the server applies the rule per item and answers 400 if the two ever disagree.
+export function collectPendingBaseOrderItemIds(
+  order: OrderLineItemsResponse | null | undefined
+): string[] {
+  const ids: string[] = [];
+  for (const lineItem of order?.line_items ?? []) {
+    if (lineItem?.is_add_on === true) continue;
+    for (const item of lineItem?.order_items ?? []) {
+      if (typeof item?.id === 'string' && !item.campaign_id) ids.push(item.id);
+    }
+  }
+  return ids;
+}
 
 type CampaignArticleStatus = {
   name?: string | null;
@@ -354,7 +411,7 @@ async function readCampaignArticleQueue(
 }
 
 export function buildAddOrderItemsToCampaignResult(
-  response: UploadContentResponse,
+  response: AddedCampaign,
   articleQueue: ArticleQueueResult
 ) {
   if (!articleQueue.available) {
